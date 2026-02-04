@@ -128,11 +128,11 @@ describe('Notification APIs', () => {
         );
       }
 
-      // Fetch system notifications
+      // Fetch system notifications - sorted by priority (high=1, medium=2)
       const notifs = await db.all(
         `SELECT id, type, title, priority FROM Notifications 
          WHERE user_id = ? AND workspace_id = ? AND type = 'system'
-         ORDER BY priority DESC, created_at DESC`,
+         ORDER BY (CASE WHEN priority = 'high' THEN 1 ELSE 2 END), created_at DESC`,
         [fixtures.users[0].id, fixtures.workspace.id]
       );
 
@@ -386,5 +386,3 @@ describe('Workspace APIs', () => {
     });
   });
 });
-
-import { v4 as uuidv4 } from 'uuid';

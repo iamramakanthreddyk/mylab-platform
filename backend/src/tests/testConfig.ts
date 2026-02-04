@@ -30,40 +30,45 @@ export interface TestDatabase {
  */
 export async function initializeTestDatabase(): Promise<TestDatabase> {
   return new Promise((resolve, reject) => {
-    const db = new sqlite3.Database(TEST_DB_PATH, (err) => {
+    const db = new sqlite3.Database(TEST_DB_PATH, async (err) => {
       if (err) {
         reject(err);
         return;
       }
 
-      const testDb: TestDatabase = {
-        db,
-        run: promisify(db.run.bind(db)),
-        get: promisify(db.get.bind(db)),
-        all: promisify(db.all.bind(db)),
-        exec: async (sql: string) => {
-          return new Promise((resolve, reject) => {
-            db.exec(sql, (err) => {
-              if (err) reject(err);
-              else resolve();
-            });
-          });
-        },
-        close: async () => {
-          return new Promise((resolve, reject) => {
-            db.close((err) => {
-              if (err) reject(err);
-              else resolve();
-            });
-          });
+      // Enable foreign keys synchronously
+      db.run('PRAGMA foreign_keys = ON', (err) => {
+        if (err) {
+          reject(err);
+          return;
         }
-      };
 
-      resolve(testDb);
+        const testDb: TestDatabase = {
+          db,
+          run: promisify(db.run.bind(db)),
+          get: promisify(db.get.bind(db)),
+          all: promisify(db.all.bind(db)),
+          exec: async (sql: string) => {
+            return new Promise((resolve, reject) => {
+              db.exec(sql, (err) => {
+                if (err) reject(err);
+                else resolve();
+              });
+            });
+          },
+          close: async () => {
+            return new Promise((resolve, reject) => {
+              db.close((err) => {
+                if (err) reject(err);
+                else resolve();
+              });
+            });
+          }
+        };
+
+        resolve(testDb);
+      });
     });
-
-    // Enable foreign keys for SQLite
-    db.run('PRAGMA foreign_keys = ON');
   });
 }
 
@@ -318,8 +323,16 @@ export async function cleanupTestDatabase(db: TestDatabase): Promise<void> {
  * Clear test database file
  */
 export async function deleteTestDatabase(): Promise<void> {
-  if (fs.existsSync(TEST_DB_PATH)) {
-    fs.unlinkSync(TEST_DB_PATH);
+  // Wait a bit for all file handles to close
+  await new Promise(resolve => setTimeout(resolve, 100));
+  
+  try {
+    if (fs.existsSync(TEST_DB_PATH)) {
+      fs.unlinkSync(TEST_DB_PATH);
+    }
+  } catch (err) {
+    // File might be in use, will be overwritten on next run
+    console.warn('Warning: could not delete test database file');
   }
 }
 
