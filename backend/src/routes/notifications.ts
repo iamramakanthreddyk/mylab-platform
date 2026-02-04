@@ -453,6 +453,51 @@ router.post('/project', authenticate, async (req, res) => {
   }
 });
 
+// GET /api/notifications/system - Get system announcements for authenticated user
+router.get('/system', authenticate, async (req, res) => {
+  try {
+    const userId = req.user!.id;
+    const workspaceId = req.user!.workspaceId;
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 1000);
+    const offset = parseInt(req.query.offset as string) || 0;
+
+    const result = await pool.query(`
+      SELECT id, user_id, workspace_id, type, title, message, priority, 
+             expires_at, metadata, read, created_at, updated_at
+      FROM Notifications
+      WHERE user_id = $1 
+        AND workspace_id = $2 
+        AND type = 'system'
+        AND deleted_at IS NULL
+        AND (expires_at IS NULL OR expires_at > NOW())
+      ORDER BY priority DESC, created_at DESC
+      LIMIT $3 OFFSET $4
+    `, [userId, workspaceId, limit, offset]);
+
+    const countResult = await pool.query(`
+      SELECT COUNT(*) as total
+      FROM Notifications
+      WHERE user_id = $1 
+        AND workspace_id = $2 
+        AND type = 'system'
+        AND deleted_at IS NULL
+        AND (expires_at IS NULL OR expires_at > NOW())
+    `, [userId, workspaceId]);
+
+    res.json({
+      notifications: result.rows,
+      pagination: {
+        limit,
+        offset,
+        total: parseInt(countResult.rows[0].total)
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching system notifications:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // POST /api/notifications/system - Create system announcement
 router.post('/system', authenticate, async (req, res) => {
   try {

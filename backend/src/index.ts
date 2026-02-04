@@ -16,6 +16,7 @@ import apiKeyRoutes from './routes/apiKeys';
 import companyRoutes from './routes/company';
 import notificationRoutes from './routes/notifications';
 import accessRoutes from './routes/access';
+import workspaceRoutes from './routes/workspaces';
 import { initializeTokenCleanupJob } from './jobs/tokenCleanup';
 
 dotenv.config();
@@ -51,6 +52,7 @@ app.use('/api/api-keys', apiKeyRoutes);
 app.use('/api/company', companyRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/access', accessRoutes);
+app.use('/api/workspaces', workspaceRoutes);
 
 // Health check with platform info
 app.get('/health', (req, res) => {
