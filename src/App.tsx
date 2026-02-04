@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { User, UserRole, Project, Sample } from '@/lib/types'
+import { FRONTEND_CONFIG, getAvailableModules, checkRouteAccess } from '@/lib/config/frontend'
 import { Login } from '@/components/Login'
 import { Navigation } from '@/components/Navigation'
 import { Dashboard } from '@/components/Dashboard'
@@ -9,7 +10,7 @@ import { SamplesView } from '@/components/SamplesView'
 import { SchemaExplorer } from '@/components/SchemaExplorer'
 import { Toaster } from '@/components/ui/sonner'
 
-const API_BASE = 'http://localhost:3001/api'
+const API_BASE = FRONTEND_CONFIG.apiBase
 
 function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null)

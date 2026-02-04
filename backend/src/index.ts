@@ -4,6 +4,9 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import { pool } from './db';
+import { PLATFORM_CONFIG } from './config/platform';
+
+// Import existing routes
 import authRoutes from './routes/auth';
 import projectRoutes from './routes/projects';
 import sampleRoutes from './routes/samples';
@@ -25,14 +28,35 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// Routes
+// Routes - using central brain configuration
+console.log('🚀 Initializing MyLab Platform with modules:', PLATFORM_CONFIG.modules.map(m => m.name));
+
+// Static routes for now (will be dynamic later)
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/samples', sampleRoutes);
 
-// Health check
+// Health check with platform info
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    platform: {
+      name: PLATFORM_CONFIG.name,
+      version: PLATFORM_CONFIG.version,
+      modules: PLATFORM_CONFIG.modules.length,
+      endpoints: PLATFORM_CONFIG.modules.reduce((sum, m) => sum + m.endpoints.length, 0)
+    }
+  });
+});
+
+// Platform info endpoint
+app.get('/api/platform', (req, res) => {
+  res.json({
+    ...PLATFORM_CONFIG,
+    // Don't expose sensitive config
+    database: { ...PLATFORM_CONFIG.database, password: undefined }
+  });
 });
 
 // Error handling
