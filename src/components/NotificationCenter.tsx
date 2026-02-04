@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Bell, AlertTriangle, CheckCircle, Clock, X } from 'lucide-react';
+import { useAuth } from '@/lib/AuthContext';
 import { toast } from 'sonner';
 
 interface Notification {
@@ -21,6 +22,7 @@ interface NotificationCenterProps {
 }
 
 export const NotificationCenter: React.FC<NotificationCenterProps> = ({ workspaceId }) => {
+  const { user } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [filter, setFilter] = useState<'all' | 'payment' | 'system' | 'unread'>('all');
 
@@ -49,11 +51,13 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ workspac
   };
 
   const markAsRead = async (notificationId: string) => {
+    if (!user) return;
+    
     try {
       const response = await fetch(`/api/notifications/${notificationId}/read`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: 'user-1' }) // TODO: Get from auth
+        body: JSON.stringify({ userId: user.id })
       });
       
       if (response.ok) {
@@ -70,11 +74,13 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ workspac
   };
 
   const dismissNotification = async (notificationId: string) => {
+    if (!user) return;
+    
     try {
       const response = await fetch(`/api/notifications/${notificationId}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: 'user-1' }) // TODO: Get from auth
+        body: JSON.stringify({ userId: user.id })
       });
       
       if (response.ok) {

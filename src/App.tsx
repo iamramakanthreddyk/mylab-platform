@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { User, UserRole, Project, Sample } from '@/lib/types'
 import { FRONTEND_CONFIG, getAvailableModules, checkRouteAccess } from '@/lib/config/frontend'
+import { AuthContextProvider } from '@/lib/AuthContext'
 import { Login } from '@/components/Login'
 import { Navigation } from '@/components/Navigation'
 import { Dashboard } from '@/components/Dashboard'
@@ -119,26 +120,28 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navigation
-        user={currentUser}
-        currentView={currentView}
-        onViewChange={setCurrentView}
-        onLogout={handleLogout}
-      />
-      {currentView === 'dashboard' && (
-        <Dashboard user={currentUser} projects={projects || []} onNavigate={setCurrentView} />
-      )}
-      {currentView === 'projects' && (
-        <ProjectsView user={currentUser} projects={projects || []} onCreateProject={createProject} />
-      )}
-      {currentView === 'samples' && (
-        <SamplesView user={currentUser} samples={samples || []} />
-      )}
-      {currentView === 'schema' && <SchemaExplorer />}
-      {currentView === 'notifications' && <NotificationCenter />}
-      <Toaster />
-    </div>
+    <AuthContextProvider value={{ user: currentUser, isLoading: false, error: null }}>
+      <div className="min-h-screen bg-background">
+        <Navigation
+          user={currentUser}
+          currentView={currentView}
+          onViewChange={setCurrentView}
+          onLogout={handleLogout}
+        />
+        {currentView === 'dashboard' && (
+          <Dashboard user={currentUser} projects={projects || []} onNavigate={setCurrentView} />
+        )}
+        {currentView === 'projects' && (
+          <ProjectsView user={currentUser} projects={projects || []} onCreateProject={createProject} />
+        )}
+        {currentView === 'samples' && (
+          <SamplesView user={currentUser} samples={samples || []} />
+        )}
+        {currentView === 'schema' && <SchemaExplorer />}
+        {currentView === 'notifications' && <NotificationCenter />}
+        <Toaster />
+      </div>
+    </AuthContextProvider>
   )
 }
 

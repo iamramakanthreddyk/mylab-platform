@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '@/lib/AuthContext';
 import { toast } from 'sonner';
 
 export interface NotificationItem {
@@ -14,6 +15,7 @@ export interface NotificationItem {
 }
 
 export const useNotifications = () => {
+  const { user } = useAuth();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
   // Load notifications from API
@@ -71,11 +73,13 @@ export const useNotifications = () => {
 
   // Mark notification as read
   const markAsRead = useCallback(async (id: string) => {
+    if (!user) return;
+    
     try {
       const response = await fetch(`/api/notifications/${id}/read`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: 'user-1' }) // TODO: Get from auth
+        body: JSON.stringify({ userId: user.id })
       });
       
       if (!response.ok) throw new Error('Failed to mark as read');
@@ -84,15 +88,17 @@ export const useNotifications = () => {
     } catch (error) {
       console.error('Error marking notification as read:', error);
     }
-  }, []);
+  }, [user]);
 
   // Remove notification
   const removeNotification = useCallback(async (id: string) => {
+    if (!user) return;
+    
     try {
       const response = await fetch(`/api/notifications/${id}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: 'user-1' }) // TODO: Get from auth
+        body: JSON.stringify({ userId: user.id })
       });
       
       if (!response.ok) throw new Error('Failed to delete notification');
@@ -101,15 +107,17 @@ export const useNotifications = () => {
     } catch (error) {
       console.error('Error removing notification:', error);
     }
-  }, []);
+  }, [user]);
 
   // Clear all notifications
   const clearAllNotifications = useCallback(async () => {
+    if (!user) return;
+    
     try {
       const response = await fetch('/api/notifications/clear-all', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: 'user-1' }) // TODO: Get from auth
+        body: JSON.stringify({ userId: user.id })
       });
       
       if (!response.ok) throw new Error('Failed to clear notifications');
@@ -118,7 +126,7 @@ export const useNotifications = () => {
     } catch (error) {
       console.error('Error clearing notifications:', error);
     }
-  }, []);
+  }, [user]);
 
   // Show toast notification
   const showToast = useCallback((notification: NotificationItem) => {

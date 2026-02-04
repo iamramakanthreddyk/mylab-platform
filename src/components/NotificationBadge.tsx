@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Bell } from 'lucide-react';
+import { useAuth } from '@/lib/AuthContext';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
@@ -19,6 +20,7 @@ interface NotificationItem {
 }
 
 export const NotificationBadge: React.FC = () => {
+  const { user } = useAuth();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
@@ -55,11 +57,13 @@ export const NotificationBadge: React.FC = () => {
   };
 
   const markAsRead = async (notificationId: string) => {
+    if (!user) return;
+    
     try {
       const response = await fetch(`/api/notifications/${notificationId}/read`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: 'user-1' }) // TODO: Get from auth
+        body: JSON.stringify({ userId: user.id })
       });
 
       if (response.ok) {

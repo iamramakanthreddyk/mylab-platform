@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, Settings, X } from 'lucide-react';
+import { useAuth } from '@/lib/AuthContext';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -17,6 +18,7 @@ interface NotificationPreferences {
 }
 
 export const NotificationSettings: React.FC = () => {
+  const { user } = useAuth();
   const [preferences, setPreferences] = useState<NotificationPreferences>({
     email: true,
     push: true,
@@ -33,25 +35,33 @@ export const NotificationSettings: React.FC = () => {
   }, []);
 
   const loadPreferences = async () => {
+    if (!user) return;
+    
     try {
-      // TODO: Load from API
-      // const response = await fetch('/api/notifications/preferences');
-      // const data = await response.json();
-      // setPreferences(data.preferences);
+      const response = await fetch(`/api/notifications/preferences?userId=${user.id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setPreferences(data.preferences);
+      }
     } catch (error) {
       console.error('Error loading preferences:', error);
     }
   };
 
   const savePreferences = async () => {
+    if (!user) return;
+    
     setLoading(true);
     try {
-      // TODO: Save to API
-      // await fetch('/api/notifications/preferences', {
-      //   method: 'PUT',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ preferences })
-      // });
+      const response = await fetch('/api/notifications/preferences', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, preferences })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save preferences');
+      }
 
       toast.success('Notification preferences saved');
     } catch (error) {

@@ -57,19 +57,11 @@ export const BulkNotificationWorkflow: React.FC = () => {
 
   const loadWorkspaces = async () => {
     try {
-      // TODO: Replace with actual API call
-      // const response = await fetch('/api/workspaces/summary');
-      // const data = await response.json();
-
-      // Mock data for now
-      const mockWorkspaces: Workspace[] = [
-        { id: '1', name: 'Research Lab A', userCount: 15 },
-        { id: '2', name: 'Oncology Center', userCount: 8 },
-        { id: '3', name: 'Endocrinology Lab', userCount: 12 },
-        { id: '4', name: 'BioTech Inc', userCount: 25 }
-      ];
-
-      setWorkspaces(mockWorkspaces);
+      const response = await fetch('/api/workspaces/summary');
+      if (!response.ok) throw new Error('Failed to fetch workspaces');
+      
+      const data = await response.json();
+      setWorkspaces(data.data || data.workspaces || []);
     } catch (error) {
       console.error('Error loading workspaces:', error);
       toast.error('Failed to load workspaces');

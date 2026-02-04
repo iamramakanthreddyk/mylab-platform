@@ -47,18 +47,11 @@ export const ProjectNotificationWorkflow: React.FC = () => {
 
   const loadProjects = async () => {
     try {
-      // TODO: Replace with actual API call
-      // const response = await fetch('/api/projects?limit=50');
-      // const data = await response.json();
-
-      // Mock data for now
-      const mockProjects: Project[] = [
-        { id: '1', name: 'COVID-19 Vaccine Study', workspaceName: 'Research Lab A', status: 'active', clientName: 'PharmaCorp' },
-        { id: '2', name: 'Cancer Drug Trial', workspaceName: 'Oncology Center', status: 'planning', clientName: 'BioTech Inc' },
-        { id: '3', name: 'Diabetes Research', workspaceName: 'Endocrinology Lab', status: 'completed', clientName: 'MediCo' }
-      ];
-
-      setProjects(mockProjects);
+      const response = await fetch('/api/projects?limit=50');
+      if (!response.ok) throw new Error('Failed to fetch projects');
+      
+      const data = await response.json();
+      setProjects(data.data || data.projects || []);
     } catch (error) {
       console.error('Error loading projects:', error);
       toast.error('Failed to load projects');

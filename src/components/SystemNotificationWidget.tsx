@@ -25,33 +25,11 @@ export const SystemNotificationWidget: React.FC = () => {
 
   const loadSystemNotifications = async () => {
     try {
-      // TODO: Replace with actual API call
-      // const response = await fetch('/api/notifications/system');
-      // const data = await response.json();
-
-      // Mock data for now
-      const mockData: SystemNotification[] = [
-        {
-          id: '1',
-          type: 'warning',
-          title: 'Storage Limit',
-          message: '85% of storage used',
-          timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
-          read: false,
-          priority: 'medium'
-        },
-        {
-          id: '2',
-          type: 'info',
-          title: 'New Feature Available',
-          message: 'Advanced analytics now available',
-          timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000),
-          read: true,
-          priority: 'low'
-        }
-      ];
-
-      setNotifications(mockData);
+      const response = await fetch('/api/notifications/system');
+      if (!response.ok) throw new Error('Failed to fetch system notifications');
+      
+      const data = await response.json();
+      setNotifications(data.notifications || []);
     } catch (error) {
       console.error('Error loading system notifications:', error);
       toast.error('Failed to load system notifications');
@@ -61,10 +39,22 @@ export const SystemNotificationWidget: React.FC = () => {
   };
 
   const markAsRead = async (notificationId: string) => {
-    setNotifications(prev =>
-      prev.map(n => n.id === notificationId ? { ...n, read: true } : n)
-    );
-    // TODO: Call API to mark as read
+    try {
+      const response = await fetch(`/api/notifications/${notificationId}/read`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      
+      if (response.ok) {
+        setNotifications(prev =>
+          prev.map(n => n.id === notificationId ? { ...n, read: true } : n)
+        );
+      }
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+      toast.error('Failed to mark notification as read');
+    }
   };
 
   const getNotificationIcon = (type: string) => {
