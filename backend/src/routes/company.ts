@@ -246,7 +246,7 @@ router.put('/onboarding/approve/:requestId', async (req, res) => {
       }
 
       // Prepare response with payment status
-      const paymentStatus = paymentInfo ? {
+      const paymentStatusResponse = paymentInfo ? {
         hasPayment: true,
         status: paymentInfo.status,
         amount: paymentInfo.amount,
@@ -278,7 +278,7 @@ router.put('/onboarding/approve/:requestId', async (req, res) => {
           role: 'admin',
           note: 'Temporary password set - user should change on first login'
         },
-        payment: paymentStatus,
+        payment: paymentStatusResponse,
         accessLevel: paymentInfo?.status === 'completed' ? 'full' : 'basic',
         reminders: paymentInfo?.status !== 'completed' ? {
           enabled: true,
