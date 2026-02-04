@@ -1,76 +1,77 @@
 # Planning Guide
 
-An enterprise-grade database schema explorer for the MyLab Platform - a comprehensive PostgreSQL schema visualization tool showcasing 25 interconnected tables across 9 functional categories including Core Identity, Project Management, Sample Lifecycle, Analysis, Documents, Access Control, Audit & Compliance, Communication, and Design of Experiments.
+MyLab Platform - An enterprise laboratory information management system (LIMS) for managing projects, samples, analyses, and cross-organizational collaboration with built-in schema documentation for administrators and developers.
 
 **Experience Qualities**:
-1. **Enterprise** - Professional, authoritative interface that conveys production-ready database architecture for complex multi-tenant laboratory management systems
-2. **Organized** - Clear categorization and filtering that helps database architects, developers, and stakeholders navigate the schema structure efficiently
-3. **Comprehensive** - Complete visibility into all entities, relationships, foreign keys, and data types with detailed descriptions and metadata
+1. **Professional** - Enterprise-grade laboratory management interface that instills confidence in scientists, project managers, and laboratory administrators
+2. **Secure** - Role-based access control with clear user authentication, workspace isolation, and admin-only access to sensitive features like schema exploration
+3. **Intuitive** - Streamlined workflows for common laboratory tasks like creating projects, managing samples, tracking analyses, and reviewing results
 
-**Complexity Level**: Light Application (multiple features with basic state)
-This is an interactive documentation and visualization tool with search, category filtering, relationship highlighting, and detail views but doesn't require backend integration or complex state management beyond UI interactions.
+**Complexity Level**: Complex Application (advanced functionality with multiple views, authentication, and role-based access)
+This is a full-featured LIMS platform with user authentication, role-based permissions, multi-view navigation, persistent data storage, and an admin-only schema visualization tool for developers and database administrators.
 
 ## Essential Features
 
-**Entity Table Display**
-- Functionality: Presents all 25 database entities as card-based tables showing fields with types, primary/foreign keys, category badges, and descriptions
-- Purpose: Provides immediate overview of complete MyLab Platform schema structure and entity attributes
-- Trigger: Page load
-- Progression: Page loads → All entities render as categorized cards → User scans available tables and their purposes
-- Success criteria: All 25 entities visible with complete field information, proper category tags, and formatted data types
+**User Authentication & Session Management**
+- Functionality: Login system using GitHub user info from spark.user() API to authenticate and assign roles (Admin, Manager, Scientist, Viewer)
+- Purpose: Secure access control and personalized experience with role-based permissions
+- Trigger: App load when no session exists
+- Progression: App loads → Check for session → If none, show login → User authenticates → Role assigned → Redirect to dashboard
+- Success criteria: Persistent login using useKV, role assignment works, appropriate views shown per role
 
-**Category-Based Filtering**
-- Functionality: Filter entities by functional category (Core Identity, Project Management, Sample Lifecycle, Analysis, Documents, Access Control, Audit & Compliance, Communication, DOE)
-- Purpose: Helps users focus on specific functional areas of the schema without information overload
-- Trigger: Click category badge
-- Progression: User clicks category → Grid updates to show only matching entities → Badge highlights active category → Click 'All' to reset
-- Success criteria: Smooth filtering, accurate counts per category, clear visual feedback on active category
+**Project Dashboard**
+- Functionality: Overview of active projects with status, sample counts, recent activity, and quick actions
+- Purpose: Central hub for scientists and managers to monitor ongoing laboratory work
+- Trigger: User logs in or clicks "Projects" in navigation
+- Progression: Dashboard loads → Projects fetched from storage → Cards display with stats → User can filter/sort → Click project to view details
+- Success criteria: All projects visible, accurate counts, smooth filtering, responsive layout
 
-**Relationship Visualization**
-- Functionality: Shows connections between entities with cardinality indicators and relationship labels
-- Purpose: Helps users understand how data flows through the system and entity dependencies
-- Trigger: Hover over entity card or select entity
-- Progression: User hovers/selects entity → Connected relationships highlight → Related entities glow → Details show in panel → User moves away → Returns to normal
-- Success criteria: All 54+ relationships visible with correct cardinality, highlighting works smoothly, relationship details accessible
+**Project Management**
+- Functionality: Create, view, edit projects with client organization, executing organization, stages, and linked samples
+- Purpose: Organize laboratory work into structured initiatives with multi-stakeholder collaboration
+- Trigger: Click "New Project" button or select existing project
+- Progression: Click new project → Form appears → Fill name, description, orgs → Save → Project created → Redirects to project view
+- Success criteria: Form validation works, project persists, can add/edit stages, link samples
 
-**Entity Search & Filter**
-- Functionality: Real-time search to find entities by name, field name, or description
-- Purpose: Quick navigation in complex schema with 25 tables and 200+ fields
-- Trigger: User types in search field
-- Progression: User focuses search → Types query → Matching entities remain → Non-matches fade → Clear search → All visible again
-- Success criteria: Search responds instantly (<100ms), highlighting is clear, supports partial matching on multiple attributes
+**Sample Tracking**
+- Functionality: Register original samples and derived samples with lineage tracking, metadata, status updates
+- Purpose: Maintain chain of custody and sample provenance throughout laboratory workflows
+- Trigger: Navigate to Samples or click "Add Sample" in project view
+- Progression: User creates sample → Links to project → Sets metadata → Sample saved → Can create derived samples → Lineage tree visible
+- Success criteria: Sample creation works, lineage displays correctly, metadata searchable, status updates persist
 
-**Relationship Explorer Tab**
-- Functionality: Dedicated view showing all relationships as structured list with source, target, type, and labels
-- Purpose: Provides alternative view for understanding data flow and foreign key relationships
-- Trigger: Click "Relationships" tab
-- Progression: User clicks tab → All relationships listed → Shows from/to entities → Displays relationship type → User can click entities to navigate
-- Success criteria: All relationships listed with complete metadata, clickable entity names, clear visual hierarchy
+**Admin Schema Explorer (Role-Restricted)**
+- Functionality: Complete database schema visualization accessible only to Admin and Manager roles (reuses existing schema viewer)
+- Purpose: Provides technical users and developers with schema documentation while keeping it hidden from regular users
+- Trigger: Admin/Manager user clicks "Schema" in navigation (hidden from others)
+- Progression: Admin clicks Schema → Full schema explorer loads → Browse entities → View relationships → Export documentation
+- Success criteria: Only visible to admins/managers, all schema features work, can be toggled on/off
 
 ## Edge Case Handling
 
-- **Empty Search Results**: Show "No entities found" message with current category context and suggestion to clear filters or switch categories
-- **Empty Category**: When filtering by category shows no results (shouldn't happen with valid data), show helpful message
-- **Mobile Viewport**: Category badges wrap to multiple rows, cards stack vertically, relationship panel becomes bottom sheet
-- **Long Field Names**: Truncate with ellipsis and show full name on hover tooltip
-- **Long Descriptions**: Line clamp to 2 lines in card view, show full description on entity selection
-- **Self-Referential Relationships**: DerivedSamples parent_id and similar relationships shown with special "self" indicator
-- **Multiple Foreign Keys to Same Table**: Organizations → Projects has both client_org_id and executing_org_id, shown as separate relationship entries
-- **Nullable Foreign Keys**: Indicated with "(optional)" label in relationship view
+- **No Active Session**: Show login screen with role selection for demo purposes
+- **Empty Projects List**: Dashboard and projects view show helpful empty states with call-to-action to create first project
+- **No Samples**: Empty state in samples view encouraging registration
+- **Unauthorized Schema Access**: Schema tab only visible to Admin and Manager roles; hidden from Scientists and Viewers
+- **Search with No Results**: Clear messaging in all views with suggestion to adjust filters
+- **Role Changes**: User can log out and log back in with different role to explore different permission levels
+- **Mobile Viewport**: Navigation collapses, cards stack vertically, dialogs take full width
+- **Long Project Names**: Text truncates with ellipsis, full text visible on hover
+- **First-Time Users**: Seed data automatically loads with sample projects and samples for immediate exploration
 
 ## Design Direction
 
-The design should evoke enterprise database authority, laboratory precision, and professional documentation quality. Think enterprise database IDE meets modern technical documentation - the interface should feel like premium database management and schema design software used by senior architects and CTOs. The aesthetic should balance information density with clarity, using subtle depth cues, consistent spacing, and professional typography to distinguish between entity categories, relationship types, and field metadata.
+The design should evoke enterprise software authority, laboratory precision, and professional quality. Think modern LIMS (Laboratory Information Management System) meets polished SaaS product - the interface should feel like premium software used by scientists, project managers, and laboratory administrators. The aesthetic balances data density with clarity, using subtle depth cues, consistent spacing, and professional typography suitable for technical users while remaining approachable.
 
 ## Color Selection
 
-A cool, technical palette that suggests databases, logic, and structured data systems.
+A cool, technical palette that suggests scientific precision, databases, and structured systems.
 
-- **Primary Color**: Deep slate blue `oklch(0.35 0.08 250)` - Represents database tables and primary actions; conveys technical authority and structure
+- **Primary Color**: Deep slate blue `oklch(0.35 0.08 250)` - Represents authority, database tables, and primary actions; conveys technical professionalism
 - **Secondary Colors**: 
-  - Steel gray `oklch(0.55 0.02 250)` for secondary UI elements and muted backgrounds
+  - Steel gray `oklch(0.55 0.02 250)` for secondary UI elements and de-emphasized actions
   - Light slate `oklch(0.92 0.01 250)` for card backgrounds and surfaces
-- **Accent Color**: Bright cyan `oklch(0.70 0.15 200)` - Highlights active relationships, foreign keys, and interactive elements; suggests data connections
+- **Accent Color**: Bright cyan `oklch(0.70 0.15 200)` - Highlights active states, important metrics, and interactive elements; suggests scientific analysis and data connections
 - **Foreground/Background Pairings**:
   - Background (White) `oklch(0.99 0 0)`: Foreground (Deep Slate) `oklch(0.25 0.05 250)` - Ratio 12.8:1 ✓
   - Primary (Deep Slate Blue) `oklch(0.35 0.08 250)`: White text `oklch(0.99 0 0)` - Ratio 8.2:1 ✓
@@ -79,72 +80,79 @@ A cool, technical palette that suggests databases, logic, and structured data sy
 
 ## Font Selection
 
-Technical precision with excellent code readability - monospace for data types, clean sans-serif for labels and descriptions.
+Technical precision with excellent readability - professional sans-serif for UI, monospace for identifiers and data types.
 
 - **Typographic Hierarchy**:
-  - H1 (Page Title): Space Grotesk Bold/32px/tight tracking - Strong technical presence
-  - H2 (Entity Names): Space Grotesk Semibold/18px/normal - Clear table headers
-  - H3 (Section Headers): Space Grotesk Medium/14px/wide tracking - Category labels
-  - Body (Field Names): Inter Medium/13px/normal - Readable attribute labels
-  - Code (Data Types): JetBrains Mono Regular/12px/normal - Monospace for ENUM, UUID, VARCHAR
-  - Small (Metadata): Inter Regular/11px/normal - Timestamps, secondary info
+  - H1 (App Title): Space Grotesk Bold/24px/tight tracking - Strong brand presence in navigation
+  - H2 (Page Titles): Space Grotesk Bold/32px/tight tracking - Clear page headers
+  - H3 (Card Titles): Space Grotesk Semibold/18px/normal - Project names, section headers
+  - Body (Labels & Text): Inter Medium/14px/normal - Readable UI labels and descriptions
+  - Code (Sample IDs): JetBrains Mono Regular/14px/normal - Sample identifiers, technical codes
+  - Small (Metadata): Inter Regular/12px/normal - Timestamps, secondary information
 
 ## Animations
 
-Animations should feel precise and database-like - snappy state changes with subtle connection pulses.
+Animations should feel responsive and professional - quick state changes with purposeful motion.
 
-- **Relationship Highlighting**: 200ms ease-out color transition when hovering entities, with gentle pulse on connected lines
-- **Card Expansion**: 300ms spring animation (slight bounce) when expanding entity details
-- **Search Filter**: 150ms fade on non-matching entities, stagger by 20ms for cascade effect
-- **Path Tracing**: 500ms animated stroke-dashoffset along relationship lines showing data flow direction
-- **Hover States**: 100ms scale(1.02) on entity cards with subtle shadow increase
+- **Page Transitions**: Instant view switching with content fade-in (no slides or complex transitions)
+- **Card Hover**: 100ms scale(1.02) on project/sample cards with subtle shadow increase
+- **Button States**: 150ms color transition for all interactive elements
+- **Dialog Open**: 200ms fade-in with subtle scale for modals and forms
+- **Stats Counter**: Staggered fade-in (100ms delay between each) for dashboard metrics on mount
+- **Login Screen**: 500ms fade-in from bottom with subtle bounce on mount
 
 ## Component Selection
 
 - **Components**:
-  - Card: Entity containers with header (table name) and body (fields list)
-  - Badge: Data type indicators (UUID, VARCHAR, ENUM, etc.) with color coding
-  - Input: Search field with clear button and search icon
-  - Separator: Visual breaks between field groups (PK, FK, regular fields)
-  - Tooltip: Relationship details and full field information on hover
-  - Tabs: Switch between "Diagram View", "List View", and "Dependencies" views
-  - ScrollArea: Smooth scrolling for entity detail panels
-  - Popover: Detailed entity information without losing context
-  - Command: Quick entity search with keyboard navigation (Cmd+K style)
+  - Card: Project cards, sample cards, stat cards, entity cards (schema view)
+  - Button: Primary actions (create project, register sample), navigation tabs, role selector
+  - Dialog: Project creation form, sample registration forms
+  - Input: Search bars, text inputs in forms
+  - Textarea: Multi-line descriptions in project forms
+  - Select: Dropdowns for organizations, status, roles
+  - Badge: Status indicators (Active, Planning, In Progress), role tags, data type tags
+  - Dropdown Menu: User profile menu with logout
+  - Tabs: Schema explorer view switching (Grid/Relationships)
+  - Separator: Visual breaks in forms and entity cards
+  - Toast (Sonner): Success/error notifications for actions
 
 - **Customizations**:
-  - Custom SVG relationship connectors with cardinality symbols (crow's foot notation)
-  - Interactive canvas/SVG for draggable entity positioning
-  - Custom Badge variants for PK (gold), FK (cyan), Regular (gray)
-  - Animated connection lines using framer-motion path drawing
+  - Custom empty states with icons and call-to-action buttons
+  - Role-based navigation visibility (Schema tab conditional)
+  - Stat cards with icon backgrounds and color-coded metrics
+  - Project/sample cards with hover states and clickable areas
 
 - **States**:
-  - Entity Cards: Default (white bg) → Hover (shadow+lift) → Active/Selected (border highlight) → Connected (accent glow)
-  - Relationship Lines: Default (gray) → Hover (accent color) → Active trace (animated gradient)
-  - Search Input: Empty → Typing (accent border) → Has results → No results (muted state)
-  - Badges: Static with hover showing full type definition in tooltip
+  - Navigation: Active tab highlighted with default variant, others use ghost
+  - Project Cards: Default → Hover (shadow) → Click (navigate to details in future)
+  - Status Badges: Color-coded (Active=primary, Planning=secondary, etc.)
+  - Buttons: Disabled state for forms without required fields
+  - Login: Loading state during sign-in transition
 
 - **Icon Selection**:
-  - Database (database icon) for main title
-  - MagnifyingGlass for search
-  - Key for primary/foreign key indicators
-  - ArrowRight for one-to-many relationships
-  - Circle (dot) for optional relationships
-  - Graph for relationship tracing mode
-  - X for clearing search
-  - Info for entity details
+  - Flask: Laboratory/platform branding, samples
+  - FolderOpen: Projects
+  - Database: Schema explorer
+  - ChartLine: Analytics, analyses
+  - Users: Collaborators, organizations
+  - User: Profile menu
+  - SignOut: Logout action
+  - Plus: Create actions
+  - MagnifyingGlass: Search
+  - Calendar: Timestamps
+  - ArrowRight: Navigation hints
 
 - **Spacing**:
-  - Entity card padding: p-4
-  - Grid gap between cards: gap-6
-  - Field list spacing: space-y-2
-  - Section margins: mb-6
-  - Inline badge gaps: gap-1.5
-  - Container padding: p-6 (desktop), p-4 (mobile)
+  - Page container padding: px-6 py-8
+  - Card grid gap: gap-6
+  - Section margins: mb-6, mb-8
+  - Form field spacing: space-y-4
+  - Navigation padding: px-6 py-4
+  - Button padding: px-4 (standard), h-10/h-12 for heights
 
 - **Mobile**:
-  - Switch from spatial diagram to vertical list at 768px
-  - Collapsible entity cards showing just name + field count
-  - Bottom sheet for entity details instead of popover
-  - Stacked relationship view showing connected entities as a linear flow
-  - Floating action button for search instead of persistent header
+  - Single column grid for all card layouts at <768px
+  - Navigation user name hidden on small screens, shows only icon
+  - Dialogs take full width on mobile with appropriate padding
+  - Stats grid collapses to 2 columns on tablet, 1 column on phone
+  - Dashboard quick actions stack vertically

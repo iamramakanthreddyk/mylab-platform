@@ -1,267 +1,106 @@
-import { useState, useMemo } from 'react'
-import { entities, relationships, EntityCategory } from '@/lib/schema-data'
-import { EntityCard } from '@/components/EntityCard'
-import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { MagnifyingGlass, Database, Graph, Cube, FolderOpen, Flask, FileText, Lock, ClipboardText, ChatCircleDots, ChartLine } from '@phosphor-icons/react'
-
-const categoryIcons: Record<EntityCategory, typeof Database> = {
-  'Core Identity': Cube,
-  'Project Management': FolderOpen,
-  'Sample Lifecycle': Flask,
-  'Analysis': ChartLine,
-  'Documents': FileText,
-  'Access Control': Lock,
-  'Audit & Compliance': ClipboardText,
-  'Communication': ChatCircleDots,
-  'DOE': Graph,
-}
+import { useState, useEffect } from 'react'
+import { useKV } from '@github/spark/hooks'
+import { User, UserRole, Project, Sample } from '@/lib/types'
+import { seedProjects, seedSamples } from '@/lib/seed-data'
+import { Login } from '@/components/Login'
+import { Navigation } from '@/components/Navigation'
+import { Dashboard } from '@/components/Dashboard'
+import { ProjectsView } from '@/components/ProjectsView'
+import { SamplesView } from '@/components/SamplesView'
+import { SchemaExplorer } from '@/components/SchemaExplorer'
+import { Toaster } from '@/components/ui/sonner'
 
 function App() {
-  const [searchQuery, setSearchQuery] = useState('')
-  const [hoveredEntity, setHoveredEntity] = useState<string | null>(null)
-  const [selectedEntity, setSelectedEntity] = useState<string | null>(null)
-  const [selectedCategory, setSelectedCategory] = useState<EntityCategory | 'all'>('all')
+  const [currentUser, setCurrentUser] = useKV<User | null>('mylab-current-user', null)
+  const [projects, setProjects] = useKV<Project[]>('mylab-projects', [])
+  const [samples, setSamples] = useKV<Sample[]>('mylab-samples', [])
+  const [currentView, setCurrentView] = useState<string>('dashboard')
+  const [isInitialized, setIsInitialized] = useState(false)
 
-  const categories = useMemo(() => {
-    const cats = new Set<EntityCategory>()
-    entities.forEach((e) => e.category && cats.add(e.category))
-    return Array.from(cats).sort()
-  }, [])
-
-  const filteredEntities = useMemo(() => {
-    let filtered = entities
-
-    if (selectedCategory !== 'all') {
-      filtered = filtered.filter((e) => e.category === selectedCategory)
+  useEffect(() => {
+    const initUser = async () => {
+      if (currentUser) {
+        try {
+          const gitHubUser = await window.spark.user()
+          if (gitHubUser) {
+            setCurrentUser((prev) => {
+              if (!prev) return null
+              return {
+                ...prev,
+                id: String(gitHubUser.id),
+                email: gitHubUser.email || prev.email,
+                name: gitHubUser.login || prev.name,
+                avatarUrl: gitHubUser.avatarUrl || prev.avatarUrl,
+              }
+            })
+          }
+        } catch (error) {
+          console.error('Failed to fetch GitHub user', error)
+        }
+      }
+      setIsInitialized(true)
     }
 
-    if (!searchQuery.trim()) return filtered
-
-    const query = searchQuery.toLowerCase()
-    return filtered.filter((entity) => {
-      const nameMatch = entity.name.toLowerCase().includes(query)
-      const fieldMatch = entity.fields.some((field) => field.name.toLowerCase().includes(query))
-      const descMatch = entity.description?.toLowerCase().includes(query)
-      return nameMatch || fieldMatch || descMatch
-    })
-  }, [searchQuery, selectedCategory])
-
-  const connectedEntities = useMemo(() => {
-    if (!hoveredEntity && !selectedEntity) return new Set<string>()
-
-    const target = hoveredEntity || selectedEntity
-    const connected = new Set<string>()
-
-    relationships.forEach((rel) => {
-      if (rel.from === target) {
-        connected.add(rel.to)
-      }
-      if (rel.to === target) {
-        connected.add(rel.from)
-      }
-    })
-
-    return connected
-  }, [hoveredEntity, selectedEntity])
-
-  const relationshipStats = useMemo(() => {
-    const entityRelCount: Record<string, number> = {}
-    relationships.forEach((rel) => {
-      entityRelCount[rel.from] = (entityRelCount[rel.from] || 0) + 1
-      entityRelCount[rel.to] = (entityRelCount[rel.to] || 0) + 1
-    })
-    return entityRelCount
+    initUser()
   }, [])
 
-  const getRelationshipsForEntity = (entityName: string) => {
-    return relationships.filter((rel) => rel.from === entityName || rel.to === entityName)
+  useEffect(() => {
+    if (currentUser && (!projects || projects.length === 0)) {
+      setProjects(seedProjects)
+    }
+    if (currentUser && (!samples || samples.length === 0)) {
+      setSamples(seedSamples)
+    }
+  }, [currentUser])
+
+  const handleLogin = (role: UserRole) => {
+    const user: User = {
+      id: `user-${Date.now()}`,
+      email: 'user@mylab.com',
+      name: 'Lab User',
+      role,
+      workspaceId: 'workspace-1',
+    }
+    setCurrentUser(user)
   }
 
-  const handleEntityClick = (entityName: string) => {
-    setSelectedEntity((prev) => (prev === entityName ? null : entityName))
+  const handleLogout = () => {
+    setCurrentUser(null)
+    setCurrentView('dashboard')
   }
 
-  const activeEntity = selectedEntity || hoveredEntity
+  if (!isInitialized) {
+    return null
+  }
+
+  if (!currentUser) {
+    return (
+      <>
+        <Login onLogin={handleLogin} />
+        <Toaster />
+      </>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10 shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 py-6">
-          <div className="flex items-start justify-between gap-6 mb-6">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3 mb-2">
-                <Database size={36} weight="duotone" className="text-primary" />
-                MyLab Platform Schema
-              </h1>
-              <p className="text-muted-foreground">
-                Enterprise PostgreSQL schema with {entities.length} tables and {relationships.length} relationships
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <Badge variant="secondary" className="text-sm">
-                <Graph size={16} className="mr-1.5" />
-                {relationships.length} Relationships
-              </Badge>
-            </div>
-          </div>
-
-          <div className="relative">
-            <MagnifyingGlass
-              size={20}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-            />
-            <Input
-              type="text"
-              placeholder="Search entities or fields..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 h-12 text-base"
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        <div className="mb-6 flex flex-wrap gap-2">
-          <Badge
-            variant={selectedCategory === 'all' ? 'default' : 'outline'}
-            className="cursor-pointer px-4 py-2 text-sm"
-            onClick={() => setSelectedCategory('all')}
-          >
-            All Tables ({entities.length})
-          </Badge>
-          {categories.map((category) => {
-            const Icon = categoryIcons[category]
-            const count = entities.filter((e) => e.category === category).length
-            return (
-              <Badge
-                key={category}
-                variant={selectedCategory === category ? 'default' : 'outline'}
-                className="cursor-pointer px-4 py-2 text-sm flex items-center gap-2"
-                onClick={() => setSelectedCategory(category)}
-              >
-                <Icon size={16} />
-                {category} ({count})
-              </Badge>
-            )
-          })}
-        </div>
-
-        <Tabs defaultValue="grid" className="w-full">
-          <TabsList className="mb-6">
-            <TabsTrigger value="grid">Grid View</TabsTrigger>
-            <TabsTrigger value="relationships">Relationships</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="grid" className="space-y-6">
-            {filteredEntities.length === 0 ? (
-              <div className="text-center py-16">
-                <Database size={64} className="mx-auto text-muted-foreground/50 mb-4" />
-                <h3 className="text-xl font-semibold mb-2">No entities found</h3>
-                <p className="text-muted-foreground">Try adjusting your search query</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredEntities.map((entity) => (
-                  <EntityCard
-                    key={entity.name}
-                    entity={entity}
-                    isHighlighted={entity.name === activeEntity}
-                    isConnected={connectedEntities.has(entity.name)}
-                    onHover={setHoveredEntity}
-                    onClick={handleEntityClick}
-                  />
-                ))}
-              </div>
-            )}
-
-            {activeEntity && (
-              <div className="mt-8 p-6 bg-accent/10 border-2 border-accent rounded-lg">
-                <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
-                  <Graph size={24} className="text-accent" weight="duotone" />
-                  Relationships for {activeEntity}
-                </h3>
-                <div className="space-y-2">
-                  {getRelationshipsForEntity(activeEntity).map((rel, idx) => (
-                    <div key={idx} className="flex items-center gap-3 text-sm p-3 bg-background rounded border">
-                      <Badge variant={rel.from === activeEntity ? 'default' : 'secondary'} className="font-mono">
-                        {rel.from}
-                      </Badge>
-                      <span className="text-muted-foreground">
-                        {rel.fromLabel || 'relates to'}
-                        {rel.isOptional && ' (optional)'}
-                      </span>
-                      <span className="text-accent font-bold">→</span>
-                      <Badge variant={rel.to === activeEntity ? 'default' : 'secondary'} className="font-mono">
-                        {rel.to}
-                      </Badge>
-                      <Badge variant="outline" className="ml-auto text-xs">
-                        {rel.type}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="relationships">
-            <div className="space-y-3">
-              {relationships.map((rel, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center gap-4 p-4 bg-card rounded-lg border hover:border-accent transition-colors"
-                >
-                  <Badge variant="default" className="font-mono min-w-[140px] justify-center">
-                    {rel.from}
-                  </Badge>
-                  <div className="flex-1 flex items-center gap-2 text-sm text-muted-foreground">
-                    <span className="font-medium">{rel.fromLabel || 'has'}</span>
-                    {rel.isOptional && <span className="text-xs italic">(optional)</span>}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-accent font-bold text-lg">→</span>
-                    <Badge variant="outline" className="text-xs">
-                      {rel.type}
-                    </Badge>
-                  </div>
-                  <div className="flex-1 text-sm text-muted-foreground text-right">
-                    <span className="font-medium">{rel.toLabel || 'belongs to'}</span>
-                  </div>
-                  <Badge variant="secondary" className="font-mono min-w-[140px] justify-center">
-                    {rel.to}
-                  </Badge>
-                </div>
-              ))}
-            </div>
-          </TabsContent>
-        </Tabs>
-
-        <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="p-4 bg-card rounded-lg border">
-            <div className="text-2xl font-bold text-primary">{entities.length}</div>
-            <div className="text-sm text-muted-foreground">Total Entities</div>
-          </div>
-          <div className="p-4 bg-card rounded-lg border">
-            <div className="text-2xl font-bold text-accent">{relationships.length}</div>
-            <div className="text-sm text-muted-foreground">Relationships</div>
-          </div>
-          <div className="p-4 bg-card rounded-lg border">
-            <div className="text-2xl font-bold text-secondary">
-              {entities.reduce((sum, e) => sum + e.fields.filter((f) => f.isForeignKey).length, 0)}
-            </div>
-            <div className="text-sm text-muted-foreground">Foreign Keys</div>
-          </div>
-          <div className="p-4 bg-card rounded-lg border">
-            <div className="text-2xl font-bold text-foreground">
-              {Math.max(...Object.values(relationshipStats))}
-            </div>
-            <div className="text-sm text-muted-foreground">Max Connections</div>
-          </div>
-        </div>
-      </div>
+      <Navigation
+        user={currentUser}
+        currentView={currentView}
+        onViewChange={setCurrentView}
+        onLogout={handleLogout}
+      />
+      {currentView === 'dashboard' && (
+        <Dashboard user={currentUser} projects={projects || []} onNavigate={setCurrentView} />
+      )}
+      {currentView === 'projects' && (
+        <ProjectsView user={currentUser} projects={projects || []} onProjectsChange={setProjects} />
+      )}
+      {currentView === 'samples' && (
+        <SamplesView user={currentUser} samples={samples || []} />
+      )}
+      {currentView === 'schema' && <SchemaExplorer />}
+      <Toaster />
     </div>
   )
 }
