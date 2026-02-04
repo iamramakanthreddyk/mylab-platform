@@ -3,7 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
-import { pool } from './db';
+import { pool, initializeDatabase } from './db-sqlite';
 import { PLATFORM_CONFIG } from './config/platform';
 
 // Import existing routes
@@ -83,6 +83,15 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
   res.status(500).json({ error: 'Something went wrong!' });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// Initialize database and start server
+(async () => {
+  try {
+    await initializeDatabase();
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  } catch (err) {
+    console.error('Failed to initialize database:', err);
+    process.exit(1);
+  }
+})();
