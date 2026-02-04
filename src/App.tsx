@@ -8,6 +8,7 @@ import { Dashboard } from '@/components/Dashboard'
 import { ProjectsView } from '@/components/ProjectsView'
 import { SamplesView } from '@/components/SamplesView'
 import { SchemaExplorer } from '@/components/SchemaExplorer'
+import { NotificationCenter } from '@/components/NotificationCenter'
 import { Toaster } from '@/components/ui/sonner'
 
 const API_BASE = FRONTEND_CONFIG.apiBase
@@ -135,6 +136,7 @@ function App() {
         <SamplesView user={currentUser} samples={samples || []} />
       )}
       {currentView === 'schema' && <SchemaExplorer />}
+      {currentView === 'notifications' && <NotificationCenter />}
       <Toaster />
     </div>
   )

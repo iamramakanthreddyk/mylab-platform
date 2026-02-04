@@ -11,6 +11,8 @@ import {
   ArrowRight 
 } from '@phosphor-icons/react'
 import { motion } from 'framer-motion'
+import { PaymentNotificationWidget } from '@/components/PaymentNotificationWidget'
+import { SystemNotificationWidget } from '@/components/SystemNotificationWidget'
 
 interface DashboardProps {
   user: User
@@ -66,8 +68,25 @@ export function Dashboard({ user, projects, onNavigate }: DashboardProps) {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {statCards.map((stat, idx) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">          {/* Payment Notifications - Only for Admins */}
+          {user.role === 'Admin' && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+            >
+              <PaymentNotificationWidget />
+            </motion.div>
+          )}
+
+          {/* System Notifications */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+          >
+            <SystemNotificationWidget />
+          </motion.div>          {statCards.map((stat, idx) => (
             <motion.div
               key={stat.title}
               initial={{ opacity: 0, y: 20 }}

@@ -10,6 +10,8 @@ import { PLATFORM_CONFIG } from './config/platform';
 import authRoutes from './routes/auth';
 import projectRoutes from './routes/projects';
 import sampleRoutes from './routes/samples';
+import companyRoutes from './routes/company';
+import notificationRoutes from './routes/notifications';
 
 dotenv.config();
 
@@ -35,6 +37,8 @@ console.log('🚀 Initializing MyLab Platform with modules:', PLATFORM_CONFIG.mo
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/samples', sampleRoutes);
+app.use('/api/company', companyRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Health check with platform info
 app.get('/health', (req, res) => {

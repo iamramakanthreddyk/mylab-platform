@@ -45,6 +45,9 @@ export class DatabaseSetup {
       // Insert initial data
       await this.insertInitialData();
 
+      // Create welcome notifications
+      await this.createWelcomeNotifications();
+
       console.log('✅ MyLab database setup completed successfully!');
     } catch (error) {
       console.error('❌ Database setup failed:', error);
@@ -96,6 +99,10 @@ export class DatabaseSetup {
           slug VARCHAR(50) NOT NULL UNIQUE,
           type ENUM ('research', 'cro', 'analyzer', 'pharma') NOT NULL,
           email_domain VARCHAR(255),
+          payment_status ENUM ('trial', 'pending', 'completed', 'overdue', 'suspended') DEFAULT 'trial',
+          payment_amount DECIMAL(10,2),
+          payment_due_date TIMESTAMP,
+          payment_last_reminder TIMESTAMP,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           deleted_at TIMESTAMP
@@ -311,6 +318,87 @@ export class DatabaseSetup {
           user_agent VARCHAR(500),
           timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+      `,
+
+      CompanyOnboardingRequests: `
+        CREATE TABLE IF NOT EXISTS CompanyOnboardingRequests (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          company_name VARCHAR(255) NOT NULL,
+          company_domain VARCHAR(255) NOT NULL,
+          contact_email VARCHAR(255) NOT NULL,
+          contact_name VARCHAR(255) NOT NULL,
+          contact_phone VARCHAR(50),
+          company_size ENUM ('1-10', '11-50', '51-200', '201-1000', '1000+') NOT NULL,
+          industry VARCHAR(100),
+          use_case TEXT,
+          status ENUM ('pending', 'approved', 'rejected', 'workspace_created') DEFAULT 'pending',
+          admin_user_id UUID REFERENCES Users(id),
+          workspace_id UUID REFERENCES Workspace(id),
+          rejection_reason TEXT,
+          reviewed_by UUID REFERENCES Users(id),
+          reviewed_at TIMESTAMP,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `,
+
+      CompanyInvitations: `
+        CREATE TABLE IF NOT EXISTS CompanyInvitations (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          workspace_id UUID NOT NULL REFERENCES Workspace(id),
+          invited_email VARCHAR(255) NOT NULL,
+          invited_name VARCHAR(255) NOT NULL,
+          role ENUM ('admin', 'manager', 'analyst', 'viewer') NOT NULL DEFAULT 'analyst',
+          status ENUM ('pending', 'accepted', 'expired', 'cancelled') DEFAULT 'pending',
+          invited_by UUID NOT NULL REFERENCES Users(id),
+          invitation_token VARCHAR(255) UNIQUE,
+          expires_at TIMESTAMP NOT NULL,
+          accepted_at TIMESTAMP,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `,
+
+      CompanyPayments: `
+        CREATE TABLE IF NOT EXISTS CompanyPayments (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          onboarding_request_id UUID REFERENCES CompanyOnboardingRequests(id),
+          company_name VARCHAR(255) NOT NULL,
+          company_domain VARCHAR(255) NOT NULL,
+          contact_email VARCHAR(255) NOT NULL,
+          amount DECIMAL(10,2) NOT NULL,
+          currency VARCHAR(3) NOT NULL DEFAULT 'USD',
+          payment_method ENUM ('bank_transfer', 'check', 'wire', 'credit_card', 'other') NOT NULL,
+          status ENUM ('pending', 'processing', 'completed', 'failed', 'refunded') DEFAULT 'pending',
+          transaction_id VARCHAR(255),
+          payment_reference VARCHAR(255),
+          notes TEXT,
+          due_date TIMESTAMP,
+          paid_at TIMESTAMP,
+          verified_by UUID REFERENCES Users(id),
+          verified_at TIMESTAMP,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `,
+
+      Notifications: `
+        CREATE TABLE IF NOT EXISTS Notifications (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID REFERENCES Users(id) ON DELETE CASCADE,
+          workspace_id UUID REFERENCES Workspace(id) ON DELETE CASCADE,
+          type ENUM ('payment', 'system', 'warning', 'success', 'info', 'error') NOT NULL,
+          title VARCHAR(255) NOT NULL,
+          message TEXT NOT NULL,
+          action_url VARCHAR(500),
+          action_label VARCHAR(100),
+          priority ENUM ('low', 'medium', 'high') DEFAULT 'medium',
+          read_at TIMESTAMP,
+          expires_at TIMESTAMP,
+          metadata JSONB,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
       `
     };
   }
@@ -344,7 +432,23 @@ export class DatabaseSetup {
       'CREATE UNIQUE INDEX IF NOT EXISTS idx_derived_workspace_derived_id ON DerivedSamples(owner_workspace_id, derived_id);',
       'CREATE UNIQUE INDEX IF NOT EXISTS idx_batches_workspace_batch_id ON Batches(workspace_id, batch_id);',
       'CREATE UNIQUE INDEX IF NOT EXISTS idx_batch_items_unique ON BatchItems(batch_id, derived_id);',
-      'CREATE UNIQUE INDEX IF NOT EXISTS idx_access_grants_unique ON AccessGrants(object_type, object_id, granted_to_org_id);'
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_access_grants_unique ON AccessGrants(object_type, object_id, granted_to_org_id);',
+      'CREATE INDEX IF NOT EXISTS idx_onboarding_requests_status ON CompanyOnboardingRequests(status);',
+      'CREATE INDEX IF NOT EXISTS idx_onboarding_requests_domain ON CompanyOnboardingRequests(company_domain);',
+      'CREATE INDEX IF NOT EXISTS idx_invitations_workspace ON CompanyInvitations(workspace_id);',
+      'CREATE INDEX IF NOT EXISTS idx_invitations_email ON CompanyInvitations(invited_email);',
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_invitations_token ON CompanyInvitations(invitation_token);',
+      'CREATE INDEX IF NOT EXISTS idx_invitations_status ON CompanyInvitations(status);',
+      'CREATE INDEX IF NOT EXISTS idx_payments_onboarding ON CompanyPayments(onboarding_request_id);',
+      'CREATE INDEX IF NOT EXISTS idx_payments_status ON CompanyPayments(status);',
+      'CREATE INDEX IF NOT EXISTS idx_payments_domain ON CompanyPayments(company_domain);',
+      'CREATE INDEX IF NOT EXISTS idx_payments_transaction ON CompanyPayments(transaction_id);',
+      'CREATE INDEX IF NOT EXISTS idx_notifications_user ON Notifications(user_id);',
+      'CREATE INDEX IF NOT EXISTS idx_notifications_workspace ON Notifications(workspace_id);',
+      'CREATE INDEX IF NOT EXISTS idx_notifications_type ON Notifications(type);',
+      'CREATE INDEX IF NOT EXISTS idx_notifications_read ON Notifications(read_at);',
+      'CREATE INDEX IF NOT EXISTS idx_notifications_priority ON Notifications(priority);',
+      'CREATE INDEX IF NOT EXISTS idx_notifications_created ON Notifications(created_at);'
     ];
 
     for (const sql of indexes) {
@@ -397,13 +501,47 @@ export class DatabaseSetup {
     console.log('✅ Initial data inserted');
   }
 
+  private async createWelcomeNotifications(): Promise<void> {
+    console.log('🔔 Creating welcome notifications...');
+
+    try {
+      // Get all admin users from workspaces
+      const adminUsers = await this.pool.query(`
+        SELECT u.id, u.workspace_id, w.name as workspace_name
+        FROM Users u
+        JOIN Workspace w ON u.workspace_id = w.id
+        WHERE u.role = 'admin' AND w.deleted_at IS NULL
+      `);
+
+      for (const user of adminUsers.rows) {
+        // Check if welcome notification already exists
+        const existing = await this.pool.query(`
+          SELECT id FROM Notifications 
+          WHERE user_id = $1 AND type = 'system' AND title LIKE 'Welcome to MyLab%'
+        `, [user.id]);
+
+        if (existing.rows.length === 0) {
+          await this.pool.query(`
+            INSERT INTO Notifications (user_id, workspace_id, type, title, message, priority)
+            VALUES ($1, $2, 'system', 'Welcome to MyLab!', 'Your workspace ${user.workspace_name} has been successfully set up. Explore the platform and start managing your laboratory samples.', 'low')
+          `, [user.id, user.workspace_id]);
+        }
+      }
+
+      console.log('✅ Welcome notifications created');
+    } catch (error) {
+      console.warn('⚠️  Could not create welcome notifications:', error);
+    }
+  }
+
   async resetDatabase(): Promise<void> {
     console.log('⚠️  Resetting database...');
 
     const tables = [
       'AuditLog', 'AccessGrants', 'Documents', 'Analyses', 'AnalysisTypes',
       'BatchItems', 'Batches', 'DerivedSamples', 'Samples', 'ProjectStages',
-      'Projects', 'Users', 'Organizations', 'Workspace'
+      'Projects', 'Users', 'Organizations', 'Workspace', 'CompanyInvitations', 
+      'CompanyOnboardingRequests', 'CompanyPayments', 'Notifications'
     ];
 
     for (const table of tables) {

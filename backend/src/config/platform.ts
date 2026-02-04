@@ -60,6 +60,19 @@ export const PLATFORM_CONFIG = {
     userRoles: ['Admin', 'Manager', 'Scientist', 'Viewer'],
     workspaceIsolation: true
   },
+  companyOnboarding: {
+    initiationMethods: ['self_signup', 'admin_invitation', 'partner_referral'],
+    approvalRequired: true,
+    defaultPlan: 'starter',
+    welcomeEmailTemplate: 'company_welcome',
+    setupSteps: [
+      'company_info',
+      'workspace_creation',
+      'admin_user_setup',
+      'billing_setup',
+      'initial_configuration'
+    ]
+  },
   modules: [] as PlatformModule[]
 }
 
@@ -374,51 +387,265 @@ const MODULES: PlatformModule[] = [
   },
   {
     id: 'company',
-    name: 'Company',
-    description: 'Company and organization management',
+    name: 'Company Management',
+    description: 'Company onboarding, management, and administration',
     apiBase: '/company',
     endpoints: [
+      // Company Onboarding
+      {
+        path: '/onboard',
+        method: 'POST',
+        description: 'Initiate company onboarding (self-signup)',
+        requiresAuth: false,
+        roles: []
+      },
+      {
+        path: '/onboard/:token',
+        method: 'GET',
+        description: 'Get onboarding details by token',
+        requiresAuth: false,
+        roles: []
+      },
+      {
+        path: '/onboard/:token',
+        method: 'POST',
+        description: 'Complete company onboarding',
+        requiresAuth: false,
+        roles: []
+      },
+      // Payment Processing
+      {
+        path: '/payments/initiate',
+        method: 'POST',
+        description: 'Initiate payment for company onboarding',
+        requiresAuth: false,
+        roles: []
+      },
+      {
+        path: '/payments/:paymentId/status',
+        method: 'GET',
+        description: 'Check payment status',
+        requiresAuth: false,
+        roles: []
+      },
+      {
+        path: '/payments/:paymentId/verify',
+        method: 'POST',
+        description: 'Verify offline payment completion (admin)',
+        requiresAuth: true,
+        roles: ['PlatformAdmin']
+      },
+      {
+        path: '/payments/:paymentId/receipt',
+        method: 'GET',
+        description: 'Get payment receipt',
+        requiresAuth: true,
+        roles: ['PlatformAdmin', 'OrgAdmin']
+      },
+      // Payment Management
+      {
+        path: '/payments/send-reminder',
+        method: 'POST',
+        description: 'Send payment reminder to workspace',
+        requiresAuth: true,
+        roles: ['PlatformAdmin']
+      },
+      {
+        path: '/workspaces/payment-status',
+        method: 'GET',
+        description: 'Get workspaces with payment issues',
+        requiresAuth: true,
+        roles: ['PlatformAdmin']
+      },
+      // Company Management (Admin)
       {
         path: '/organizations',
         method: 'GET',
-        description: 'List organizations',
+        description: 'List all organizations',
         requiresAuth: true,
-        roles: ['Admin']
+        roles: ['PlatformAdmin']
       },
+      {
+        path: '/organizations',
+        method: 'POST',
+        description: 'Create organization (admin only)',
+        requiresAuth: true,
+        roles: ['PlatformAdmin']
+      },
+      {
+        path: '/organizations/:id',
+        method: 'GET',
+        description: 'Get organization details',
+        requiresAuth: true,
+        roles: ['PlatformAdmin', 'OrgAdmin']
+      },
+      {
+        path: '/organizations/:id',
+        method: 'PUT',
+        description: 'Update organization',
+        requiresAuth: true,
+        roles: ['PlatformAdmin', 'OrgAdmin']
+      },
+      {
+        path: '/organizations/:id/status',
+        method: 'PUT',
+        description: 'Update organization status (activate/suspend)',
+        requiresAuth: true,
+        roles: ['PlatformAdmin']
+      },
+      // Workspace Management
       {
         path: '/workspaces',
         method: 'GET',
         description: 'List workspaces',
         requiresAuth: true,
-        roles: ['Admin']
+        roles: ['PlatformAdmin']
+      },
+      {
+        path: '/workspaces',
+        method: 'POST',
+        description: 'Create workspace',
+        requiresAuth: true,
+        roles: ['PlatformAdmin']
+      },
+      {
+        path: '/workspaces/:id',
+        method: 'GET',
+        description: 'Get workspace details',
+        requiresAuth: true,
+        roles: ['PlatformAdmin', 'WorkspaceAdmin']
+      },
+      // User Invitations
+      {
+        path: '/invitations',
+        method: 'POST',
+        description: 'Send user invitation',
+        requiresAuth: true,
+        roles: ['OrgAdmin', 'WorkspaceAdmin']
+      },
+      {
+        path: '/invitations/:token',
+        method: 'GET',
+        description: 'Get invitation details',
+        requiresAuth: false,
+        roles: []
+      },
+      {
+        path: '/invitations/:token/accept',
+        method: 'POST',
+        description: 'Accept user invitation',
+        requiresAuth: false,
+        roles: []
       }
     ],
     components: [
       {
-        name: 'CompanySettings',
+        name: 'CompanyOnboarding',
+        type: 'page',
+        route: '/onboard',
+        description: 'Company self-signup onboarding flow'
+      },
+      {
+        name: 'CompanyDashboard',
         type: 'page',
         route: '/company',
-        description: 'Company settings and management'
+        description: 'Company management dashboard'
       },
       {
         name: 'OrganizationManager',
-        type: 'widget',
-        description: 'Organization management interface'
+        type: 'page',
+        route: '/company/organizations',
+        description: 'Platform admin organization management'
+      },
+      {
+        name: 'WorkspaceManager',
+        type: 'page',
+        route: '/company/workspaces',
+        description: 'Workspace administration'
+      },
+      {
+        name: 'UserInvitations',
+        type: 'modal',
+        description: 'Send user invitations'
+      },
+      {
+        name: 'OnboardingWizard',
+        type: 'modal',
+        description: 'Step-by-step company setup'
       }
     ],
     permissions: [
+      // Platform Admin permissions
+      {
+        action: 'create',
+        resource: 'organization',
+        roles: ['PlatformAdmin']
+      },
       {
         action: 'manage',
         resource: 'organization',
-        roles: ['Admin']
+        roles: ['PlatformAdmin']
+      },
+      {
+        action: 'suspend',
+        resource: 'organization',
+        roles: ['PlatformAdmin']
+      },
+      {
+        action: 'create',
+        resource: 'workspace',
+        roles: ['PlatformAdmin']
+      },
+      {
+        action: 'manage',
+        resource: 'workspace',
+        roles: ['PlatformAdmin']
+      },
+      // Organization Admin permissions
+      {
+        action: 'manage',
+        resource: 'own_organization',
+        roles: ['OrgAdmin']
+      },
+      {
+        action: 'invite',
+        resource: 'users',
+        roles: ['OrgAdmin', 'WorkspaceAdmin']
+      },
+      // Payment permissions
+      {
+        action: 'initiate',
+        resource: 'payment',
+        roles: ['*'] // Anyone can initiate payment
+      },
+      {
+        action: 'verify',
+        resource: 'payment',
+        roles: ['PlatformAdmin']
       },
       {
         action: 'view',
-        resource: 'workspace',
-        roles: ['Admin', 'Manager']
+        resource: 'payment_receipt',
+        roles: ['PlatformAdmin', 'OrgAdmin']
+      },
+      {
+        action: 'send',
+        resource: 'payment_reminder',
+        roles: ['PlatformAdmin']
+      },
+      {
+        action: 'view',
+        resource: 'payment_status',
+        roles: ['PlatformAdmin']
+      },
+      // Self-service permissions
+      {
+        action: 'onboard',
+        resource: 'company',
+        roles: ['*'] // Anyone can initiate onboarding
       }
     ],
-    databaseTables: ['Organizations', 'Workspace']
+    databaseTables: ['Organizations', 'Workspace', 'CompanyOnboarding', 'UserInvitations', 'CompanyPayments']
   },
   {
     id: 'integration',

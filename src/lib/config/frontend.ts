@@ -250,8 +250,16 @@ const MODULES: FrontendModule[] = [
     requiresAuth: true,
     roles: ['Admin', 'Manager', 'Scientist', 'Viewer']
   },
-  {
-    id: 'login',
+  {    id: 'notifications',
+    name: 'Notifications',
+    description: 'System and payment notifications',
+    route: '/notifications',
+    component: 'NotificationCenter',
+    icon: 'Bell',
+    requiresAuth: true,
+    roles: ['Admin', 'Manager', 'Scientist', 'Viewer']
+  },
+  {    id: 'login',
     name: 'Login',
     description: 'User authentication',
     route: '/login',
@@ -297,6 +305,20 @@ const DASHBOARD_WIDGETS: DashboardWidget[] = [
     component: 'QuickActionsWidget',
     size: 'small',
     roles: ['Admin', 'Manager', 'Scientist']
+  },
+  {
+    id: 'payment-notifications',
+    title: 'Payment Notifications',
+    component: 'PaymentNotificationWidget',
+    size: 'medium',
+    roles: ['Admin']
+  },
+  {
+    id: 'system-notifications',
+    title: 'System Notifications',
+    component: 'SystemNotificationWidget',
+    size: 'small',
+    roles: ['Admin', 'Manager', 'Scientist', 'Viewer']
   }
 ]
 
