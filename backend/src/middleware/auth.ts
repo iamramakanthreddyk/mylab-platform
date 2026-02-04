@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { pool } from '../db';
 import { checkAccess, hasSufficientRole, isValidObjectType } from './accessControl';
+import { logAuthFailure, logAccessDenied } from '../utils/securityLogger';
 
 // Extend Express Request to include user and grant
 declare global {
@@ -51,6 +52,12 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
     `, [userId]);
 
     if (userResult.rows.length === 0) {
+      // Log authentication failure
+      try {
+        await logAuthFailure(pool, workspaceId, 'User not found in database', req);
+      } catch (logError) {
+        console.error('Failed to log auth failure:', logError);
+      }
       return res.status(401).json({ error: 'User not found' });
     }
 
@@ -67,6 +74,12 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
     next();
   } catch (error) {
     console.error('Authentication error:', error);
+    // Log authentication error
+    try {
+      await logAuthFailure(pool, 'workspace-1', 'Authentication middleware exception', req);
+    } catch (logError) {
+      console.error('Failed to log auth failure:', logError);
+    }
     res.status(401).json({ error: 'Authentication failed' });
   }
 };
@@ -79,6 +92,20 @@ export const requireWorkspaceOwnership = (req: Request, res: Response, next: Nex
   }
 
   if (req.user.workspaceId !== workspaceId) {
+    // Log access denial
+    try {
+      logAccessDenied(
+        pool,
+        req.user.id,
+        req.user.workspaceId,
+        'workspace',
+        workspaceId,
+        'Workspace ownership required',
+        req
+      ).catch(err => console.error('Failed to log access denial:', err));
+    } catch (logError) {
+      console.error('Failed to log access denial:', logError);
+    }
     return res.status(403).json({ error: 'Access denied: workspace ownership required' });
   }
 
@@ -105,12 +132,40 @@ export const requireObjectAccess = (objectType: string, requiredRole?: string) =
       const accessCheck = await checkAccess(objectType, objectId, req.user.workspaceId);
 
       if (!accessCheck.hasAccess) {
+        // Log access denial
+        try {
+          await logAccessDenied(
+            pool,
+            req.user.id,
+            req.user.workspaceId,
+            objectType,
+            objectId,
+            'No ownership or access grant found',
+            req
+          );
+        } catch (logError) {
+          console.error('Failed to log access denial:', logError);
+        }
         return res.status(403).json({ error: 'Access denied: no ownership or access grant found' });
       }
 
       // Check role requirements
       if (requiredRole && accessCheck.accessRole) {
         if (!hasSufficientRole(accessCheck.accessRole, requiredRole)) {
+          // Log role insufficiency
+          try {
+            await logAccessDenied(
+              pool,
+              req.user.id,
+              req.user.workspaceId,
+              objectType,
+              objectId,
+              `${accessCheck.accessRole} role insufficient, ${requiredRole} required`,
+              req
+            );
+          } catch (logError) {
+            console.error('Failed to log access denial:', logError);
+          }
           return res.status(403).json({
             error: `Access denied: ${accessCheck.accessRole} role insufficient, ${requiredRole} required`
           });

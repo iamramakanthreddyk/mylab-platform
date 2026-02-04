@@ -78,13 +78,14 @@ router.post('/', authenticate, auditLog('create', 'sample'), async (req, res) =>
 router.get('/:id', authenticate, requireObjectAccess('sample'), async (req, res) => {
   try {
     const { id } = req.params;
+    const workspaceId = req.user!.workspaceId;
 
     const result = await pool.query(`
       SELECT s.*, p.name as project_name
       FROM Samples s
       JOIN Projects p ON s.project_id = p.id
-      WHERE s.id = $1 AND s.deleted_at IS NULL
-    `, [id]);
+      WHERE s.id = $1 AND s.workspace_id = $2 AND s.deleted_at IS NULL
+    `, [id, workspaceId]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Sample not found' });
@@ -115,12 +116,14 @@ router.put('/:id', authenticate, requireObjectAccess('sample', 'processor'), aud
       }
     }
 
+    const workspaceId = req.user!.workspaceId;
+
     const result = await pool.query(`
       UPDATE Samples
       SET name = $1, description = $2, status = $3, quantity = $4, unit = $5, stage_id = $6, updated_at = NOW()
-      WHERE id = $7 AND deleted_at IS NULL
+      WHERE id = $7 AND workspace_id = $8 AND deleted_at IS NULL
       RETURNING *
-    `, [name, description, status, quantity, unit, stageId || null, id]);
+    `, [name, description, status, quantity, unit, stageId || null, id, workspaceId]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Sample not found' });
@@ -137,6 +140,7 @@ router.put('/:id', authenticate, requireObjectAccess('sample', 'processor'), aud
 router.delete('/:id', authenticate, requireObjectAccess('sample', 'client'), auditLog('delete', 'sample'), async (req, res) => {
   try {
     const { id } = req.params;
+    const workspaceId = req.user!.workspaceId;
 
     // Check if sample has derived samples using utility function
     const { canDelete, derivedCount } = await canDeleteSample(id);
@@ -152,9 +156,9 @@ router.delete('/:id', authenticate, requireObjectAccess('sample', 'client'), aud
     const result = await pool.query(`
       UPDATE Samples
       SET deleted_at = NOW()
-      WHERE id = $1 AND deleted_at IS NULL
+      WHERE id = $1 AND workspace_id = $2 AND deleted_at IS NULL
       RETURNING id
-    `, [id]);
+    `, [id, workspaceId]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Sample not found' });

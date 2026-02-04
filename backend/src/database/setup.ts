@@ -267,6 +267,9 @@ export class DatabaseSetup {
           performed_at TIMESTAMP,
           uploaded_by UUID NOT NULL REFERENCES Users(id),
           uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          supersedes_id UUID REFERENCES Analyses(id) ON DELETE SET NULL,
+          revision_reason VARCHAR(255),
+          is_authoritative BOOLEAN DEFAULT false,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           deleted_at TIMESTAMP
@@ -339,7 +342,38 @@ export class DatabaseSetup {
           details JSONB,
           ip_address VARCHAR(45),
           user_agent VARCHAR(500),
-          timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+      `,
+
+      SampleMetadataHistory: `
+        CREATE TABLE IF NOT EXISTS SampleMetadataHistory (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          sample_id UUID NOT NULL REFERENCES Samples(id) ON DELETE CASCADE,
+          workspace_id UUID NOT NULL REFERENCES Workspace(id),
+          metadata_snapshot JSONB NOT NULL,
+          field_changes JSONB,
+          changed_by UUID NOT NULL REFERENCES Users(id),
+          change_reason VARCHAR(255),
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+      `,
+
+      SecurityLog: `
+        CREATE TABLE IF NOT EXISTS SecurityLog (
+          id BIGSERIAL PRIMARY KEY,
+          event_type VARCHAR(50) NOT NULL,
+          severity ENUM ('low', 'medium', 'high', 'critical') NOT NULL,
+          user_id UUID REFERENCES Users(id),
+          workspace_id UUID NOT NULL REFERENCES Workspace(id),
+          resource_type VARCHAR(50),
+          resource_id UUID,
+          reason VARCHAR(255) NOT NULL,
+          details JSONB,
+          ip_address VARCHAR(45),
+          user_agent VARCHAR(500),
+          timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
       `,
 
@@ -418,7 +452,44 @@ export class DatabaseSetup {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
-      `
+      `,
+
+      Notifications: `
+        CREATE TABLE IF NOT EXISTS Notifications (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID NOT NULL REFERENCES Users(id) ON DELETE CASCADE,
+          workspace_id UUID NOT NULL REFERENCES Workspace(id) ON DELETE CASCADE,
+          type VARCHAR(50) NOT NULL DEFAULT 'info',
+          title VARCHAR(255) NOT NULL,
+          message TEXT,
+          action_url VARCHAR(2048),
+          action_label VARCHAR(100),
+          priority VARCHAR(20) DEFAULT 'medium',
+          read_at TIMESTAMP,
+          expires_at TIMESTAMP,
+          metadata JSONB,
+          created_by UUID REFERENCES Users(id),
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `,
+
+      NotificationPreferences: `
+        CREATE TABLE IF NOT EXISTS NotificationPreferences (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID NOT NULL UNIQUE REFERENCES Users(id) ON DELETE CASCADE,
+          email_payment_reminders BOOLEAN DEFAULT true,
+          email_project_updates BOOLEAN DEFAULT true,
+          email_sample_notifications BOOLEAN DEFAULT true,
+          email_system_announcements BOOLEAN DEFAULT true,
+          in_app_notifications BOOLEAN DEFAULT true,
+          quiet_hours_start TIME,
+          quiet_hours_end TIME,
+          quiet_hours_timezone VARCHAR(50),
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `,
     };
   }
 
@@ -438,6 +509,9 @@ export class DatabaseSetup {
       'CREATE INDEX IF NOT EXISTS idx_batch_items_derived ON BatchItems(derived_id);',
       'CREATE INDEX IF NOT EXISTS idx_analyses_batch ON Analyses(batch_id);',
       'CREATE INDEX IF NOT EXISTS idx_analyses_workspace ON Analyses(workspace_id);',
+      'CREATE INDEX IF NOT EXISTS idx_analyses_status ON Analyses(status);',
+      'CREATE INDEX IF NOT EXISTS idx_analyses_supersedes ON Analyses(supersedes_id);',
+      'CREATE INDEX IF NOT EXISTS idx_analyses_authoritative ON Analyses(batch_id, is_authoritative);',
       'CREATE INDEX IF NOT EXISTS idx_documents_workspace ON Documents(workspace_id);',
       'CREATE INDEX IF NOT EXISTS idx_documents_project ON Documents(project_id);',
       'CREATE INDEX IF NOT EXISTS idx_documents_sample ON Documents(sample_id);',
@@ -472,7 +546,17 @@ export class DatabaseSetup {
       'CREATE INDEX IF NOT EXISTS idx_notifications_type ON Notifications(type);',
       'CREATE INDEX IF NOT EXISTS idx_notifications_read ON Notifications(read_at);',
       'CREATE INDEX IF NOT EXISTS idx_notifications_priority ON Notifications(priority);',
-      'CREATE INDEX IF NOT EXISTS idx_notifications_created ON Notifications(created_at);'
+      'CREATE INDEX IF NOT EXISTS idx_notifications_created ON Notifications(created_at);',
+      'CREATE INDEX IF NOT EXISTS idx_notifications_workspace ON Notifications(workspace_id);',
+      'CREATE INDEX IF NOT EXISTS idx_notifications_created_by ON Notifications(created_by);',
+      'CREATE INDEX IF NOT EXISTS idx_notification_preferences_user ON NotificationPreferences(user_id);',
+      'CREATE INDEX IF NOT EXISTS idx_sample_metadata_history_sample ON SampleMetadataHistory(sample_id);',
+      'CREATE INDEX IF NOT EXISTS idx_sample_metadata_history_workspace ON SampleMetadataHistory(workspace_id);',
+      'CREATE INDEX IF NOT EXISTS idx_sample_metadata_history_created ON SampleMetadataHistory(created_at);',
+      'CREATE INDEX IF NOT EXISTS idx_security_log_workspace ON SecurityLog(workspace_id);',
+      'CREATE INDEX IF NOT EXISTS idx_security_log_type ON SecurityLog(event_type);',
+      'CREATE INDEX IF NOT EXISTS idx_security_log_severity ON SecurityLog(severity);',
+      'CREATE INDEX IF NOT EXISTS idx_security_log_timestamp ON SecurityLog(timestamp);'
     ];
 
     for (const sql of indexes) {
@@ -483,7 +567,61 @@ export class DatabaseSetup {
   }
 
   private async createConstraints(): Promise<void> {
-    console.log('🔗 Creating additional constraints...');
+    console.log('🔗 Creating additional constraints and triggers...');
+
+    // Create immutability functions for AuditLog
+    const triggerFunctions = [
+      `CREATE OR REPLACE FUNCTION fn_audit_immutable()
+        RETURNS TRIGGER AS $$
+        BEGIN
+          RAISE EXCEPTION 'AuditLog records are immutable and cannot be modified';
+        END;
+        $$ LANGUAGE plpgsql;
+      `,
+      `CREATE OR REPLACE FUNCTION fn_audit_no_delete()
+        RETURNS TRIGGER AS $$
+        BEGIN
+          RAISE EXCEPTION 'AuditLog records cannot be deleted';
+        END;
+        $$ LANGUAGE plpgsql;
+      `
+    ];
+
+    for (const fn of triggerFunctions) {
+      try {
+        await this.pool.query(fn);
+      } catch (error) {
+        console.log('Function may already exist, continuing...');
+      }
+    }
+
+    // Create immutability triggers for AuditLog
+    const triggers = [
+      `DROP TRIGGER IF EXISTS audit_immutable ON AuditLog;
+       CREATE TRIGGER audit_immutable BEFORE UPDATE ON AuditLog
+       FOR EACH ROW EXECUTE FUNCTION fn_audit_immutable();
+      `,
+      `DROP TRIGGER IF EXISTS audit_no_delete ON AuditLog;
+       CREATE TRIGGER audit_no_delete BEFORE DELETE ON AuditLog
+       FOR EACH ROW EXECUTE FUNCTION fn_audit_no_delete();
+      `,
+      `DROP TRIGGER IF EXISTS security_log_immutable ON SecurityLog;
+       CREATE TRIGGER security_log_immutable BEFORE UPDATE ON SecurityLog
+       FOR EACH ROW EXECUTE FUNCTION fn_audit_immutable();
+      `,
+      `DROP TRIGGER IF EXISTS security_log_no_delete ON SecurityLog;
+       CREATE TRIGGER security_log_no_delete BEFORE DELETE ON SecurityLog
+       FOR EACH ROW EXECUTE FUNCTION fn_audit_no_delete();
+      `
+    ];
+
+    for (const trigger of triggers) {
+      try {
+        await this.pool.query(trigger);
+      } catch (error) {
+        console.log('Trigger already exists or dependencies missing, continuing...');
+      }
+    }
 
     const constraints = [
       'ALTER TABLE ProjectStages ADD CONSTRAINT unique_project_order UNIQUE(project_id, order_index);'
@@ -563,8 +701,8 @@ export class DatabaseSetup {
 
     const tables = [
       'AuditLog', 'AccessGrants', 'Documents', 'Analyses', 'AnalysisTypes',
-      'BatchItems', 'Batches', 'DerivedSamples', 'Samples', 'ProjectStages',
-      'Projects', 'Users', 'Organizations', 'Workspace', 'CompanyInvitations', 
+      'BatchItems', 'Batches', 'DerivedSamples', 'SampleMetadataHistory', 'Samples', 'ProjectStages',
+      'Projects', 'Users', 'Organizations', 'SecurityLog', 'Workspace', 'CompanyInvitations', 
       'CompanyOnboardingRequests', 'CompanyPayments', 'Notifications'
     ];
 

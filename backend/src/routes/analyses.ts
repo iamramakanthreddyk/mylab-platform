@@ -13,8 +13,16 @@ const router = Router();
 // GET /api/analyses - List analyses for workspace
 router.get('/', authenticate, async (req, res) => {
   try {
-    const { batchId, executionMode } = req.query;
+    const { batchId, executionMode, limit: limitParam, offset: offsetParam } = req.query;
     const workspaceId = req.user!.workspaceId;
+
+    // Enforce pagination: max 1000 rows, default 50
+    const limit = Math.min(parseInt(limitParam as string) || 50, 1000);
+    const offset = parseInt(offsetParam as string) || 0;
+
+    if (offset < 0) {
+      return res.status(400).json({ error: 'Offset must be >= 0' });
+    }
 
     let query = `
       SELECT a.*,
@@ -48,10 +56,15 @@ router.get('/', authenticate, async (req, res) => {
       paramIndex++;
     }
 
-    query += ' ORDER BY a.created_at DESC';
+    query += ` ORDER BY a.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    params.push(limit);
+    params.push(offset);
 
     const result = await pool.query(query, params);
-    res.json(result.rows);
+    res.json({
+      data: result.rows,
+      pagination: { limit, offset, total: result.rows.length }
+    });
   } catch (error) {
     console.error('Error fetching analyses:', error);
     res.status(500).json({ error: 'Failed to fetch analyses' });
@@ -78,6 +91,68 @@ router.post('/', authenticate, requireObjectAccess('batch', 'analyzer'), auditLo
 
     const workspaceId = req.user!.workspaceId;
     const uploadedBy = req.user!.id;
+
+    // CRITICAL VALIDATION 1: Verify batch exists AND belongs to current workspace
+    const batchCheck = await pool.query(`
+      SELECT b.workspace_id, b.status, b.id,
+             COUNT(DISTINCT bi.derived_id) as sample_count
+      FROM Batches b
+      LEFT JOIN BatchItems bi ON b.id = bi.batch_id
+      WHERE b.id = $1 AND b.deleted_at IS NULL
+      GROUP BY b.id
+    `, [batchId]);
+
+    if (batchCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Batch not found' });
+    }
+
+    const batch = batchCheck.rows[0];
+
+    // CRITICAL: Batch MUST be in requesting workspace (prevent cross-workspace upload)
+    if (batch.workspace_id !== workspaceId) {
+      return res.status(403).json({
+        error: 'Batch belongs to different workspace',
+        detail: `Cannot upload to batch in workspace ${batch.workspace_id} from workspace ${workspaceId}`
+      });
+    }
+
+    // VALIDATION: Batch must be in valid state for uploads
+    if (!['created', 'in_progress', 'ready'].includes(batch.status)) {
+      return res.status(400).json({
+        error: `Cannot upload to batch in status: ${batch.status}`,
+        detail: `Batch must be in 'created', 'in_progress', or 'ready' status, not '${batch.status}'`
+      });
+    }
+
+    // VALIDATION: Verify analysis type exists and is active
+    const analysisTypeCheck = await pool.query(`
+      SELECT id FROM AnalysisTypes WHERE id = $1 AND is_active = true
+    `, [analysisTypeId]);
+
+    if (analysisTypeCheck.rows.length === 0) {
+      return res.status(400).json({ error: 'Analysis type not found or inactive' });
+    }
+
+    // VALIDATION: Conflict detection - check if authoritative analysis exists for this batch
+    const existingAnalysis = await pool.query(`
+      SELECT id, results, executed_by_org_id, uploaded_at, is_authoritative
+      FROM Analyses
+      WHERE batch_id = $1 AND status = 'completed' AND deleted_at IS NULL
+      ORDER BY uploaded_at DESC
+      LIMIT 1
+    `, [batchId]);
+
+    if (existingAnalysis.rows.length > 0 && existingAnalysis.rows[0].is_authoritative) {
+      return res.status(409).json({
+        error: 'Conflict: Authoritative result already exists for batch',
+        existingAnalysis: {
+          id: existingAnalysis.rows[0].id,
+          uploadedBy: existingAnalysis.rows[0].executed_by_org_id,
+          uploadedAt: existingAnalysis.rows[0].uploaded_at
+        },
+        detail: 'To upload conflicting results, request approval from batch owner or mark existing result as non-authoritative'
+      });
+    }
 
     // Validate execution mode and organization relationships
     if (executionMode === 'external' && !externalReference) {
@@ -249,19 +324,98 @@ router.get('/:id', authenticate, requireObjectAccess('analysis'), async (req, re
   }
 });
 
-// PUT /api/analyses/:id - Update analysis
+// POST /api/analyses/:id/revise - Create revised analysis (immutability enforced)
+router.post('/:id/revise', authenticate, requireObjectAccess('analysis', 'analyzer'), auditLog('revise', 'analysis'), async (req, res) => {
+  try {
+    const { id: originalId } = req.params;
+    const {
+      analysisTypeId,
+      results,
+      filePath,
+      fileChecksum,
+      fileSizeBytes,
+      revisionReason
+    } = req.body;
+
+    const uploadedBy = req.user!.id;
+
+    // Get original analysis
+    const originalAnalysis = await pool.query(`
+      SELECT * FROM Analyses WHERE id = $1 AND deleted_at IS NULL
+    `, [originalId]);
+
+    if (originalAnalysis.rows.length === 0) {
+      return res.status(404).json({ error: 'Original analysis not found' });
+    }
+
+    const original = originalAnalysis.rows[0];
+
+    // Create new analysis record linking to original (revision chain)
+    const revisionResult = await pool.query(`
+      INSERT INTO Analyses (
+        batch_id, workspace_id, analysis_type_id, results, file_path,
+        file_checksum, file_size_bytes, status, execution_mode,
+        executed_by_org_id, source_org_id, external_reference,
+        performed_at, uploaded_by, supersedes_id, revision_reason
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+      RETURNING *
+    `, [
+      original.batch_id,
+      original.workspace_id,
+      analysisTypeId || original.analysis_type_id,
+      results,
+      filePath,
+      fileChecksum,
+      fileSizeBytes,
+      'pending',
+      original.execution_mode,
+      original.executed_by_org_id,
+      original.source_org_id,
+      original.external_reference,
+      original.performed_at,
+      uploadedBy,
+      originalId,
+      revisionReason || 'Correction'
+    ]);
+
+    res.status(201).json({
+      message: 'Analysis revision created successfully',
+      originalAnalysisId: originalId,
+      revisionId: revisionResult.rows[0].id,
+      analysis: revisionResult.rows[0]
+    });
+  } catch (error) {
+    console.error('Error revising analysis:', error);
+    res.status(500).json({ error: 'Failed to revise analysis' });
+  }
+});
+
+// PUT /api/analyses/:id - Update analysis (limited to status only, results are immutable)
 router.put('/:id', authenticate, requireObjectAccess('analysis', 'analyzer'), auditLog('update', 'analysis'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, results, filePath, fileChecksum, fileSizeBytes } = req.body;
+    const { status } = req.body;
+
+    // Check if attempting to update results (forbidden)
+    if ('results' in req.body || 'filePath' in req.body || 'fileChecksum' in req.body) {
+      return res.status(405).json({
+        error: 'Results are immutable (FDA 21 CFR Part 11 compliance)',
+        message: 'To correct analysis results, use POST /api/analyses/:id/revise instead',
+        detail: 'This maintains complete audit trail and immutability of original results'
+      });
+    }
+
+    if (!status) {
+      return res.status(400).json({ error: 'Only status field can be updated' });
+    }
 
     const result = await pool.query(`
       UPDATE Analyses
-      SET status = $1, results = $2, file_path = $3, file_checksum = $4,
-          file_size_bytes = $5, updated_at = NOW()
-      WHERE id = $6 AND deleted_at IS NULL
+      SET status = $1, updated_at = NOW()
+      WHERE id = $2 AND deleted_at IS NULL
       RETURNING *
-    `, [status, results, filePath, fileChecksum, fileSizeBytes, id]);
+    `, [status, id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Analysis not found' });
