@@ -57,6 +57,12 @@ export function EntityCard({ entity, isHighlighted, isConnected, onHover, onClic
               {entity.fields.length} fields
             </Badge>
           </CardTitle>
+          {entity.category && (
+            <p className="text-xs text-muted-foreground mt-1">{entity.category}</p>
+          )}
+          {entity.description && (
+            <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{entity.description}</p>
+          )}
         </CardHeader>
         <CardContent className="space-y-3">
           {primaryKeys.length > 0 && (

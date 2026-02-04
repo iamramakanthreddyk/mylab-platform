@@ -1,26 +1,52 @@
 import { useState, useMemo } from 'react'
-import { entities, relationships } from '@/lib/schema-data'
+import { entities, relationships, EntityCategory } from '@/lib/schema-data'
 import { EntityCard } from '@/components/EntityCard'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { MagnifyingGlass, Database, Graph } from '@phosphor-icons/react'
+import { MagnifyingGlass, Database, Graph, Cube, FolderOpen, Flask, FileText, Lock, ClipboardText, ChatCircleDots, ChartLine } from '@phosphor-icons/react'
+
+const categoryIcons: Record<EntityCategory, typeof Database> = {
+  'Core Identity': Cube,
+  'Project Management': FolderOpen,
+  'Sample Lifecycle': Flask,
+  'Analysis': ChartLine,
+  'Documents': FileText,
+  'Access Control': Lock,
+  'Audit & Compliance': ClipboardText,
+  'Communication': ChatCircleDots,
+  'DOE': Graph,
+}
 
 function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const [hoveredEntity, setHoveredEntity] = useState<string | null>(null)
   const [selectedEntity, setSelectedEntity] = useState<string | null>(null)
+  const [selectedCategory, setSelectedCategory] = useState<EntityCategory | 'all'>('all')
+
+  const categories = useMemo(() => {
+    const cats = new Set<EntityCategory>()
+    entities.forEach((e) => e.category && cats.add(e.category))
+    return Array.from(cats).sort()
+  }, [])
 
   const filteredEntities = useMemo(() => {
-    if (!searchQuery.trim()) return entities
+    let filtered = entities
+
+    if (selectedCategory !== 'all') {
+      filtered = filtered.filter((e) => e.category === selectedCategory)
+    }
+
+    if (!searchQuery.trim()) return filtered
 
     const query = searchQuery.toLowerCase()
-    return entities.filter((entity) => {
+    return filtered.filter((entity) => {
       const nameMatch = entity.name.toLowerCase().includes(query)
       const fieldMatch = entity.fields.some((field) => field.name.toLowerCase().includes(query))
-      return nameMatch || fieldMatch
+      const descMatch = entity.description?.toLowerCase().includes(query)
+      return nameMatch || fieldMatch || descMatch
     })
-  }, [searchQuery])
+  }, [searchQuery, selectedCategory])
 
   const connectedEntities = useMemo(() => {
     if (!hoveredEntity && !selectedEntity) return new Set<string>()
@@ -67,10 +93,10 @@ function App() {
             <div>
               <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3 mb-2">
                 <Database size={36} weight="duotone" className="text-primary" />
-                Database Schema Explorer
+                MyLab Platform Schema
               </h1>
               <p className="text-muted-foreground">
-                Interactive visualization of {entities.length} entities and {relationships.length} relationships
+                Enterprise PostgreSQL schema with {entities.length} tables and {relationships.length} relationships
               </p>
             </div>
             <div className="flex gap-2">
@@ -98,6 +124,31 @@ function App() {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 py-8">
+        <div className="mb-6 flex flex-wrap gap-2">
+          <Badge
+            variant={selectedCategory === 'all' ? 'default' : 'outline'}
+            className="cursor-pointer px-4 py-2 text-sm"
+            onClick={() => setSelectedCategory('all')}
+          >
+            All Tables ({entities.length})
+          </Badge>
+          {categories.map((category) => {
+            const Icon = categoryIcons[category]
+            const count = entities.filter((e) => e.category === category).length
+            return (
+              <Badge
+                key={category}
+                variant={selectedCategory === category ? 'default' : 'outline'}
+                className="cursor-pointer px-4 py-2 text-sm flex items-center gap-2"
+                onClick={() => setSelectedCategory(category)}
+              >
+                <Icon size={16} />
+                {category} ({count})
+              </Badge>
+            )
+          })}
+        </div>
+
         <Tabs defaultValue="grid" className="w-full">
           <TabsList className="mb-6">
             <TabsTrigger value="grid">Grid View</TabsTrigger>

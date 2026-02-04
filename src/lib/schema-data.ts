@@ -1,5 +1,16 @@
 export type FieldType = 'UUID' | 'VARCHAR' | 'TEXT' | 'INT' | 'BIGINT' | 'BOOLEAN' | 'ENUM' | 'JSONB' | 'TIMESTAMP'
 
+export type EntityCategory = 
+  | 'Core Identity'
+  | 'Project Management'
+  | 'Sample Lifecycle'
+  | 'Analysis'
+  | 'Documents'
+  | 'Access Control'
+  | 'Audit & Compliance'
+  | 'Communication'
+  | 'DOE'
+
 export interface Field {
   name: string
   type: FieldType
@@ -13,6 +24,7 @@ export interface Entity {
   name: string
   fields: Field[]
   description?: string
+  category?: EntityCategory
 }
 
 export interface Relationship {
@@ -27,6 +39,8 @@ export interface Relationship {
 export const entities: Entity[] = [
   {
     name: 'Workspace',
+    category: 'Core Identity',
+    description: 'Core tenant isolation - root entity for multi-tenancy',
     fields: [
       { name: 'id', type: 'UUID', isPrimaryKey: true },
       { name: 'name', type: 'VARCHAR' },
@@ -36,12 +50,14 @@ export const entities: Entity[] = [
   },
   {
     name: 'Organizations',
+    category: 'Core Identity',
+    description: 'Client companies, labs, and external service providers',
     fields: [
       { name: 'id', type: 'UUID', isPrimaryKey: true },
       { name: 'name', type: 'VARCHAR' },
       { name: 'type', type: 'ENUM' },
       { name: 'is_platform_workspace', type: 'BOOLEAN' },
-      { name: 'workspace_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Workspace' },
+      { name: 'workspace_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Workspace', isNullable: true },
       { name: 'contact_info', type: 'JSONB' },
       { name: 'created_at', type: 'TIMESTAMP' },
       { name: 'updated_at', type: 'TIMESTAMP' },
@@ -49,12 +65,15 @@ export const entities: Entity[] = [
   },
   {
     name: 'Users',
+    category: 'Core Identity',
+    description: 'Platform users with workspace-scoped authentication',
     fields: [
       { name: 'id', type: 'UUID', isPrimaryKey: true },
       { name: 'workspace_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Workspace' },
       { name: 'email', type: 'VARCHAR' },
       { name: 'name', type: 'VARCHAR' },
       { name: 'role', type: 'ENUM' },
+      { name: 'password_hash', type: 'VARCHAR' },
       { name: 'created_at', type: 'TIMESTAMP' },
       { name: 'updated_at', type: 'TIMESTAMP' },
       { name: 'deleted_at', type: 'TIMESTAMP', isNullable: true },
@@ -62,6 +81,8 @@ export const entities: Entity[] = [
   },
   {
     name: 'Projects',
+    category: 'Project Management',
+    description: 'Research or testing initiatives with multi-org collaboration',
     fields: [
       { name: 'id', type: 'UUID', isPrimaryKey: true },
       { name: 'workspace_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Workspace' },
@@ -77,6 +98,8 @@ export const entities: Entity[] = [
   },
   {
     name: 'ProjectStages',
+    category: 'Project Management',
+    description: 'Sequential workflow stages within projects',
     fields: [
       { name: 'id', type: 'UUID', isPrimaryKey: true },
       { name: 'project_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Projects' },
@@ -90,6 +113,8 @@ export const entities: Entity[] = [
   },
   {
     name: 'Samples',
+    category: 'Sample Lifecycle',
+    description: 'Root samples submitted to projects',
     fields: [
       { name: 'id', type: 'UUID', isPrimaryKey: true },
       { name: 'project_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Projects' },
@@ -107,6 +132,8 @@ export const entities: Entity[] = [
   },
   {
     name: 'DerivedSamples',
+    category: 'Sample Lifecycle',
+    description: 'Child samples from processing/splitting root samples',
     fields: [
       { name: 'id', type: 'UUID', isPrimaryKey: true },
       { name: 'root_sample_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Samples' },
@@ -118,8 +145,8 @@ export const entities: Entity[] = [
       { name: 'depth', type: 'INT' },
       { name: 'status', type: 'ENUM' },
       { name: 'execution_mode', type: 'ENUM' },
-      { name: 'executed_by_org_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Organizations' },
-      { name: 'external_reference', type: 'VARCHAR' },
+      { name: 'executed_by_org_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Organizations', isNullable: true },
+      { name: 'external_reference', type: 'VARCHAR', isNullable: true },
       { name: 'performed_at', type: 'TIMESTAMP' },
       { name: 'created_by', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Users' },
       { name: 'created_at', type: 'TIMESTAMP' },
@@ -128,19 +155,33 @@ export const entities: Entity[] = [
     ],
   },
   {
+    name: 'SampleMetadataHistory',
+    category: 'Sample Lifecycle',
+    description: 'Tracks metadata changes for samples over time',
+    fields: [
+      { name: 'id', type: 'UUID', isPrimaryKey: true },
+      { name: 'sample_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Samples' },
+      { name: 'metadata_snapshot', type: 'JSONB' },
+      { name: 'changed_by', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Users' },
+      { name: 'created_at', type: 'TIMESTAMP' },
+    ],
+  },
+  {
     name: 'Batches',
+    category: 'Analysis',
+    description: 'Groups of derived samples sent for analysis',
     fields: [
       { name: 'id', type: 'UUID', isPrimaryKey: true },
       { name: 'workspace_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Workspace' },
-      { name: 'original_workspace_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Workspace' },
+      { name: 'original_workspace_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Workspace', isNullable: true },
       { name: 'batch_id', type: 'VARCHAR' },
       { name: 'description', type: 'TEXT' },
       { name: 'parameters', type: 'JSONB' },
       { name: 'status', type: 'ENUM' },
       { name: 'execution_mode', type: 'ENUM' },
-      { name: 'executed_by_org_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Organizations' },
-      { name: 'external_reference', type: 'VARCHAR' },
-      { name: 'performed_at', type: 'TIMESTAMP' },
+      { name: 'executed_by_org_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Organizations', isNullable: true },
+      { name: 'external_reference', type: 'VARCHAR', isNullable: true },
+      { name: 'performed_at', type: 'TIMESTAMP', isNullable: true },
       { name: 'created_by', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Users' },
       { name: 'sent_at', type: 'TIMESTAMP', isNullable: true },
       { name: 'completed_at', type: 'TIMESTAMP', isNullable: true },
@@ -151,6 +192,8 @@ export const entities: Entity[] = [
   },
   {
     name: 'BatchItems',
+    category: 'Analysis',
+    description: 'Junction table linking batches to derived samples',
     fields: [
       { name: 'id', type: 'UUID', isPrimaryKey: true },
       { name: 'batch_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Batches' },
@@ -161,22 +204,24 @@ export const entities: Entity[] = [
   },
   {
     name: 'Analyses',
+    category: 'Analysis',
+    description: 'Test results and analysis data for batches',
     fields: [
       { name: 'id', type: 'UUID', isPrimaryKey: true },
       { name: 'batch_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Batches' },
       { name: 'workspace_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Workspace' },
       { name: 'analysis_type_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'AnalysisTypes' },
       { name: 'results', type: 'JSONB' },
-      { name: 'file_path', type: 'VARCHAR' },
-      { name: 'file_checksum', type: 'VARCHAR' },
-      { name: 'file_size_bytes', type: 'BIGINT' },
+      { name: 'file_path', type: 'VARCHAR', isNullable: true },
+      { name: 'file_checksum', type: 'VARCHAR', isNullable: true },
+      { name: 'file_size_bytes', type: 'BIGINT', isNullable: true },
       { name: 'status', type: 'ENUM' },
       { name: 'execution_mode', type: 'ENUM' },
-      { name: 'executed_by_org_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Organizations' },
-      { name: 'source_org_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Organizations' },
-      { name: 'external_reference', type: 'VARCHAR' },
-      { name: 'received_at', type: 'TIMESTAMP' },
-      { name: 'performed_at', type: 'TIMESTAMP' },
+      { name: 'executed_by_org_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Organizations', isNullable: true },
+      { name: 'source_org_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Organizations', isNullable: true },
+      { name: 'external_reference', type: 'VARCHAR', isNullable: true },
+      { name: 'received_at', type: 'TIMESTAMP', isNullable: true },
+      { name: 'performed_at', type: 'TIMESTAMP', isNullable: true },
       { name: 'uploaded_by', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Users' },
       { name: 'uploaded_at', type: 'TIMESTAMP' },
       { name: 'created_at', type: 'TIMESTAMP' },
@@ -186,6 +231,8 @@ export const entities: Entity[] = [
   },
   {
     name: 'AnalysisTypes',
+    category: 'Analysis',
+    description: 'Catalog of available test/analysis methods',
     fields: [
       { name: 'id', type: 'UUID', isPrimaryKey: true },
       { name: 'name', type: 'VARCHAR' },
@@ -198,6 +245,8 @@ export const entities: Entity[] = [
   },
   {
     name: 'Documents',
+    category: 'Documents',
+    description: 'File attachments linked to projects or samples',
     fields: [
       { name: 'id', type: 'UUID', isPrimaryKey: true },
       { name: 'workspace_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Workspace' },
@@ -215,7 +264,24 @@ export const entities: Entity[] = [
     ],
   },
   {
+    name: 'DocumentVersions',
+    category: 'Documents',
+    description: 'Version history for document changes',
+    fields: [
+      { name: 'id', type: 'UUID', isPrimaryKey: true },
+      { name: 'document_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Documents' },
+      { name: 'version_number', type: 'INT' },
+      { name: 'file_path', type: 'VARCHAR' },
+      { name: 'file_checksum', type: 'VARCHAR' },
+      { name: 'size_bytes', type: 'BIGINT' },
+      { name: 'uploaded_by', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Users' },
+      { name: 'created_at', type: 'TIMESTAMP' },
+    ],
+  },
+  {
     name: 'AccessGrants',
+    category: 'Access Control',
+    description: 'RBAC cross-workspace access permissions',
     fields: [
       { name: 'id', type: 'UUID', isPrimaryKey: true },
       { name: 'object_type', type: 'ENUM' },
@@ -230,22 +296,176 @@ export const entities: Entity[] = [
     ],
   },
   {
-    name: 'AuditLog',
+    name: 'ApiKeys',
+    category: 'Access Control',
+    description: 'API authentication tokens for external integrations',
+    fields: [
+      { name: 'id', type: 'UUID', isPrimaryKey: true },
+      { name: 'workspace_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Workspace' },
+      { name: 'user_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Users' },
+      { name: 'name', type: 'VARCHAR' },
+      { name: 'key_hash', type: 'VARCHAR' },
+      { name: 'last_used_at', type: 'TIMESTAMP', isNullable: true },
+      { name: 'expires_at', type: 'TIMESTAMP', isNullable: true },
+      { name: 'created_at', type: 'TIMESTAMP' },
+      { name: 'revoked_at', type: 'TIMESTAMP', isNullable: true },
+    ],
+  },
+  {
+    name: 'Sessions',
+    category: 'Access Control',
+    description: 'User authentication sessions',
     fields: [
       { name: 'id', type: 'UUID', isPrimaryKey: true },
       { name: 'user_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Users' },
+      { name: 'token_hash', type: 'VARCHAR' },
+      { name: 'ip_address', type: 'VARCHAR' },
+      { name: 'user_agent', type: 'TEXT' },
+      { name: 'expires_at', type: 'TIMESTAMP' },
+      { name: 'created_at', type: 'TIMESTAMP' },
+      { name: 'revoked_at', type: 'TIMESTAMP', isNullable: true },
+    ],
+  },
+  {
+    name: 'AuditLog',
+    category: 'Audit & Compliance',
+    description: 'Immutable audit trail for all data changes',
+    fields: [
+      { name: 'id', type: 'UUID', isPrimaryKey: true },
+      { name: 'workspace_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Workspace' },
+      { name: 'user_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Users', isNullable: true },
       { name: 'action', type: 'VARCHAR' },
       { name: 'entity_type', type: 'VARCHAR' },
       { name: 'entity_id', type: 'UUID' },
       { name: 'changes', type: 'JSONB' },
+      { name: 'ip_address', type: 'VARCHAR', isNullable: true },
       { name: 'created_at', type: 'TIMESTAMP' },
+    ],
+  },
+  {
+    name: 'ComplianceRecords',
+    category: 'Audit & Compliance',
+    description: 'Regulatory compliance and certification records',
+    fields: [
+      { name: 'id', type: 'UUID', isPrimaryKey: true },
+      { name: 'workspace_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Workspace' },
+      { name: 'entity_type', type: 'VARCHAR' },
+      { name: 'entity_id', type: 'UUID' },
+      { name: 'compliance_type', type: 'ENUM' },
+      { name: 'status', type: 'ENUM' },
+      { name: 'certified_by', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Users' },
+      { name: 'certified_at', type: 'TIMESTAMP' },
+      { name: 'expires_at', type: 'TIMESTAMP', isNullable: true },
+      { name: 'created_at', type: 'TIMESTAMP' },
+      { name: 'updated_at', type: 'TIMESTAMP' },
+    ],
+  },
+  {
+    name: 'SignatureLog',
+    category: 'Audit & Compliance',
+    description: 'Digital signatures for compliance and data integrity',
+    fields: [
+      { name: 'id', type: 'UUID', isPrimaryKey: true },
+      { name: 'entity_type', type: 'VARCHAR' },
+      { name: 'entity_id', type: 'UUID' },
+      { name: 'user_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Users' },
+      { name: 'signature_hash', type: 'VARCHAR' },
+      { name: 'signed_at', type: 'TIMESTAMP' },
+      { name: 'meaning', type: 'VARCHAR' },
+    ],
+  },
+  {
+    name: 'Notifications',
+    category: 'Communication',
+    description: 'User notification messages and alerts',
+    fields: [
+      { name: 'id', type: 'UUID', isPrimaryKey: true },
+      { name: 'workspace_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Workspace' },
+      { name: 'user_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Users' },
+      { name: 'type', type: 'ENUM' },
+      { name: 'title', type: 'VARCHAR' },
+      { name: 'message', type: 'TEXT' },
+      { name: 'link', type: 'VARCHAR', isNullable: true },
+      { name: 'read_at', type: 'TIMESTAMP', isNullable: true },
+      { name: 'created_at', type: 'TIMESTAMP' },
+    ],
+  },
+  {
+    name: 'Messages',
+    category: 'Communication',
+    description: 'Direct messages between users',
+    fields: [
+      { name: 'id', type: 'UUID', isPrimaryKey: true },
+      { name: 'workspace_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Workspace' },
+      { name: 'from_user_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Users' },
+      { name: 'to_user_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Users' },
+      { name: 'subject', type: 'VARCHAR' },
+      { name: 'body', type: 'TEXT' },
+      { name: 'read_at', type: 'TIMESTAMP', isNullable: true },
+      { name: 'created_at', type: 'TIMESTAMP' },
+    ],
+  },
+  {
+    name: 'ProjectChats',
+    category: 'Communication',
+    description: 'Collaboration chat threads for projects',
+    fields: [
+      { name: 'id', type: 'UUID', isPrimaryKey: true },
+      { name: 'project_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Projects' },
+      { name: 'user_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Users' },
+      { name: 'message', type: 'TEXT' },
+      { name: 'created_at', type: 'TIMESTAMP' },
+    ],
+  },
+  {
+    name: 'NotificationPreferences',
+    category: 'Communication',
+    description: 'User preferences for notification delivery',
+    fields: [
+      { name: 'id', type: 'UUID', isPrimaryKey: true },
+      { name: 'user_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Users' },
+      { name: 'notification_type', type: 'ENUM' },
+      { name: 'email_enabled', type: 'BOOLEAN' },
+      { name: 'in_app_enabled', type: 'BOOLEAN' },
+      { name: 'created_at', type: 'TIMESTAMP' },
+      { name: 'updated_at', type: 'TIMESTAMP' },
+    ],
+  },
+  {
+    name: 'DesignOfExperiments',
+    category: 'DOE',
+    description: 'DOE experimental design configurations',
+    fields: [
+      { name: 'id', type: 'UUID', isPrimaryKey: true },
+      { name: 'project_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Projects' },
+      { name: 'workspace_id', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Workspace' },
+      { name: 'name', type: 'VARCHAR' },
+      { name: 'design_type', type: 'ENUM' },
+      { name: 'factors', type: 'JSONB' },
+      { name: 'responses', type: 'JSONB' },
+      { name: 'design_matrix', type: 'JSONB' },
+      { name: 'created_by', type: 'UUID', isForeignKey: true, foreignKeyTo: 'Users' },
+      { name: 'created_at', type: 'TIMESTAMP' },
+      { name: 'updated_at', type: 'TIMESTAMP' },
     ],
   },
 ]
 
 export const relationships: Relationship[] = [
   { from: 'Workspace', to: 'Organizations', type: 'one-to-many', fromLabel: 'backs', toLabel: 'has', isOptional: true },
-  { from: 'Organizations', to: 'Projects', type: 'one-to-many', fromLabel: 'owns', toLabel: 'client of' },
+  { from: 'Workspace', to: 'Users', type: 'one-to-many', fromLabel: 'contains', toLabel: 'belongs to' },
+  { from: 'Workspace', to: 'Projects', type: 'one-to-many', fromLabel: 'owns', toLabel: 'belongs to' },
+  { from: 'Workspace', to: 'Samples', type: 'one-to-many', fromLabel: 'owns', toLabel: 'belongs to' },
+  { from: 'Workspace', to: 'DerivedSamples', type: 'one-to-many', fromLabel: 'owns', toLabel: 'belongs to' },
+  { from: 'Workspace', to: 'Batches', type: 'one-to-many', fromLabel: 'owns', toLabel: 'belongs to' },
+  { from: 'Workspace', to: 'Documents', type: 'one-to-many', fromLabel: 'owns', toLabel: 'belongs to' },
+  { from: 'Workspace', to: 'AuditLog', type: 'one-to-many', fromLabel: 'tracks', toLabel: 'tracked in' },
+  { from: 'Workspace', to: 'Notifications', type: 'one-to-many', fromLabel: 'sends', toLabel: 'sent in' },
+  { from: 'Workspace', to: 'Messages', type: 'one-to-many', fromLabel: 'contains', toLabel: 'sent in' },
+  { from: 'Workspace', to: 'ApiKeys', type: 'one-to-many', fromLabel: 'issues', toLabel: 'issued by' },
+  { from: 'Workspace', to: 'ComplianceRecords', type: 'one-to-many', fromLabel: 'certifies', toLabel: 'certified in' },
+  { from: 'Workspace', to: 'DesignOfExperiments', type: 'one-to-many', fromLabel: 'contains', toLabel: 'belongs to' },
+  { from: 'Organizations', to: 'Projects', type: 'one-to-many', fromLabel: 'owns as client', toLabel: 'client of' },
   { from: 'Organizations', to: 'Projects', type: 'one-to-many', fromLabel: 'executes', toLabel: 'executed by' },
   { from: 'Organizations', to: 'AccessGrants', type: 'one-to-many', fromLabel: 'receives', toLabel: 'granted to' },
   { from: 'Organizations', to: 'DerivedSamples', type: 'one-to-many', fromLabel: 'executes', toLabel: 'executed by' },
@@ -258,16 +478,32 @@ export const relationships: Relationship[] = [
   { from: 'Users', to: 'Batches', type: 'one-to-many', fromLabel: 'creates', toLabel: 'created by' },
   { from: 'Users', to: 'Analyses', type: 'one-to-many', fromLabel: 'uploads', toLabel: 'uploaded by' },
   { from: 'Users', to: 'Documents', type: 'one-to-many', fromLabel: 'uploads', toLabel: 'uploaded by' },
+  { from: 'Users', to: 'DocumentVersions', type: 'one-to-many', fromLabel: 'uploads', toLabel: 'uploaded by' },
   { from: 'Users', to: 'AccessGrants', type: 'one-to-many', fromLabel: 'grants', toLabel: 'granted by' },
   { from: 'Users', to: 'AuditLog', type: 'one-to-many', fromLabel: 'performs', toLabel: 'performed by' },
+  { from: 'Users', to: 'Notifications', type: 'one-to-many', fromLabel: 'receives', toLabel: 'sent to' },
+  { from: 'Users', to: 'Messages', type: 'one-to-many', fromLabel: 'sends', toLabel: 'sent by' },
+  { from: 'Users', to: 'Messages', type: 'one-to-many', fromLabel: 'receives', toLabel: 'sent to' },
+  { from: 'Users', to: 'ProjectChats', type: 'one-to-many', fromLabel: 'posts', toLabel: 'posted by' },
+  { from: 'Users', to: 'NotificationPreferences', type: 'one-to-many', fromLabel: 'configures', toLabel: 'configured for' },
+  { from: 'Users', to: 'ApiKeys', type: 'one-to-many', fromLabel: 'creates', toLabel: 'created by' },
+  { from: 'Users', to: 'Sessions', type: 'one-to-many', fromLabel: 'authenticates', toLabel: 'authenticated for' },
+  { from: 'Users', to: 'ComplianceRecords', type: 'one-to-many', fromLabel: 'certifies', toLabel: 'certified by' },
+  { from: 'Users', to: 'SignatureLog', type: 'one-to-many', fromLabel: 'signs', toLabel: 'signed by' },
+  { from: 'Users', to: 'DesignOfExperiments', type: 'one-to-many', fromLabel: 'creates', toLabel: 'created by' },
+  { from: 'Users', to: 'SampleMetadataHistory', type: 'one-to-many', fromLabel: 'changes', toLabel: 'changed by' },
   { from: 'Projects', to: 'ProjectStages', type: 'one-to-many', fromLabel: 'contains', toLabel: 'part of' },
   { from: 'Projects', to: 'Samples', type: 'one-to-many', fromLabel: 'contains', toLabel: 'belongs to' },
   { from: 'Projects', to: 'Documents', type: 'one-to-many', fromLabel: 'links to', toLabel: 'linked from', isOptional: true },
+  { from: 'Projects', to: 'ProjectChats', type: 'one-to-many', fromLabel: 'contains', toLabel: 'posted in' },
+  { from: 'Projects', to: 'DesignOfExperiments', type: 'one-to-many', fromLabel: 'defines', toLabel: 'defined for' },
   { from: 'Samples', to: 'DerivedSamples', type: 'one-to-many', fromLabel: 'root of', toLabel: 'derived from' },
   { from: 'Samples', to: 'Documents', type: 'one-to-many', fromLabel: 'links to', toLabel: 'linked from', isOptional: true },
+  { from: 'Samples', to: 'SampleMetadataHistory', type: 'one-to-many', fromLabel: 'tracks', toLabel: 'tracked for' },
   { from: 'DerivedSamples', to: 'BatchItems', type: 'one-to-many', fromLabel: 'included in', toLabel: 'contains' },
   { from: 'DerivedSamples', to: 'DerivedSamples', type: 'one-to-many', fromLabel: 'parent of', toLabel: 'child of', isOptional: true },
   { from: 'Batches', to: 'BatchItems', type: 'one-to-many', fromLabel: 'contains', toLabel: 'part of' },
   { from: 'Batches', to: 'Analyses', type: 'one-to-many', fromLabel: 'analyzed in', toLabel: 'analyzes' },
   { from: 'AnalysisTypes', to: 'Analyses', type: 'one-to-many', fromLabel: 'type of', toLabel: 'has type' },
+  { from: 'Documents', to: 'DocumentVersions', type: 'one-to-many', fromLabel: 'versioned as', toLabel: 'version of' },
 ]
