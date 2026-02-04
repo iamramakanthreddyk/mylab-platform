@@ -2,12 +2,14 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import dotenv from 'dotenv';
-import { pool, initializeDatabase } from './db-sqlite';
-import { PLATFORM_CONFIG } from './config/platform';
 
-// Import existing routes
+// Must import preload FIRST to load environment variables
+import './preload';
+
+import { pool } from './db';
+import { PLATFORM_CONFIG } from './config/platform';
 import authRoutes from './routes/auth';
+import adminRoutes from './routes/admin';
 import projectRoutes from './routes/projects';
 import sampleRoutes from './routes/samples';
 import derivedSampleRoutes from './routes/derivedSamples';
@@ -18,8 +20,6 @@ import notificationRoutes from './routes/notifications';
 import accessRoutes from './routes/access';
 import workspaceRoutes from './routes/workspaces';
 import { initializeTokenCleanupJob } from './jobs/tokenCleanup';
-
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -44,6 +44,7 @@ initializeTokenCleanupJob();
 
 // Static routes for now (will be dynamic later)
 app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/samples', sampleRoutes);
 app.use('/api/derived-samples', derivedSampleRoutes);
@@ -86,12 +87,16 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
 // Initialize database and start server
 (async () => {
   try {
-    await initializeDatabase();
+    // Test database connection
+    const result = await pool.query('SELECT NOW()');
+    console.log('✅ Database connected successfully');
+    
     app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`📊 Dashboard: http://localhost:${PORT}/health`);
     });
   } catch (err) {
-    console.error('Failed to initialize database:', err);
+    console.error('❌ Failed to connect to database:', err);
     process.exit(1);
   }
 })();

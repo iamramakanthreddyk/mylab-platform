@@ -57,8 +57,8 @@ router.get('/', authenticate, async (req, res) => {
     }
 
     query += ` ORDER BY a.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
-    params.push(limit);
-    params.push(offset);
+    params.push(String(limit));
+    params.push(String(offset));
 
     const result = await pool.query(query, params);
     res.json({

@@ -233,7 +233,7 @@ router.post('/bulk', authenticate, async (req, res) => {
 
       // Specific roles
       if (targetGroups.userRoles && targetGroups.userRoles.length > 0) {
-        const placeholders = targetGroups.userRoles.map((_, i) =>
+        const placeholders = targetGroups.userRoles.map((_: any, i: number) =>
           `$${queryParams.length + i + 1}`
         ).join(',');
         conditions.push(`u.role IN (${placeholders})`);

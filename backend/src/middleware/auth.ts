@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { pool } from '../db';
 import { checkAccess, hasSufficientRole, isValidObjectType } from './accessControl';
 import { logAuthFailure, logAccessDenied } from '../utils/securityLogger';
+import { trackLastLogin } from './analytics';
 
 // Extend Express Request to include user and grant
 declare global {
@@ -70,6 +71,9 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
       workspaceId: user.workspace_id,
       orgId: user.org_id
     };
+
+    // Track last login
+    await trackLastLogin(req, res, () => {});
 
     next();
   } catch (error) {

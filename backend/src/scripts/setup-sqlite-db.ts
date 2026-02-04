@@ -1,4 +1,6 @@
 // Script to initialize SQLite DB for testing
+// NOTE: This file is not used - we use PostgreSQL instead
+/*
 import sqlite3 from 'sqlite3';
 import fs from 'fs';
 import path from 'path';
@@ -26,3 +28,7 @@ db.exec(schema, (err) => {
     db.close();
   }
 });
+*/
+
+console.log('SQLite setup script is deprecated - using PostgreSQL instead');
+
