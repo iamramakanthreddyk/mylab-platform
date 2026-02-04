@@ -167,6 +167,7 @@ export class DatabaseSetup {
         CREATE TABLE IF NOT EXISTS Samples (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
           project_id UUID NOT NULL REFERENCES Projects(id) ON DELETE CASCADE,
+          stage_id UUID REFERENCES ProjectStages(id) ON DELETE SET NULL,
           workspace_id UUID NOT NULL REFERENCES Workspace(id),
           sample_id VARCHAR(100) NOT NULL,
           type VARCHAR(50),
@@ -186,6 +187,7 @@ export class DatabaseSetup {
           root_sample_id UUID NOT NULL REFERENCES Samples(id) ON DELETE CASCADE,
           parent_id UUID REFERENCES DerivedSamples(id) ON DELETE CASCADE,
           owner_workspace_id UUID NOT NULL REFERENCES Workspace(id),
+          stage_id UUID REFERENCES ProjectStages(id) ON DELETE SET NULL,
           derived_id VARCHAR(100) NOT NULL,
           process_notes TEXT,
           metadata JSONB,
@@ -297,10 +299,31 @@ export class DatabaseSetup {
           granted_to_org_id UUID NOT NULL REFERENCES Organizations(id),
           granted_role ENUM ('viewer', 'processor', 'analyzer', 'client') NOT NULL,
           access_mode ENUM ('platform', 'offline') NOT NULL DEFAULT 'platform',
+          can_reshare BOOLEAN NOT NULL DEFAULT false,
           expires_at TIMESTAMP,
+          revoked_at TIMESTAMP,
+          revocation_reason TEXT,
+          revoked_by UUID REFERENCES Users(id),
           created_by UUID NOT NULL REFERENCES Users(id),
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           deleted_at TIMESTAMP
+        );
+      `,
+
+      DownloadTokens: `
+        CREATE TABLE IF NOT EXISTS DownloadTokens (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          token_hash VARCHAR(64) NOT NULL UNIQUE,
+          object_type ENUM ('Document', 'Analysis', 'Result') NOT NULL,
+          object_id UUID NOT NULL,
+          grant_id UUID REFERENCES AccessGrants(id),
+          organization_id UUID NOT NULL REFERENCES Organizations(id),
+          user_id UUID NOT NULL REFERENCES Users(id),
+          expires_at TIMESTAMP NOT NULL,
+          one_time_use BOOLEAN DEFAULT false,
+          used_at TIMESTAMP,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          revoked_at TIMESTAMP
         );
       `,
 
@@ -382,20 +405,16 @@ export class DatabaseSetup {
         );
       `,
 
-      Notifications: `
-        CREATE TABLE IF NOT EXISTS Notifications (
+      APIKeys: `
+        CREATE TABLE IF NOT EXISTS APIKeys (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          user_id UUID REFERENCES Users(id) ON DELETE CASCADE,
-          workspace_id UUID REFERENCES Workspace(id) ON DELETE CASCADE,
-          type ENUM ('payment', 'system', 'warning', 'success', 'info', 'error') NOT NULL,
-          title VARCHAR(255) NOT NULL,
-          message TEXT NOT NULL,
-          action_url VARCHAR(500),
-          action_label VARCHAR(100),
-          priority ENUM ('low', 'medium', 'high') DEFAULT 'medium',
-          read_at TIMESTAMP,
+          organization_id UUID NOT NULL REFERENCES Organizations(id),
+          name VARCHAR(100) NOT NULL,
+          key_hash VARCHAR(64) NOT NULL UNIQUE,
+          is_active BOOLEAN NOT NULL DEFAULT true,
           expires_at TIMESTAMP,
-          metadata JSONB,
+          last_used_at TIMESTAMP,
+          created_by UUID REFERENCES Users(id),
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
@@ -423,6 +442,11 @@ export class DatabaseSetup {
       'CREATE INDEX IF NOT EXISTS idx_documents_project ON Documents(project_id);',
       'CREATE INDEX IF NOT EXISTS idx_documents_sample ON Documents(sample_id);',
       'CREATE INDEX IF NOT EXISTS idx_access_grants_org ON AccessGrants(granted_to_org_id);',
+      'CREATE INDEX IF NOT EXISTS idx_access_grants_revoked ON AccessGrants(revoked_at);',
+      'CREATE INDEX IF NOT EXISTS idx_download_tokens_grant ON DownloadTokens(grant_id);',
+      'CREATE INDEX IF NOT EXISTS idx_download_tokens_org ON DownloadTokens(organization_id);',
+      'CREATE INDEX IF NOT EXISTS idx_download_tokens_expires ON DownloadTokens(expires_at);',
+      'CREATE INDEX IF NOT EXISTS idx_download_tokens_revoked ON DownloadTokens(revoked_at);',
       'CREATE INDEX IF NOT EXISTS idx_audit_log_object ON AuditLog(object_type, object_id);',
       'CREATE INDEX IF NOT EXISTS idx_audit_log_actor ON AuditLog(actor_workspace);',
       'CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp ON AuditLog(timestamp);',

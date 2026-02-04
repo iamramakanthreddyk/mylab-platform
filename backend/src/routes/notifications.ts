@@ -285,6 +285,9 @@ router.post('/bulk', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// POST /api/notifications/project - Create project-specific notification
+router.post('/project', async (req, res) => {
   try {
     const {
       projectId,
@@ -405,6 +408,9 @@ router.post('/bulk', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// POST /api/notifications/system - Create system announcement
+router.post('/system', async (req, res) => {
   try {
     const {
       title,
@@ -488,6 +494,9 @@ router.post('/bulk', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// POST /api/notifications/payment-reminder - Send payment reminder to workspace
+router.post('/payment-reminder', async (req, res) => {
   try {
     const { workspaceId, message, urgent = false } = req.body;
 

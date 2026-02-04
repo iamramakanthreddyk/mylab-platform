@@ -779,6 +779,10 @@ router.get('/workspaces/payment-status', async (req, res) => {
       }
     });
 
+  } catch (error) {
+    console.error('Error fetching workspace payment status:', error);
+    res.status(500).json({ error: 'Failed to fetch workspace payment status' });
+  }
 });
 
 // POST /api/company/payments/send-reminder - Send payment reminder notification

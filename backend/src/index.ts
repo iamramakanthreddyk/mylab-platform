@@ -10,8 +10,13 @@ import { PLATFORM_CONFIG } from './config/platform';
 import authRoutes from './routes/auth';
 import projectRoutes from './routes/projects';
 import sampleRoutes from './routes/samples';
+import derivedSampleRoutes from './routes/derivedSamples';
+import analysisRoutes from './routes/analyses';
+import apiKeyRoutes from './routes/apiKeys';
 import companyRoutes from './routes/company';
 import notificationRoutes from './routes/notifications';
+import accessRoutes from './routes/access';
+import { initializeTokenCleanupJob } from './jobs/tokenCleanup';
 
 dotenv.config();
 
@@ -33,12 +38,19 @@ app.use(limiter);
 // Routes - using central brain configuration
 console.log('🚀 Initializing MyLab Platform with modules:', PLATFORM_CONFIG.modules.map(m => m.name));
 
+// Initialize background jobs
+initializeTokenCleanupJob();
+
 // Static routes for now (will be dynamic later)
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/samples', sampleRoutes);
+app.use('/api/derived-samples', derivedSampleRoutes);
+app.use('/api/analyses', analysisRoutes);
+app.use('/api/api-keys', apiKeyRoutes);
 app.use('/api/company', companyRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/access', accessRoutes);
 
 // Health check with platform info
 app.get('/health', (req, res) => {
