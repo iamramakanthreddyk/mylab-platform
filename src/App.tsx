@@ -88,7 +88,10 @@ function App() {
       setCurrentUser(user)
     }
   }
-    setCurrentUser(user)
+
+  const handleLogout = () => {
+    setCurrentUser(null)
+    setCurrentView('dashboard')
   }
 
   const createProject = async (projectData: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>) => {
