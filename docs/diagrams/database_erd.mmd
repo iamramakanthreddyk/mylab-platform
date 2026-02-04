@@ -1,0 +1,62 @@
+erDiagram
+    Workspace ||--o{ Users : "has"
+    Workspace ||--o{ Projects : "owns"
+    Workspace ||--o{ Samples : "owns"
+    Workspace ||--o{ DerivedSamples : "owns"
+    Workspace ||--o{ Batches : "owns"
+    Workspace ||--o{ Analyses : "owns"
+    Workspace ||--o{ Documents : "owns"
+    Workspace ||--o{ AuditLog : "actor_workspace"
+
+    Organizations ||--|| Workspace : "has_workspace"
+    Organizations ||--o{ Projects : "client_org"
+    Organizations ||--o{ Projects : "executing_org"
+    Organizations ||--o{ AccessGrants : "granted_to"
+    Organizations ||--o{ DerivedSamples : "executed_by"
+    Organizations ||--o{ Batches : "executed_by"
+    Organizations ||--o{ Analyses : "executed_by"
+    Organizations ||--o{ Analyses : "source_org"
+
+    Users ||--o{ Projects : "created"
+    Users ||--o{ Samples : "created"
+    Users ||--o{ DerivedSamples : "created"
+    Users ||--o{ Batches : "created"
+    Users ||--o{ Analyses : "uploaded"
+    Users ||--o{ Documents : "uploaded"
+    Users ||--o{ AccessGrants : "created"
+    Users ||--o{ AuditLog : "actor"
+
+    Projects ||--o{ ProjectStages : "has"
+    Projects ||--o{ Samples : "has"
+    Projects ||--o{ Documents : "has"
+
+    ProjectStages ||--|| Workspace : "owner_workspace"
+
+    Samples ||--o{ DerivedSamples : "root_sample"
+    Samples ||--o{ Documents : "has"
+
+    DerivedSamples ||--o{ DerivedSamples : "parent"
+    DerivedSamples ||--o{ BatchItems : "in"
+
+    Batches ||--o{ BatchItems : "has"
+    Batches ||--o{ Analyses : "has"
+    Batches ||--|| Workspace : "original_workspace"
+
+    BatchItems ||--|| Batches : "batch"
+    BatchItems ||--|| DerivedSamples : "derived"
+
+    AnalysisTypes ||--o{ Analyses : "type"
+
+    Analyses ||--|| Batches : "batch"
+    Analyses ||--|| Workspace : "workspace"
+    Analyses ||--|| AnalysisTypes : "type"
+
+    Documents ||--|| Projects : "project"
+    Documents ||--|| Samples : "sample"
+
+    AccessGrants ||--|| Organizations : "granted_to"
+    AccessGrants ||--|| Users : "created_by"
+
+    AuditLog ||--|| Users : "actor"
+    AuditLog ||--|| Workspace : "actor_workspace"
+    AuditLog ||--|| Organizations : "actor_org"

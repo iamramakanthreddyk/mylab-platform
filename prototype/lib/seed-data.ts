@@ -1,0 +1,154 @@
+import { Project, Sample, Organization } from './types'
+
+export const seedProjects: Project[] = [
+  {
+    id: 'proj-001',
+    workspaceId: 'workspace-1',
+    name: 'Polymer Stability Study',
+    description: 'Long-term stability testing of new polymer formulations under various environmental conditions',
+    clientOrgId: 'org-acme',
+    executingOrgId: 'org-internal-a',
+    status: 'Active',
+    createdBy: 'user-1',
+    createdAt: '2024-01-15T08:00:00Z',
+    updatedAt: '2024-02-10T14:30:00Z',
+  },
+  {
+    id: 'proj-002',
+    workspaceId: 'workspace-1',
+    name: 'Drug Formulation Analysis',
+    description: 'Comprehensive analysis of active pharmaceutical ingredients and excipients for novel drug formulation',
+    clientOrgId: 'org-biotech',
+    executingOrgId: 'org-internal-a',
+    status: 'Active',
+    createdBy: 'user-1',
+    createdAt: '2024-02-01T10:00:00Z',
+    updatedAt: '2024-02-12T09:15:00Z',
+  },
+  {
+    id: 'proj-003',
+    workspaceId: 'workspace-1',
+    name: 'Material Characterization',
+    description: 'Advanced characterization of composite materials for aerospace applications',
+    clientOrgId: 'org-global',
+    executingOrgId: 'org-partner',
+    status: 'Planning',
+    createdBy: 'user-1',
+    createdAt: '2024-02-08T13:00:00Z',
+    updatedAt: '2024-02-08T13:00:00Z',
+  },
+]
+
+export const seedSamples: Sample[] = [
+  {
+    id: 'sample-001',
+    projectId: 'proj-001',
+    workspaceId: 'workspace-1',
+    sampleId: 'POL-2024-001',
+    type: 'Polymer',
+    description: 'High-density polyethylene sample from batch A',
+    status: 'Analyzed',
+    metadata: {
+      temperature: '25C',
+      humidity: '50%',
+      batch: 'A',
+    },
+    createdBy: 'user-1',
+    createdAt: '2024-01-16T09:00:00Z',
+    updatedAt: '2024-02-05T16:00:00Z',
+  },
+  {
+    id: 'sample-002',
+    projectId: 'proj-001',
+    workspaceId: 'workspace-1',
+    sampleId: 'POL-2024-002',
+    type: 'Polymer',
+    description: 'High-density polyethylene sample from batch B',
+    status: 'In Progress',
+    metadata: {
+      temperature: '40C',
+      humidity: '75%',
+      batch: 'B',
+    },
+    createdBy: 'user-1',
+    createdAt: '2024-01-16T09:30:00Z',
+    updatedAt: '2024-02-10T11:00:00Z',
+  },
+  {
+    id: 'sample-003',
+    projectId: 'proj-002',
+    workspaceId: 'workspace-1',
+    sampleId: 'API-2024-001',
+    type: 'API',
+    description: 'Active pharmaceutical ingredient - compound X',
+    status: 'Registered',
+    metadata: {
+      purity: '99.5%',
+      batch: 'X-001',
+    },
+    createdBy: 'user-1',
+    createdAt: '2024-02-02T10:00:00Z',
+    updatedAt: '2024-02-02T10:00:00Z',
+  },
+]
+
+export const seedOrganizations: Organization[] = [
+  {
+    id: 'org-acme',
+    name: 'Acme Pharmaceuticals',
+    type: 'Client',
+    workspaceId: 'workspace-1',
+    contactInfo: {
+      email: 'contact@acmepharma.com',
+      phone: '+1-555-0100',
+    },
+  },
+  {
+    id: 'org-biotech',
+    name: 'BioTech Solutions',
+    type: 'Client',
+    workspaceId: 'workspace-1',
+    contactInfo: {
+      email: 'info@biotechsol.com',
+      phone: '+1-555-0200',
+    },
+  },
+  {
+    id: 'org-global',
+    name: 'Global Materials Inc',
+    type: 'Client',
+    workspaceId: 'workspace-1',
+    contactInfo: {
+      email: 'hello@globalmat.com',
+      phone: '+1-555-0300',
+    },
+  },
+  {
+    id: 'org-internal-a',
+    name: 'Internal Lab A',
+    type: 'Laboratory',
+    workspaceId: 'workspace-1',
+    contactInfo: {
+      email: 'laba@mylab.com',
+    },
+  },
+  {
+    id: 'org-internal-b',
+    name: 'Internal Lab B',
+    type: 'Laboratory',
+    workspaceId: 'workspace-1',
+    contactInfo: {
+      email: 'labb@mylab.com',
+    },
+  },
+  {
+    id: 'org-partner',
+    name: 'Partner Lab',
+    type: 'Partner',
+    workspaceId: 'workspace-1',
+    contactInfo: {
+      email: 'contact@partnerlab.com',
+      phone: '+1-555-0400',
+    },
+  },
+]

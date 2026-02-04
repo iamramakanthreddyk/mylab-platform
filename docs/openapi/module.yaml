@@ -1,0 +1,42 @@
+openapi: 3.0.0
+info:
+  title: MyLab Module Service API
+  version: 1.0.0
+servers:
+  - url: https://api.mylab.example/v1
+paths:
+  /modules:
+    get:
+      summary: List modules
+      responses:
+        '200':
+          description: Module list
+    post:
+      summary: Enable module for tenant
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                module_id:
+                  type: string
+                target_type:
+                  type: string
+                  enum: [company, client]
+                target_id:
+                  type: string
+      responses:
+        '200':
+          description: Module enabled
+components:
+  schemas:
+    Module:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string

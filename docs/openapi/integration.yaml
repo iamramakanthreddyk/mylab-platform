@@ -1,0 +1,36 @@
+openapi: 3.0.0
+info:
+  title: MyLab Integration Service API
+  version: 1.0.0
+servers:
+  - url: https://api.mylab.example/v1
+paths:
+  /integrations:
+    get:
+      summary: List configured integrations
+      responses:
+        '200':
+          description: Integrations list
+  /integrations/{id}/sync:
+    post:
+      summary: Trigger integration sync
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '202':
+          description: Sync started
+components:
+  schemas:
+    Integration:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        config:
+          type: object

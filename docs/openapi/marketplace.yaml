@@ -1,0 +1,40 @@
+openapi: 3.0.0
+info:
+  title: MyLab Marketplace Service API
+  version: 1.0.0
+servers:
+  - url: https://api.mylab.example/v1
+paths:
+  /marketplace/modules:
+    get:
+      summary: Browse partner modules
+      responses:
+        '200':
+          description: Module list
+  /marketplace/install:
+    post:
+      summary: Install marketplace module for tenant
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                module_id:
+                  type: string
+                target_id:
+                  type: string
+      responses:
+        '201':
+          description: Installed
+components:
+  schemas:
+    MarketplaceModule:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        vendor:
+          type: string

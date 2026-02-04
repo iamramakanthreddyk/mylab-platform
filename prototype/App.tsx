@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import axios from 'axios'
+import { useKV } from '@github/spark/hooks'
 import { User, UserRole, Project, Sample } from '@/lib/types'
+import { seedProjects, seedSamples } from '@/lib/seed-data'
 import { Login } from '@/components/Login'
 import { Navigation } from '@/components/Navigation'
 import { Dashboard } from '@/components/Dashboard'
@@ -9,12 +10,10 @@ import { SamplesView } from '@/components/SamplesView'
 import { SchemaExplorer } from '@/components/SchemaExplorer'
 import { Toaster } from '@/components/ui/sonner'
 
-const API_BASE = 'http://localhost:3001/api'
-
 function App() {
-  const [currentUser, setCurrentUser] = useState<User | null>(null)
-  const [projects, setProjects] = useState<Project[]>([])
-  const [samples, setSamples] = useState<Sample[]>([])
+  const [currentUser, setCurrentUser] = useKV<User | null>('mylab-current-user', null)
+  const [projects, setProjects] = useKV<Project[]>('mylab-projects', [])
+  const [samples, setSamples] = useKV<Sample[]>('mylab-samples', [])
   const [currentView, setCurrentView] = useState<string>('dashboard')
   const [isInitialized, setIsInitialized] = useState(false)
 
@@ -46,58 +45,28 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (currentUser) {
-      fetchProjects()
-      fetchSamples()
+    if (currentUser && (!projects || projects.length === 0)) {
+      setProjects(seedProjects)
+    }
+    if (currentUser && (!samples || samples.length === 0)) {
+      setSamples(seedSamples)
     }
   }, [currentUser])
 
-  const fetchProjects = async () => {
-    try {
-      const response = await axios.get(`${API_BASE}/projects`)
-      setProjects(response.data)
-    } catch (error) {
-      console.error('Failed to fetch projects:', error)
+  const handleLogin = (role: UserRole) => {
+    const user: User = {
+      id: `user-${Date.now()}`,
+      email: 'user@mylab.com',
+      name: 'Lab User',
+      role,
+      workspaceId: 'workspace-1',
     }
-  }
-
-  const fetchSamples = async () => {
-    try {
-      const response = await axios.get(`${API_BASE}/samples`)
-      setSamples(response.data)
-    } catch (error) {
-      console.error('Failed to fetch samples:', error)
-    }
-  }
-
-  const handleLogin = async (role: UserRole) => {
-    try {
-      const response = await axios.post(`${API_BASE}/auth/login`, { role })
-      setCurrentUser(response.data.user)
-    } catch (error) {
-      console.error('Login failed:', error)
-      // Fallback to mock user
-      const user: User = {
-        id: `user-${Date.now()}`,
-        email: 'user@mylab.com',
-        name: 'Lab User',
-        role,
-        workspaceId: 'workspace-1',
-      }
-      setCurrentUser(user)
-    }
-  }
     setCurrentUser(user)
   }
 
-  const createProject = async (projectData: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>) => {
-    try {
-      const response = await axios.post(`${API_BASE}/projects`, projectData)
-      setProjects(prev => [response.data, ...prev])
-    } catch (error) {
-      console.error('Failed to create project:', error)
-      throw error
-    }
+  const handleLogout = () => {
+    setCurrentUser(null)
+    setCurrentView('dashboard')
   }
 
   if (!isInitialized) {
@@ -125,7 +94,7 @@ function App() {
         <Dashboard user={currentUser} projects={projects || []} onNavigate={setCurrentView} />
       )}
       {currentView === 'projects' && (
-        <ProjectsView user={currentUser} projects={projects || []} onCreateProject={createProject} />
+        <ProjectsView user={currentUser} projects={projects || []} onProjectsChange={setProjects} />
       )}
       {currentView === 'samples' && (
         <SamplesView user={currentUser} samples={samples || []} />

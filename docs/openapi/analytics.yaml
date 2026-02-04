@@ -1,0 +1,38 @@
+openapi: 3.0.0
+info:
+  title: MyLab Analytics Service API
+  version: 1.0.0
+servers:
+  - url: https://api.mylab.example/v1
+paths:
+  /analytics/reports:
+    get:
+      summary: List available reports
+      responses:
+        '200':
+          description: Reports list
+  /analytics/run:
+    post:
+      summary: Run analytics job
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                report_id:
+                  type: string
+                params:
+                  type: object
+      responses:
+        '202':
+          description: Job accepted
+components:
+  schemas:
+    Report:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string

@@ -1,0 +1,46 @@
+openapi: 3.0.0
+info:
+  title: MyLab Support Service API
+  version: 1.0.0
+servers:
+  - url: https://api.mylab.example/v1
+paths:
+  /support/ticket:
+    post:
+      summary: Create support ticket
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                subject:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Ticket created
+  /support/ticket/{id}:
+    get:
+      summary: Get ticket
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Ticket details
+components:
+  schemas:
+    Ticket:
+      type: object
+      properties:
+        id:
+          type: string
+        subject:
+          type: string
+        status:
+          type: string

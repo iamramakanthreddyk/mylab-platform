@@ -1,0 +1,64 @@
+graph TD
+    %% Global Platform Layer
+    PLATFORM[MyLab Global Platform]
+
+    %% Company Layer
+    COMPANY1[Company A]
+    COMPANY2[Company B]
+
+    %% Client Layer
+    CLIENT1A[Client 1 A]
+    CLIENT2A[Client 2 A]
+    CLIENT1B[Client 1 B]
+
+    %% Sub-client Layer
+    SUBCLIENT1A1[Subclient 1 1A]
+    SUBCLIENT1A2[Subclient 2 1A]
+    SUBCLIENT2A1[Subclient 1 2A]
+
+    %% Core MVP Block
+    MVP[MVP Core: Multi-Stage Project Management & Lineage]
+
+    %% Modules (Lego Blocks)
+    COMPLIANCE[Compliance]
+    INTEGRATION[Integrations]
+    ANALYTICS[Analytics]
+    SUPPORT[Support]
+    MOBILE[Mobile]
+    MARKETPLACE[Marketplace]
+    CUSTOM[Custom Workflows]
+    SECURITY[Security]
+    LOCALIZATION[Localization]
+
+    PLATFORM --> COMPANY1
+    PLATFORM --> COMPANY2
+    COMPANY1 --> CLIENT1A
+    COMPANY1 --> CLIENT2A
+    COMPANY2 --> CLIENT1B
+    CLIENT1A --> SUBCLIENT1A1
+    CLIENT1A --> SUBCLIENT1A2
+    CLIENT2A --> SUBCLIENT2A1
+    COMPANY1 --> MVP
+    COMPANY2 --> MVP
+    MVP --> COMPLIANCE
+    MVP --> INTEGRATION
+    MVP --> ANALYTICS
+    MVP --> SUPPORT
+    MVP --> MOBILE
+    MVP --> MARKETPLACE
+    MVP --> CUSTOM
+    MVP --> SECURITY
+    MVP --> LOCALIZATION
+
+    classDef platform fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef company fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
+    classDef client fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef subclient fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
+    classDef core fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    classDef module fill:#fffde7,stroke:#fbc02d,stroke-width:2px
+    class PLATFORM platform
+    class COMPANY1,COMPANY2 company
+    class CLIENT1A,CLIENT2A,CLIENT1B client
+    class SUBCLIENT1A1,SUBCLIENT1A2,SUBCLIENT2A1 subclient
+    class MVP core
+    class COMPLIANCE,INTEGRATION,ANALYTICS,SUPPORT,MOBILE,MARKETPLACE,CUSTOM,SECURITY,LOCALIZATION module

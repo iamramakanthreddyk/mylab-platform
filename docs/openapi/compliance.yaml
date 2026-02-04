@@ -1,0 +1,38 @@
+openapi: 3.0.0
+info:
+  title: MyLab Compliance Service API
+  version: 1.0.0
+servers:
+  - url: https://api.mylab.example/v1
+paths:
+  /compliance/records:
+    get:
+      summary: Get compliance records
+      responses:
+        '200':
+          description: Compliance records
+  /compliance/check:
+    post:
+      summary: Run compliance check
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                project_id:
+                  type: string
+      responses:
+        '200':
+          description: Compliance result
+components:
+  schemas:
+    ComplianceRecord:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+        details:
+          type: string

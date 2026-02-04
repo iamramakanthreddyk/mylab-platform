@@ -1,0 +1,29 @@
+graph TD
+    INTEGRATION[Integrations] --> ANALYTICS[Analytics]
+    COMPLIANCE[Compliance] --> ANALYTICS
+    SECURITY[Security] --> COMPLIANCE
+    CUSTOM[Custom Workflows] --> ANALYTICS
+    MARKETPLACE[Marketplace] --> INTEGRATION
+    LOCALIZATION[Localization] --> SUPPORT[Support]
+
+    subgraph Legend
+        PLATFORM[Global Platform]
+        COMPANY[Company]
+        CLIENT[Client]
+        SUBCLIENT[Subclient]
+        MVP[MVP Core]
+        MODULE[Module Block]
+    end
+
+    classDef platform fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef company fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
+    classDef client fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef subclient fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
+    classDef core fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    classDef module fill:#fffde7,stroke:#fbc02d,stroke-width:2px
+    class PLATFORM platform
+    class COMPANY company
+    class CLIENT client
+    class SUBCLIENT subclient
+    class MVP core
+    class MODULE module

@@ -1,0 +1,47 @@
+openapi: 3.0.0
+info:
+  title: MyLab Company Service API
+  version: 1.0.0
+servers:
+  - url: https://api.mylab.example/v1
+paths:
+  /companies:
+    get:
+      summary: List companies
+      responses:
+        '200':
+          description: List of companies
+    post:
+      summary: Create company
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Company'
+      responses:
+        '201':
+          description: Company created
+  /clients:
+    get:
+      summary: List clients for a company
+      parameters:
+        - in: query
+          name: company_id
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of clients
+components:
+  schemas:
+    Company:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        created_at:
+          type: string
+          format: date-time

@@ -1,0 +1,23 @@
+graph TD
+    DASHBOARD[Dashboard]
+    COMPANY[Company Management]
+    PROJECT[Project Explorer]
+    MODULE[Module Center]
+    COMPLIANCE[Compliance Center]
+    ANALYTICS[Analytics Dashboard]
+    MARKETPLACE[Marketplace]
+    SUPPORT[Support & Onboarding]
+
+    DASHBOARD --> COMPANY
+    DASHBOARD --> PROJECT
+    DASHBOARD --> MODULE
+    DASHBOARD --> ANALYTICS
+    DASHBOARD --> COMPLIANCE
+    DASHBOARD --> MARKETPLACE
+    DASHBOARD --> SUPPORT
+    COMPANY --> PROJECT
+    COMPANY --> MODULE
+    PROJECT --> ANALYTICS
+    MODULE --> COMPLIANCE
+    MARKETPLACE --> MODULE
+    SUPPORT --> DASHBOARD
