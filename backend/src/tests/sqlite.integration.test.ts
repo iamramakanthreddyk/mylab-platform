@@ -1,6 +1,6 @@
 // Integration test for SQLite DB
-const sqlite3 = require('sqlite3');
-const path = require('path');
+import sqlite3 from 'sqlite3';
+import path from 'path';
 
 describe('SQLite DB Integration', () => {
   const DB_PATH = path.join(__dirname, '../../local-test.db');
@@ -22,11 +22,11 @@ describe('SQLite DB Integration', () => {
         expect(err).toBeNull();
         db.get(`SELECT * FROM Workspace WHERE id = ?`, ['w1'], (err2, row) => {
           expect(err2).toBeNull();
-          expect(row.name).toBe('TestOrg');
+          expect((row as any).name).toBe('TestOrg');
           done();
         });
       }
-    );
+    ); 
   });
 
   test('Insert and fetch User', (done) => {
@@ -37,10 +37,10 @@ describe('SQLite DB Integration', () => {
         expect(err).toBeNull();
         db.get(`SELECT * FROM Users WHERE id = ?`, ['u1'], (err2, row) => {
           expect(err2).toBeNull();
-          expect(row.email).toBe('user@example.com');
+          expect((row as any).email).toBe('user@example.com');
           done();
         });
       }
-    );
+    ); 
   });
 });

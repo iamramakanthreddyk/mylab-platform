@@ -30,32 +30,36 @@ declare global {
 // Mock authentication for development - replace with real JWT validation
 export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // TODO: Replace with real JWT token validation
-    // For now, use mock user from header or default to demo user
     const authHeader = req.headers.authorization;
-    let userId = 'user-1'; // Default demo user
-    let workspaceId = 'workspace-1'; // Default demo workspace
+    const JWT_SECRET = process.env.JWT_SECRET || 'your-dev-secret-change-in-production';
 
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      // In real implementation, decode JWT token
-      // const token = authHeader.substring(7);
-      // const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
-      // userId = decoded.userId;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Missing or invalid authorization header' });
     }
 
-    // Get user details from database
+    const token = authHeader.substring(7);
+    let decoded: any;
+
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch (error) {
+      console.error('Token verification failed:', error instanceof Error ? error.message : error);
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+
+    // Get user details from database to ensure they still exist and aren't deleted
     const userResult = await pool.query(`
       SELECT u.id, u.email, u.name, u.role, u.workspace_id,
              o.id as org_id
       FROM Users u
       LEFT JOIN Organizations o ON u.workspace_id = o.workspace_id
       WHERE u.id = $1 AND u.deleted_at IS NULL
-    `, [userId]);
+    `, [decoded.userId]);
 
     if (userResult.rows.length === 0) {
       // Log authentication failure
       try {
-        await logAuthFailure(pool, workspaceId, 'User not found in database', req);
+        await logAuthFailure(pool, decoded.workspaceId, 'User not found in database', req);
       } catch (logError) {
         console.error('Failed to log auth failure:', logError);
       }

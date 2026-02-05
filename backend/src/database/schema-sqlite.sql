@@ -19,8 +19,11 @@ CREATE TABLE Organizations (
   is_platform_workspace INTEGER NOT NULL DEFAULT 0,
   workspace_id TEXT,
   contact_info TEXT,
+  gst_number TEXT,
+  gst_percentage REAL DEFAULT 18.00,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  deleted_at TEXT
 );
 
 CREATE TABLE Users (

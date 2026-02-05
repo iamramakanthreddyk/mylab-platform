@@ -6,13 +6,16 @@ const router = Router();
 
 // Superadmin credentials (in production, use database with hashed passwords)
 const SUPERADMIN_CREDENTIALS = {
-  email: 'superadmin@mylab.io',
-  password: 'SuperAdmin123!', // TODO: Use hashed password in production
+  email: process.env.SUPERADMIN_EMAIL || 'superadmin@mylab.io',
+  password: process.env.SUPERADMIN_PASSWORD || 'SuperAdmin123!', // TODO: Use hashed password in production
   role: 'PlatformAdmin' as const
 };
 
-// Hardcoded JWT secret for development (use env var in production)
+// JWT secret (should always come from env)
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-jwt-secret-change-in-production';
+if (!process.env.JWT_SECRET) {
+  console.warn('⚠️  WARNING: JWT_SECRET not set in environment. Using development secret.');
+}
 
 interface SuperAdminRequest extends Request {
   admin?: {
@@ -27,6 +30,7 @@ const verifySuperAdminToken = (req: SuperAdminRequest, res: Response, next: any)
   const authHeader = req.headers.authorization;
   
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.warn('[AUTH] Missing or invalid authorization header:', authHeader ? 'Missing Bearer prefix' : 'No auth header');
     return res.status(401).json({ error: 'Missing or invalid authorization header' });
   }
 
@@ -34,12 +38,15 @@ const verifySuperAdminToken = (req: SuperAdminRequest, res: Response, next: any)
   
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as any;
+    console.log('[AUTH] Token verified for user:', decoded.email, 'with role:', decoded.role);
     if (decoded.role !== 'PlatformAdmin') {
+      console.warn('[AUTH] Invalid role:', decoded.role, '(expected PlatformAdmin)');
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
     req.admin = decoded;
     next();
   } catch (error) {
+    console.error('[AUTH] Token verification failed:', error instanceof Error ? error.message : error);
     return res.status(401).json({ error: 'Invalid or expired token' });
   }
 };
@@ -116,41 +123,44 @@ router.get('/workspaces', verifySuperAdminToken, async (req: SuperAdminRequest, 
       SELECT
         w.id,
         w.name,
+        w.workspace_type,
         w.created_at,
+        o.gst_number,
+        o.gst_percentage,
         COUNT(DISTINCT u.id) as user_count,
-        COUNT(DISTINCT p.id) as project_count,
+        COUNT(DISTINCT pr.id) as project_count,
         COUNT(DISTINCT a.id) as analysis_count,
         s.plan_id,
         pl.name as plan_name,
         pl.tier as plan_tier,
         s.status as subscription_status,
         ll.last_login_at,
-        ll.ip_address as last_login_ip,
         um.active_users,
         um.api_calls
-      FROM workspace w
-      LEFT JOIN users u ON w.id = u.workspace_id
-      LEFT JOIN projects p ON w.id = p.workspace_id
-      LEFT JOIN analyses a ON w.id = a.workspace_id
-      LEFT JOIN subscriptions s ON w.id = s.workspace_id
-      LEFT JOIN plans pl ON s.plan_id = pl.id
-      LEFT JOIN lastlogin ll ON w.id = ll.workspace_id
-      LEFT JOIN usagemetrics um ON w.id = um.workspace_id AND um.date = CURRENT_DATE
-      WHERE 1=1
+      FROM Workspace w
+      LEFT JOIN Organizations o ON w.id = o.workspace_id
+      LEFT JOIN Users u ON w.id = u.workspace_id AND u.deleted_at IS NULL
+      LEFT JOIN Projects pr ON w.id = pr.workspace_id AND pr.deleted_at IS NULL
+      LEFT JOIN Analyses a ON w.id = a.workspace_id AND a.deleted_at IS NULL
+      LEFT JOIN Subscriptions s ON w.id = s.workspace_id AND s.deleted_at IS NULL
+      LEFT JOIN Plans pl ON s.plan_id = pl.id
+      LEFT JOIN LastLogin ll ON w.id = ll.workspace_id
+      LEFT JOIN UsageMetrics um ON w.id = um.workspace_id AND um.metric_date = CURRENT_DATE
+      WHERE w.deleted_at IS NULL
     `;
 
     if (searchTerm) {
       query += ` AND (w.name ILIKE $1 OR w.id ILIKE $1)`;
     }
 
-    query += ` GROUP BY w.id, s.plan_id, pl.name, pl.tier, s.status, ll.last_login_at, ll.ip_address, um.active_users, um.api_calls`;
+    query += ` GROUP BY w.id, o.gst_number, o.gst_percentage, s.plan_id, pl.name, pl.tier, s.status, ll.last_login_at, um.active_users, um.api_calls`;
     query += ` ORDER BY w.created_at DESC LIMIT $${searchTerm ? 2 : 1} OFFSET $${searchTerm ? 3 : 2}`;
 
     const params = searchTerm ? [`%${searchTerm}%`, limit, offset] : [limit, offset];
     const result = await pool.query(query, params);
 
     // Get total count
-    let countQuery = `SELECT COUNT(*) FROM workspace WHERE 1=1`;
+    let countQuery = `SELECT COUNT(*) FROM Workspace WHERE deleted_at IS NULL`;
     if (searchTerm) {
       countQuery += ` AND (name ILIKE $1 OR id ILIKE $1)`;
     }
@@ -187,13 +197,13 @@ router.get('/users', verifySuperAdminToken, async (req: SuperAdminRequest, res: 
         w.name as workspace_name,
         u.created_at as user_created_at,
         ll.last_login_at,
-        ll.ip_address as last_login_ip,
-        ll.user_agent as last_user_agent,
+        ll.last_login_ip,
+        ll.last_user_agent,
         (CURRENT_DATE - ll.last_login_at::date) as days_since_login
-      FROM users u
-      LEFT JOIN workspace w ON u.workspace_id = w.id
-      LEFT JOIN lastlogin ll ON u.id = ll.user_id
-      WHERE 1=1
+      FROM Users u
+      LEFT JOIN Workspace w ON u.workspace_id = w.id
+      LEFT JOIN LastLogin ll ON u.id = ll.user_id
+      WHERE u.deleted_at IS NULL
     `;
 
     const params: any[] = [];
@@ -453,6 +463,155 @@ router.get('/analytics/workspace/:workspaceId', verifySuperAdminToken, async (re
   } catch (error) {
     console.error('Workspace analytics error:', error);
     res.status(500).json({ error: 'Failed to fetch workspace analytics' });
+  }
+});
+
+// GET /api/admin/organizations - List all organizations with company details
+router.get('/organizations', verifySuperAdminToken, async (req: SuperAdminRequest, res: Response) => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = parseInt(req.query.offset as string) || 0;
+    const searchTerm = req.query.search as string;
+
+    let query = `
+      SELECT
+        o.id,
+        o.name,
+        o.workspace_id,
+        o.type,
+        o.gst_number,
+        o.created_at
+      FROM Organizations o
+      WHERE o.deleted_at IS NULL
+    `;
+
+    const params: any[] = [];
+    if (searchTerm) {
+      query += ` AND o.name ILIKE $${params.length + 1}`;
+      params.push(`%${searchTerm}%`);
+    }
+
+    query += ` ORDER BY o.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(limit, offset);
+
+    const result = await pool.query(query, params);
+
+    // Get total count
+    let countQuery = `SELECT COUNT(*) as count FROM Organizations WHERE deleted_at IS NULL`;
+    const countParams: any[] = [];
+    if (searchTerm) {
+      countQuery += ` AND name ILIKE $${countParams.length + 1}`;
+      countParams.push(`%${searchTerm}%`);
+    }
+    const countResult = await pool.query(countQuery, countParams);
+
+    res.json({
+      organizations: result.rows,
+      total: parseInt(countResult.rows[0].count),
+      limit,
+      offset
+    });
+  } catch (error) {
+    console.error('Organizations list error:', error);
+    res.status(500).json({ error: 'Failed to fetch organizations' });
+  }
+});
+
+// POST /api/admin/organizations/:organizationId/update-gst - Update GST details
+router.post('/organizations/:organizationId/update-gst', verifySuperAdminToken, async (req: SuperAdminRequest, res: Response) => {
+  try {
+    const { organizationId } = req.params;
+    const { gst_number, gst_percentage } = req.body;
+
+    if (!gst_number || !gst_percentage) {
+      return res.status(400).json({ error: 'gst_number and gst_percentage are required' });
+    }
+
+    const result = await pool.query(
+      `UPDATE Organizations 
+       SET gst_number = $1, gst_percentage = $2, updated_at = NOW()
+       WHERE id = $3
+       RETURNING *`,
+      [gst_number, gst_percentage, organizationId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    res.json({
+      message: 'GST details updated successfully',
+      organization: result.rows[0]
+    });
+  } catch (error) {
+    console.error('GST update error:', error);
+    res.status(500).json({ error: 'Failed to update GST details' });
+  }
+});
+
+// GET /api/admin/organizations/:organizationId - Get detailed organization info
+router.get('/organizations/:organizationId', verifySuperAdminToken, async (req: SuperAdminRequest, res: Response) => {
+  try {
+    const { organizationId } = req.params;
+
+    const orgResult = await pool.query(
+      `SELECT * FROM Organizations WHERE id = $1 AND deleted_at IS NULL`,
+      [organizationId]
+    );
+
+    if (orgResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    const organization = orgResult.rows[0];
+
+    // Get subscription details
+    const subResult = await pool.query(
+      `SELECT s.*, p.name as plan_name, p.tier, p.max_users, p.price_monthly
+       FROM Subscriptions s
+       LEFT JOIN Plans p ON s.plan_id = p.id
+       WHERE s.workspace_id = $1 AND s.deleted_at IS NULL`,
+      [organization.workspace_id]
+    );
+
+    res.json({
+      organization,
+      subscription: subResult.rows[0] || null
+    });
+  } catch (error) {
+    console.error('Organization details error:', error);
+    res.status(500).json({ error: 'Failed to fetch organization' });
+  }
+});
+
+// GET /api/admin/company-plans - Get plan-to-company mappings
+router.get('/company-plans', verifySuperAdminToken, async (req: SuperAdminRequest, res: Response) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        p.id,
+        p.name as plan_name,
+        p.tier,
+        p.max_users,
+        p.max_projects,
+        p.max_storage_gb,
+        p.price_monthly,
+        COUNT(DISTINCT s.workspace_id) as companies_on_plan,
+        COUNT(DISTINCT CASE WHEN s.status = 'active' THEN s.workspace_id END) as active_companies,
+        SUM(CASE WHEN s.status = 'active' THEN p.price_monthly ELSE 0 END) as monthly_revenue
+      FROM Plans p
+      LEFT JOIN Subscriptions s ON p.id = s.plan_id AND s.deleted_at IS NULL
+      GROUP BY p.id, p.name, p.tier, p.max_users, p.max_projects, p.max_storage_gb, p.price_monthly
+      ORDER BY p.tier, p.name
+    `);
+
+    res.json({
+      plans: result.rows,
+      total: result.rows.length
+    });
+  } catch (error) {
+    console.error('Company plans error:', error);
+    res.status(500).json({ error: 'Failed to fetch company plan mappings' });
   }
 });
 

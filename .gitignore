@@ -13,6 +13,17 @@ dist-ssr
 *-dist
 *.local
 
+# Environment variables - NEVER commit secrets!
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+backend/.env.local
+backend/.env
+.env.*.local
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -24,8 +35,6 @@ dist-ssr
 *.sln
 *.sw?
 
-.env
-**/agent-eval-report*
 packages
 pids
 .file-manifest
@@ -35,3 +44,20 @@ pids
 
 # Exclude Visual Studio workspace files
 .vs/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+local-test.db
+
+# Logs and crash dumps
+npm-debug.log*
+yarn-error.log*
+lerna-debug.log*
+pids
+
+# Dependencies
+package-lock.json
+yarn.lock
+pnpm-lock.yaml

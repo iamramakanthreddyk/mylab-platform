@@ -48,8 +48,8 @@ router.post('/onboarding/register', async (req, res) => {
     const requestId = result.rows[0].id;
 
     // Automatically create payment record for this onboarding request
-    // Default pricing: $99/month for small companies, $299/month for larger
-    const basePrice = companySize === '1-10' ? 99 : companySize === '11-50' ? 199 : 299;
+    // Default pricing (INR): ₹7,999/month for small companies, ₹16,499/month for medium, ₹24,999/month for large
+    const basePrice = companySize === '1-10' ? 7999 : companySize === '11-50' ? 16499 : 24999;
     const setupFee = 0; // No setup fee for initial launch
     const totalAmount = basePrice + setupFee;
 
@@ -63,10 +63,10 @@ router.post('/onboarding/register', async (req, res) => {
       companyDomain,
       contactEmail,
       totalAmount,
-      'USD',
+      'INR',
       'bank_transfer', // Default to bank transfer for offline payments
       'pending',
-      `Monthly subscription: $${basePrice}/month${setupFee > 0 ? ` + Setup fee: $${setupFee}` : ''}. First payment due before workspace activation.`,
+      `Monthly subscription: ₹${basePrice}/month${setupFee > 0 ? ` + Setup fee: ₹${setupFee}` : ''}. First payment due before workspace activation.`,
       new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days to pay
     ]);
 
@@ -76,7 +76,7 @@ router.post('/onboarding/register', async (req, res) => {
       status: result.rows[0].status,
       paymentRequired: {
         amount: totalAmount,
-        currency: 'USD',
+        currency: 'INR',
         dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
         instructions: 'Payment must be completed before workspace activation. Contact support for payment details.'
       },
@@ -195,7 +195,14 @@ router.put('/onboarding/approve/:requestId', async (req, res) => {
 
       const company = updateResult.rows[0];
 
-      // Create workspace with payment status
+
+      // Generate workspace slug from company name
+      const workspaceSlug = company.company_name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '')
+        .substring(0, 32); // Limit slug length
+
       const paymentStatus = paymentInfo?.status === 'completed' ? 'completed' :
                            paymentInfo?.status === 'pending' && paymentInfo.due_date && new Date() > new Date(paymentInfo.due_date) ? 'overdue' :
                            paymentInfo?.status === 'pending' ? 'pending' : 'trial';
@@ -466,7 +473,7 @@ router.post('/payments/initiate', async (req, res) => {
     const {
       onboardingRequestId,
       amount,
-      currency = 'USD',
+      currency = 'INR',
       paymentMethod,
       paymentReference,
       notes,

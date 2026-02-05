@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
-import { DatabaseSetup } from './database/setup';
+import { DatabaseSetup } from '../database/setup';
 import dotenv from 'dotenv';
 
-// Load environment variables
-dotenv.config();
+// Load environment variables from .env.local
+dotenv.config({ path: require('path').resolve(__dirname, '../../.env.local') });
 
 async function main() {
   const command = process.argv[2];

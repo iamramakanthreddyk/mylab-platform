@@ -1,5 +1,5 @@
 import { Pool } from 'pg';
-import { PLATFORM_CONFIG } from './config/platform';
+import { PLATFORM_CONFIG } from '../config/platform';
 
 export class DatabaseSetup {
   private pool: Pool;
@@ -33,8 +33,14 @@ export class DatabaseSetup {
       // Enable required extensions
       await this.enableExtensions();
 
+      // Create all required enum types before tables
+      await this.createEnumTypes();
+
       // Create all tables
       await this.createTables();
+
+      // Run migrations to update existing tables
+      await this.runMigrations();
 
       // Create indexes
       await this.createIndexes();
@@ -70,6 +76,47 @@ export class DatabaseSetup {
     console.log('✅ Extensions enabled');
   }
 
+  private async createEnumTypes(): Promise<void> {
+    console.log('🗂️ Creating enum types...');
+    const enumTypes = [
+      `CREATE TYPE workspace_type AS ENUM ('research', 'cro', 'analyzer', 'pharma');`,
+      `CREATE TYPE payment_status AS ENUM ('trial', 'pending', 'completed', 'overdue', 'suspended');`,
+      `CREATE TYPE org_type AS ENUM ('client', 'cro', 'analyzer', 'vendor', 'pharma');`,
+      `CREATE TYPE user_role AS ENUM ('admin', 'manager', 'scientist', 'viewer');`,
+      `CREATE TYPE stage_status AS ENUM ('planned', 'active', 'completed');`,
+      `CREATE TYPE sample_status AS ENUM ('created', 'shared', 'processing', 'analyzed', 'completed');`,
+      `CREATE TYPE execution_mode AS ENUM ('platform', 'external');`,
+      `CREATE TYPE batch_status AS ENUM ('created', 'ready', 'sent', 'in_progress', 'completed');`,
+      `CREATE TYPE analysis_status AS ENUM ('pending', 'in_progress', 'completed', 'failed');`,
+      `CREATE TYPE object_type AS ENUM ('Project', 'Sample', 'DerivedSample', 'Batch', 'Analysis', 'Document');`,
+      `CREATE TYPE granted_role AS ENUM ('viewer', 'processor', 'analyzer', 'client');`,
+      `CREATE TYPE access_mode AS ENUM ('platform', 'offline');`,
+      `CREATE TYPE download_object_type AS ENUM ('Document', 'Analysis', 'Result');`,
+      `CREATE TYPE audit_action AS ENUM ('create', 'read', 'update', 'delete', 'share', 'upload', 'download');`,
+      `CREATE TYPE severity_type AS ENUM ('low', 'medium', 'high', 'critical');`,
+      `CREATE TYPE company_size_type AS ENUM ('1-10', '11-50', '51-200', '201-1000', '1000+');`,
+      `CREATE TYPE onboarding_status AS ENUM ('pending', 'approved', 'rejected', 'workspace_created');`,
+      `CREATE TYPE invitation_role AS ENUM ('admin', 'manager', 'analyst', 'viewer');`,
+      `CREATE TYPE invitation_status AS ENUM ('pending', 'accepted', 'expired', 'cancelled');`,
+      `CREATE TYPE payment_method_type AS ENUM ('bank_transfer', 'check', 'wire', 'credit_card', 'other');`,
+      `CREATE TYPE payment_status_type AS ENUM ('pending', 'processing', 'completed', 'failed', 'refunded');`,
+      `CREATE TYPE subscription_status AS ENUM ('trial', 'active', 'suspended', 'cancelled', 'expired');`,
+      `CREATE TYPE plan_tier AS ENUM ('basic', 'pro', 'enterprise', 'custom');`,
+      `CREATE TYPE feature_status AS ENUM ('available', 'limited', 'disabled', 'beta');`
+    ];
+    for (const sql of enumTypes) {
+      try {
+        await this.pool.query(sql);
+      } catch (error) {
+        // Enum may already exist, continue
+        if (!String(error).includes('already exists')) {
+          console.warn('Enum creation error:', error);
+        }
+      }
+    }
+    console.log('✅ Enum types created');
+  }
+
   private async createTables(): Promise<void> {
     console.log('📋 Creating database tables...');
 
@@ -97,9 +144,9 @@ export class DatabaseSetup {
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
           name VARCHAR(255) NOT NULL,
           slug VARCHAR(50) NOT NULL UNIQUE,
-          type ENUM ('research', 'cro', 'analyzer', 'pharma') NOT NULL,
+          type workspace_type NOT NULL,
           email_domain VARCHAR(255),
-          payment_status ENUM ('trial', 'pending', 'completed', 'overdue', 'suspended') DEFAULT 'trial',
+          payment_status payment_status DEFAULT 'trial',
           payment_amount DECIMAL(10,2),
           payment_due_date TIMESTAMP,
           payment_last_reminder TIMESTAMP,
@@ -112,13 +159,35 @@ export class DatabaseSetup {
       Organizations: `
         CREATE TABLE IF NOT EXISTS Organizations (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          workspace_id UUID NOT NULL REFERENCES Workspace(id),
           name TEXT NOT NULL,
-          type ENUM ('client', 'cro', 'analyzer', 'vendor', 'pharma') NOT NULL,
+          type org_type NOT NULL,
           is_platform_workspace BOOLEAN NOT NULL DEFAULT false,
-          workspace_id UUID REFERENCES Workspace(id),
+          website VARCHAR(255),
+          industry VARCHAR(100),
+          company_size company_size_type,
+          annual_revenue VARCHAR(50),
+          company_registration_number VARCHAR(255),
+          gst_number VARCHAR(255),
+          gst_percentage DECIMAL(5,2) DEFAULT 18.00,
+          tax_id VARCHAR(255),
+          country VARCHAR(100),
+          state VARCHAR(100),
+          city VARCHAR(100),
+          postal_code VARCHAR(20),
+          address TEXT,
           contact_info JSONB,
+          logo_url VARCHAR(255),
+          primary_contact_name VARCHAR(255),
+          primary_contact_email VARCHAR(255),
+          primary_contact_phone VARCHAR(20),
+          billing_contact_name VARCHAR(255),
+          billing_contact_email VARCHAR(255),
+          billing_contact_phone VARCHAR(20),
+          notes TEXT,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          deleted_at TIMESTAMP
         );
       `,
 
@@ -128,7 +197,7 @@ export class DatabaseSetup {
           workspace_id UUID NOT NULL REFERENCES Workspace(id),
           email VARCHAR(255) NOT NULL UNIQUE,
           name VARCHAR(255),
-          role ENUM ('admin', 'manager', 'scientist', 'viewer') NOT NULL DEFAULT 'scientist',
+          role user_role NOT NULL DEFAULT 'scientist',
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           deleted_at TIMESTAMP
@@ -157,7 +226,7 @@ export class DatabaseSetup {
           name VARCHAR(255) NOT NULL,
           order_index INT NOT NULL,
           owner_workspace_id UUID NOT NULL REFERENCES Workspace(id),
-          status ENUM ('planned', 'active', 'completed') DEFAULT 'planned',
+          status stage_status DEFAULT 'planned',
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
@@ -173,7 +242,7 @@ export class DatabaseSetup {
           type VARCHAR(50),
           description TEXT,
           metadata JSONB,
-          status ENUM ('created', 'shared', 'processing', 'analyzed', 'completed') DEFAULT 'created',
+          status sample_status DEFAULT 'created',
           created_by UUID NOT NULL REFERENCES Users(id),
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -192,8 +261,8 @@ export class DatabaseSetup {
           process_notes TEXT,
           metadata JSONB,
           depth INT NOT NULL CHECK (depth >= 0 AND depth <= 2),
-          status ENUM ('created', 'shared', 'processing', 'analyzed', 'completed') DEFAULT 'created',
-          execution_mode ENUM ('platform', 'external') NOT NULL DEFAULT 'platform',
+          status sample_status DEFAULT 'created',
+          execution_mode execution_mode NOT NULL DEFAULT 'platform',
           executed_by_org_id UUID NOT NULL REFERENCES Organizations(id),
           external_reference TEXT,
           performed_at TIMESTAMP,
@@ -212,8 +281,8 @@ export class DatabaseSetup {
           batch_id VARCHAR(100) NOT NULL,
           description TEXT,
           parameters JSONB,
-          status ENUM ('created', 'ready', 'sent', 'in_progress', 'completed') DEFAULT 'created',
-          execution_mode ENUM ('platform', 'external') NOT NULL DEFAULT 'platform',
+          status batch_status DEFAULT 'created',
+          execution_mode execution_mode NOT NULL DEFAULT 'platform',
           executed_by_org_id UUID NOT NULL REFERENCES Organizations(id),
           external_reference TEXT,
           performed_at TIMESTAMP,
@@ -258,8 +327,8 @@ export class DatabaseSetup {
           file_path VARCHAR(500),
           file_checksum VARCHAR(64),
           file_size_bytes BIGINT,
-          status ENUM ('pending', 'in_progress', 'completed', 'failed') DEFAULT 'pending',
-          execution_mode ENUM ('platform', 'external') NOT NULL DEFAULT 'platform',
+          status analysis_status DEFAULT 'pending',
+          execution_mode execution_mode NOT NULL DEFAULT 'platform',
           executed_by_org_id UUID NOT NULL REFERENCES Organizations(id),
           source_org_id UUID NOT NULL REFERENCES Organizations(id),
           external_reference TEXT,
@@ -297,11 +366,11 @@ export class DatabaseSetup {
       AccessGrants: `
         CREATE TABLE IF NOT EXISTS AccessGrants (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          object_type ENUM ('Project', 'Sample', 'DerivedSample', 'Batch', 'Analysis', 'Document') NOT NULL,
+          object_type object_type NOT NULL,
           object_id UUID NOT NULL,
           granted_to_org_id UUID NOT NULL REFERENCES Organizations(id),
-          granted_role ENUM ('viewer', 'processor', 'analyzer', 'client') NOT NULL,
-          access_mode ENUM ('platform', 'offline') NOT NULL DEFAULT 'platform',
+          granted_role granted_role NOT NULL,
+          access_mode access_mode NOT NULL DEFAULT 'platform',
           can_reshare BOOLEAN NOT NULL DEFAULT false,
           expires_at TIMESTAMP,
           revoked_at TIMESTAMP,
@@ -317,7 +386,7 @@ export class DatabaseSetup {
         CREATE TABLE IF NOT EXISTS DownloadTokens (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
           token_hash VARCHAR(64) NOT NULL UNIQUE,
-          object_type ENUM ('Document', 'Analysis', 'Result') NOT NULL,
+          object_type download_object_type NOT NULL,
           object_id UUID NOT NULL,
           grant_id UUID REFERENCES AccessGrants(id),
           organization_id UUID NOT NULL REFERENCES Organizations(id),
@@ -335,7 +404,7 @@ export class DatabaseSetup {
           id BIGSERIAL PRIMARY KEY,
           object_type VARCHAR(50) NOT NULL,
           object_id UUID NOT NULL,
-          action ENUM ('create', 'read', 'update', 'delete', 'share', 'upload', 'download') NOT NULL,
+          action audit_action NOT NULL,
           actor_id UUID NOT NULL REFERENCES Users(id),
           actor_workspace UUID NOT NULL REFERENCES Workspace(id),
           actor_org_id UUID REFERENCES Organizations(id),
@@ -364,7 +433,7 @@ export class DatabaseSetup {
         CREATE TABLE IF NOT EXISTS SecurityLog (
           id BIGSERIAL PRIMARY KEY,
           event_type VARCHAR(50) NOT NULL,
-          severity ENUM ('low', 'medium', 'high', 'critical') NOT NULL,
+          severity severity_type NOT NULL,
           user_id UUID REFERENCES Users(id),
           workspace_id UUID NOT NULL REFERENCES Workspace(id),
           resource_type VARCHAR(50),
@@ -385,10 +454,10 @@ export class DatabaseSetup {
           contact_email VARCHAR(255) NOT NULL,
           contact_name VARCHAR(255) NOT NULL,
           contact_phone VARCHAR(50),
-          company_size ENUM ('1-10', '11-50', '51-200', '201-1000', '1000+') NOT NULL,
+          company_size company_size_type NOT NULL,
           industry VARCHAR(100),
           use_case TEXT,
-          status ENUM ('pending', 'approved', 'rejected', 'workspace_created') DEFAULT 'pending',
+          status onboarding_status DEFAULT 'pending',
           admin_user_id UUID REFERENCES Users(id),
           workspace_id UUID REFERENCES Workspace(id),
           rejection_reason TEXT,
@@ -405,8 +474,8 @@ export class DatabaseSetup {
           workspace_id UUID NOT NULL REFERENCES Workspace(id),
           invited_email VARCHAR(255) NOT NULL,
           invited_name VARCHAR(255) NOT NULL,
-          role ENUM ('admin', 'manager', 'analyst', 'viewer') NOT NULL DEFAULT 'analyst',
-          status ENUM ('pending', 'accepted', 'expired', 'cancelled') DEFAULT 'pending',
+          role invitation_role NOT NULL DEFAULT 'analyst',
+          status invitation_status DEFAULT 'pending',
           invited_by UUID NOT NULL REFERENCES Users(id),
           invitation_token VARCHAR(255) UNIQUE,
           expires_at TIMESTAMP NOT NULL,
@@ -424,9 +493,9 @@ export class DatabaseSetup {
           company_domain VARCHAR(255) NOT NULL,
           contact_email VARCHAR(255) NOT NULL,
           amount DECIMAL(10,2) NOT NULL,
-          currency VARCHAR(3) NOT NULL DEFAULT 'USD',
-          payment_method ENUM ('bank_transfer', 'check', 'wire', 'credit_card', 'other') NOT NULL,
-          status ENUM ('pending', 'processing', 'completed', 'failed', 'refunded') DEFAULT 'pending',
+          currency VARCHAR(3) NOT NULL DEFAULT 'INR',
+          payment_method payment_method_type NOT NULL,
+          status payment_status_type DEFAULT 'pending',
           transaction_id VARCHAR(255),
           payment_reference VARCHAR(255),
           notes TEXT,
@@ -490,7 +559,169 @@ export class DatabaseSetup {
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
       `,
+
+      Plans: `
+        CREATE TABLE IF NOT EXISTS Plans (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          name VARCHAR(50) NOT NULL UNIQUE,
+          tier plan_tier NOT NULL,
+          description TEXT,
+          max_users INT,
+          max_projects INT,
+          max_storage_gb INT,
+          price_monthly DECIMAL(10,2),
+          features JSONB DEFAULT '{}',
+          is_active BOOLEAN DEFAULT true,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `,
+
+      Subscriptions: `
+        CREATE TABLE IF NOT EXISTS Subscriptions (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          workspace_id UUID NOT NULL UNIQUE REFERENCES Workspace(id) ON DELETE CASCADE,
+          organization_id UUID REFERENCES Organizations(id),
+          plan_id UUID NOT NULL REFERENCES Plans(id),
+          status subscription_status DEFAULT 'trial',
+          current_billing_cycle_start TIMESTAMP,
+          current_billing_cycle_end TIMESTAMP,
+          next_billing_date TIMESTAMP,
+          user_count INT DEFAULT 1,
+          auto_renew BOOLEAN DEFAULT true,
+          last_payment_date TIMESTAMP,
+          trial_ends_at TIMESTAMP,
+          cancelled_at TIMESTAMP,
+          cancellation_reason TEXT,
+          coupon_code VARCHAR(50),
+          discount_percentage DECIMAL(5,2),
+          custom_price DECIMAL(12,2),
+          notes TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          deleted_at TIMESTAMP
+        );
+      `,
+
+      Features: `
+        CREATE TABLE IF NOT EXISTS Features (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          name VARCHAR(100) NOT NULL UNIQUE,
+          description TEXT,
+          api_endpoint VARCHAR(500),
+          status feature_status DEFAULT 'available',
+          is_beta BOOLEAN DEFAULT false,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `,
+
+      PlanFeatures: `
+        CREATE TABLE IF NOT EXISTS PlanFeatures (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          plan_id UUID NOT NULL REFERENCES Plans(id) ON DELETE CASCADE,
+          feature_id UUID NOT NULL REFERENCES Features(id) ON DELETE CASCADE,
+          is_enabled BOOLEAN DEFAULT true,
+          rate_limit_per_hour INT,
+          rate_limit_per_day INT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(plan_id, feature_id)
+        );
+      `,
+
+      LastLogin: `
+        CREATE TABLE IF NOT EXISTS LastLogin (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID NOT NULL UNIQUE REFERENCES Users(id) ON DELETE CASCADE,
+          workspace_id UUID NOT NULL REFERENCES Workspace(id),
+          last_login_at TIMESTAMP NOT NULL,
+          ip_address VARCHAR(45),
+          user_agent VARCHAR(500),
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `,
+
+      UsageMetrics: `
+        CREATE TABLE IF NOT EXISTS UsageMetrics (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          workspace_id UUID NOT NULL REFERENCES Workspace(id) ON DELETE CASCADE,
+          date DATE NOT NULL,
+          active_users INT DEFAULT 0,
+          total_projects INT DEFAULT 0,
+          total_samples INT DEFAULT 0,
+          total_analyses INT DEFAULT 0,
+          api_calls INT DEFAULT 0,
+          storage_used_mb BIGINT DEFAULT 0,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(workspace_id, date)
+        );
+      `,
+
+      FeatureUsage: `
+        CREATE TABLE IF NOT EXISTS FeatureUsage (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          workspace_id UUID NOT NULL REFERENCES Workspace(id) ON DELETE CASCADE,
+          feature_id UUID NOT NULL REFERENCES Features(id),
+          usage_count INT DEFAULT 1,
+          date DATE NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(workspace_id, feature_id, date)
+        );
+      `,
     };
+  }
+
+  private async runMigrations(): Promise<void> {
+    console.log('🔄 Running database migrations...');
+    
+    try {
+      // Add gst_number column if it doesn't exist
+      await this.pool.query(`
+        ALTER TABLE Organizations
+        ADD COLUMN IF NOT EXISTS gst_number VARCHAR(255);
+      `);
+      
+      // Add gst_percentage column if it doesn't exist
+      await this.pool.query(`
+        ALTER TABLE Organizations
+        ADD COLUMN IF NOT EXISTS gst_percentage DECIMAL(5,2) DEFAULT 18.00;
+      `);
+      
+      // Add deleted_at column if it doesn't exist
+      await this.pool.query(`
+        ALTER TABLE Organizations
+        ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
+      `);
+
+      // Add deleted_at column to Plans if it doesn't exist
+      await this.pool.query(`
+        ALTER TABLE Plans
+        ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
+      `);
+
+      // Add deleted_at column to Subscriptions if it doesn't exist
+      await this.pool.query(`
+        ALTER TABLE Subscriptions
+        ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
+      `);
+
+      // Add password_hash column to Users if it doesn't exist
+      await this.pool.query(`
+        ALTER TABLE Users
+        ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255);
+      `);
+
+      // Add require_password_change column to Users if it doesn't exist
+      await this.pool.query(`
+        ALTER TABLE Users
+        ADD COLUMN IF NOT EXISTS require_password_change BOOLEAN DEFAULT false;
+      `);
+      
+      console.log('✅ Migrations completed');
+    } catch (error) {
+      console.error('Migration error:', error);
+      // Don't throw - let it continue even if migrations fail
+    }
   }
 
   private async createIndexes(): Promise<void> {
@@ -642,6 +873,57 @@ export class DatabaseSetup {
   private async insertInitialData(): Promise<void> {
     console.log('🌱 Inserting initial data...');
 
+    // Create Admin Platform workspace for superadmin
+    console.log('👤 Creating Admin Platform workspace...');
+    try {
+      const workspaceResult = await this.pool.query(`
+        INSERT INTO Workspace (name, slug, type)
+        VALUES ('Admin Platform', 'admin-platform', 'research'::workspace_type)
+        ON CONFLICT DO NOTHING
+        RETURNING id
+      `);
+
+      let workspaceId: string;
+      if (workspaceResult.rows.length > 0) {
+        workspaceId = workspaceResult.rows[0].id;
+        console.log('✅ Admin workspace created:', workspaceId);
+      } else {
+        // If it already exists, fetch it
+        const existing = await this.pool.query(`
+          SELECT id FROM Workspace WHERE name = 'Admin Platform'
+        `);
+        if (existing.rows.length === 0) {
+          throw new Error('Admin workspace not found and could not be created');
+        }
+        workspaceId = existing.rows[0].id;
+        console.log('✅ Admin workspace already exists:', workspaceId);
+      }
+
+      // Create superadmin user
+      const superadminEmail = process.env.SUPERADMIN_EMAIL || 'superadmin@mylab.io';
+      console.log('👤 Creating superadmin user:', superadminEmail);
+      const userResult = await this.pool.query(`
+        INSERT INTO Users (workspace_id, email, name, role)
+        VALUES ($1, $2, $3, $4::user_role)
+        ON CONFLICT (email) DO NOTHING
+        RETURNING id
+      `, [
+        workspaceId,
+        superadminEmail,
+        'Super Admin',
+        'admin'
+      ]);
+      
+      if (userResult.rows.length > 0) {
+        console.log('✅ Superadmin user created:', userResult.rows[0].id);
+      } else {
+        console.log('✅ Superadmin user already exists');
+      }
+    } catch (error) {
+      console.error('⚠️  Error creating superadmin:', error);
+      throw error;
+    }
+
     // Insert default analysis types
     const analysisTypes = [
       { name: 'NMR Spectroscopy', description: 'Nuclear Magnetic Resonance', category: 'Spectroscopy' },
@@ -661,6 +943,24 @@ export class DatabaseSetup {
     }
 
     console.log('✅ Initial data inserted');
+
+    // Insert default subscription plans
+    console.log('💳 Creating default subscription plans...');
+    const plans = [
+      { name: 'Starter', tier: 'basic', maxUsers: 5, maxProjects: 10, maxStorageGb: 100, priceMonthly: 7999.00 },
+      { name: 'Professional', tier: 'pro', maxUsers: 25, maxProjects: 50, maxStorageGb: 500, priceMonthly: 39999.00 },
+      { name: 'Enterprise', tier: 'enterprise', maxUsers: 100, maxProjects: 200, maxStorageGb: 2000, priceMonthly: 159999.00 }
+    ];
+
+    for (const plan of plans) {
+      await this.pool.query(`
+        INSERT INTO Plans (name, tier, max_users, max_projects, max_storage_gb, price_monthly)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (name) DO NOTHING
+      `, [plan.name, plan.tier, plan.maxUsers, plan.maxProjects, plan.maxStorageGb, plan.priceMonthly]);
+    }
+
+    console.log('✅ Default subscription plans created');
   }
 
   private async createWelcomeNotifications(): Promise<void> {
