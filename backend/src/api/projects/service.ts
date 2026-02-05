@@ -25,13 +25,22 @@ export class ProjectService {
 
       const result = await pool.query(
         `
-        SELECT 
-          p.*,
-          o.name as client_org_name,
-          o2.name as executing_org_name
-        FROM Projects p
-        JOIN Organizations o ON p.client_org_id = o.id
-        JOIN Organizations o2 ON p.executing_org_id = o2.id
+        SELECT
+          p.id,
+          p.workspace_id as "workspaceId",
+          p.name,
+          p.description,
+          p.client_org_id as "clientOrgId",
+          p.executing_org_id as "executingOrgId",
+          p.status,
+          p.created_by as "createdBy",
+          p.created_at as "createdAt",
+          p.updated_at as "updatedAt",
+          o.name as "clientOrgName",
+          o2.name as "executingOrgName"
+        FROM projects p
+        JOIN organizations o ON p.client_org_id = o.id
+        JOIN organizations o2 ON p.executing_org_id = o2.id
         WHERE p.workspace_id = $1 AND p.deleted_at IS NULL
         ORDER BY p.created_at DESC
         `,
@@ -54,13 +63,22 @@ export class ProjectService {
 
       const result = await pool.query(
         `
-        SELECT 
-          p.*,
-          o.name as client_org_name,
-          o2.name as executing_org_name
-        FROM Projects p
-        JOIN Organizations o ON p.client_org_id = o.id
-        JOIN Organizations o2 ON p.executing_org_id = o2.id
+        SELECT
+          p.id,
+          p.workspace_id as "workspaceId",
+          p.name,
+          p.description,
+          p.client_org_id as "clientOrgId",
+          p.executing_org_id as "executingOrgId",
+          p.status,
+          p.created_by as "createdBy",
+          p.created_at as "createdAt",
+          p.updated_at as "updatedAt",
+          o.name as "clientOrgName",
+          o2.name as "executingOrgName"
+        FROM projects p
+        JOIN organizations o ON p.client_org_id = o.id
+        JOIN organizations o2 ON p.executing_org_id = o2.id
         WHERE p.id = $1 AND p.workspace_id = $2 AND p.deleted_at IS NULL
         `,
         [projectId, workspaceId]
@@ -93,7 +111,7 @@ export class ProjectService {
       // Validate that organizations exist and belong to workspace
       const orgCheck = await pool.query(
         `
-        SELECT id FROM Organizations 
+        SELECT id FROM organizations 
         WHERE (id = $1 OR id = $2) AND workspace_id = $3
         `,
         [data.clientOrgId, data.executingOrgId, workspaceId]
@@ -109,7 +127,7 @@ export class ProjectService {
 
       const result = await client.query(
         `
-        INSERT INTO Projects (
+        INSERT INTO projects (
           workspace_id, name, description, 
           client_org_id, executing_org_id, created_by
         )
@@ -124,13 +142,22 @@ export class ProjectService {
       // Fetch with org names
       const fullResult = await client.query(
         `
-        SELECT 
-          p.*,
-          o.name as client_org_name,
-          o2.name as executing_org_name
-        FROM Projects p
-        JOIN Organizations o ON p.client_org_id = o.id
-        JOIN Organizations o2 ON p.executing_org_id = o2.id
+        SELECT
+          p.id,
+          p.workspace_id as "workspaceId",
+          p.name,
+          p.description,
+          p.client_org_id as "clientOrgId",
+          p.executing_org_id as "executingOrgId",
+          p.status,
+          p.created_by as "createdBy",
+          p.created_at as "createdAt",
+          p.updated_at as "updatedAt",
+          o.name as "clientOrgName",
+          o2.name as "executingOrgName"
+        FROM projects p
+        JOIN organizations o ON p.client_org_id = o.id
+        JOIN organizations o2 ON p.executing_org_id = o2.id
         WHERE p.id = $1
         `,
         [newProject.id]
@@ -195,7 +222,7 @@ export class ProjectService {
 
       const result = await pool.query(
         `
-        UPDATE Projects
+        UPDATE projects
         SET ${updates.join(', ')}
         WHERE id = $${paramIndex++} AND workspace_id = $${paramIndex++} AND deleted_at IS NULL
         RETURNING *
@@ -210,13 +237,22 @@ export class ProjectService {
       // Fetch with org names
       const fullResult = await pool.query(
         `
-        SELECT 
-          p.*,
-          o.name as client_org_name,
-          o2.name as executing_org_name
-        FROM Projects p
-        JOIN Organizations o ON p.client_org_id = o.id
-        JOIN Organizations o2 ON p.executing_org_id = o2.id
+        SELECT
+          p.id,
+          p.workspace_id as "workspaceId",
+          p.name,
+          p.description,
+          p.client_org_id as "clientOrgId",
+          p.executing_org_id as "executingOrgId",
+          p.status,
+          p.created_by as "createdBy",
+          p.created_at as "createdAt",
+          p.updated_at as "updatedAt",
+          o.name as "clientOrgName",
+          o2.name as "executingOrgName"
+        FROM projects p
+        JOIN organizations o ON p.client_org_id = o.id
+        JOIN organizations o2 ON p.executing_org_id = o2.id
         WHERE p.id = $1
         `,
         [projectId]
@@ -239,7 +275,7 @@ export class ProjectService {
 
       const result = await pool.query(
         `
-        UPDATE Projects
+        UPDATE projects
         SET deleted_at = NOW()
         WHERE id = $1 AND workspace_id = $2 AND deleted_at IS NULL
         RETURNING id
@@ -265,7 +301,7 @@ export class ProjectService {
     try {
       const result = await pool.query(
         `
-        SELECT COUNT(*) as count FROM Projects 
+        SELECT COUNT(*) as count FROM projects 
         WHERE workspace_id = $1 AND deleted_at IS NULL
         `,
         [workspaceId]

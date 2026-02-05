@@ -4,8 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { AlertCircle, LogOut, RefreshCw, Building2, BarChart3, Users } from 'lucide-react'
-import axios from 'axios'
-import { FRONTEND_CONFIG } from '@/lib/config/frontend'
+import axiosInstance from '@/lib/axiosConfig'
 
 interface AdminUser {
   id: string
@@ -41,8 +40,6 @@ interface AdminDashboardProps {
   onLogout: () => void
 }
 
-const API_BASE = FRONTEND_CONFIG.apiBase
-
 export function AdminDashboard({ user, token, onLogout }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState('overview')
   const [organizations, setOrganizations] = useState<Organization[]>([])
@@ -52,23 +49,18 @@ export function AdminDashboard({ user, token, onLogout }: AdminDashboardProps) {
   const [error, setError] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
 
-  const headers = {
-    Authorization: `Bearer ${token}`,
-    'Content-Type': 'application/json',
-  }
-
   const fetchData = async () => {
     setIsLoading(true)
     setError('')
 
     try {
       // Fetch organizations
-      const orgsResponse = await axios.get(`${API_BASE}/admin/organizations`, { headers })
+      const orgsResponse = await axiosInstance.get(`/admin/organizations`)
       setOrganizations(orgsResponse.data.organizations)
       setStats((prev) => ({ ...prev, totalOrgs: orgsResponse.data.total }))
 
       // Fetch plans
-      const plansResponse = await axios.get(`${API_BASE}/admin/company-plans`, { headers })
+      const plansResponse = await axiosInstance.get(`/admin/company-plans`)
       setPlans(plansResponse.data.plans)
       
       // Calculate total revenue

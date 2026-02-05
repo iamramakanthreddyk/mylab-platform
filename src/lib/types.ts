@@ -15,7 +15,9 @@ export interface Project {
   name: string
   description: string
   clientOrgId: string
+  clientOrgName: string
   executingOrgId: string
+  executingOrgName: string
   status: 'Planning' | 'Active' | 'On Hold' | 'Completed' | 'Archived'
   createdBy: string
   createdAt: string

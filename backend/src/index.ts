@@ -11,6 +11,7 @@ import logger from './utils/logger';
 import { errorHandler, asyncHandler } from './middleware/errorHandler';
 import { pool } from './db';
 import { runMigrations, getMigrationStatus } from './database/migrations';
+import { DatabaseSetup } from './database/setup';
 import { PLATFORM_CONFIG } from './config/platform';
 // API Routes (new modular structure)
 import authRoutes from './api/auth/routes';
@@ -21,6 +22,7 @@ import derivedSampleRoutes from './api/derivedSamples/routes';
 import analysisRoutes from './api/analyses/routes';
 import apiKeyRoutes from './api/apiKeys/routes';
 import companyRoutes from './api/company/routes';
+import organizationRoutes from './api/organizations/routes';
 import notificationRoutes from './api/notifications/routes';
 import accessRoutes from './api/access/routes';
 import workspaceRoutes from './api/workspaces/routes';
@@ -95,6 +97,7 @@ app.use('/api/derived-samples', derivedSampleRoutes);
 app.use('/api/analyses', analysisRoutes);
 app.use('/api/api-keys', apiKeyRoutes);
 app.use('/api/company', companyRoutes);
+app.use('/api/organizations', organizationRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/access', accessRoutes);
 app.use('/api/workspaces', workspaceRoutes);
@@ -142,6 +145,10 @@ app.use(errorHandler);
     const result = await pool.query('SELECT NOW()');
     console.log('✅ Database connected successfully');
     logger.info('✅ Database connected successfully');
+    
+    // Setup database schema
+    const dbSetup = new DatabaseSetup();
+    await dbSetup.setupDatabase();
     
     // Run database migrations
     await runMigrations(pool);

@@ -19,7 +19,7 @@ import {
 
 export class SampleService {
   /**
-   * List all samples for a project
+   * List samples for a specific project
    */
   static async listSamples(projectId: string, workspaceId: string): Promise<SampleResponse[]> {
     try {
@@ -38,7 +38,32 @@ export class SampleService {
 
       return result.rows as SampleResponse[];
     } catch (error) {
-      logger.error('Failed to list samples', { projectId, workspaceId, error });
+      logger.error('Failed to list samples for project', { projectId, workspaceId, error });
+      throw error;
+    }
+  }
+
+  /**
+   * List all samples for a workspace
+   */
+  static async listAllSamples(workspaceId: string): Promise<SampleResponse[]> {
+    try {
+      logger.info('Fetching all samples for workspace', { workspaceId });
+
+      const result = await pool.query(
+        `
+        SELECT s.*, p.name as project_name
+        FROM Samples s
+        JOIN Projects p ON s.project_id = p.id
+        WHERE s.workspace_id = $1 AND s.deleted_at IS NULL
+        ORDER BY s.created_at DESC
+        `,
+        [workspaceId]
+      );
+
+      return result.rows as SampleResponse[];
+    } catch (error) {
+      logger.error('Failed to list all samples', { workspaceId, error });
       throw error;
     }
   }

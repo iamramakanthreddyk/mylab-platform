@@ -4,6 +4,7 @@ import { validate } from '../../middleware/validation';
 import { requireObjectAccess, auditLog } from '../../middleware/auth';
 import { projectController } from './controller';
 import { createProjectSchema, updateProjectSchema } from './types';
+import stageRoutes from '../stages/routes';
 
 const router = Router();
 
@@ -54,5 +55,8 @@ router.delete(
   auditLog('delete', 'project'),
   projectController.delete
 );
+
+// Nested routes for project stages
+router.use('/:projectId/stages', stageRoutes);
 
 export default router;

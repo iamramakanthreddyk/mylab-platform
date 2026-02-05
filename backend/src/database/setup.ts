@@ -196,8 +196,10 @@ export class DatabaseSetup {
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
           workspace_id UUID NOT NULL REFERENCES Workspace(id),
           email VARCHAR(255) NOT NULL UNIQUE,
+          password_hash VARCHAR(255) NOT NULL,
           name VARCHAR(255),
           role user_role NOT NULL DEFAULT 'scientist',
+          require_password_change BOOLEAN DEFAULT false,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           deleted_at TIMESTAMP
@@ -212,6 +214,7 @@ export class DatabaseSetup {
           executing_org_id UUID NOT NULL REFERENCES Organizations(id),
           name VARCHAR(255) NOT NULL,
           description TEXT,
+          status VARCHAR(50) DEFAULT 'active',
           created_by UUID NOT NULL REFERENCES Users(id),
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

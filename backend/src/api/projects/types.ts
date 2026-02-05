@@ -33,18 +33,18 @@ export interface GetProjectRequest {
 
 export interface ProjectResponse {
   id: string;
-  workspace_id: string;
+  workspaceId: string;
   name: string;
   description?: string;
-  client_org_id: string;
-  client_org_name: string;
-  executing_org_id: string;
-  executing_org_name: string;
+  clientOrgId: string;
+  clientOrgName: string;
+  executingOrgId: string;
+  executingOrgName: string;
   status: string;
-  created_by: string;
-  created_at: string;
-  updated_at: string;
-  deleted_at?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string;
 }
 
 export interface ListProjectsResponse {

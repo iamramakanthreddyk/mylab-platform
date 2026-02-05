@@ -57,11 +57,15 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
     `, [decoded.userId]);
 
     if (userResult.rows.length === 0) {
-      // Log authentication failure
-      try {
-        await logAuthFailure(pool, decoded.workspaceId, 'User not found in database', req);
-      } catch (logError) {
-        console.error('Failed to log auth failure:', logError);
+      // Log authentication failure (only if we have workspaceId from token)
+      if (decoded.workspaceId) {
+        try {
+          await logAuthFailure(pool, decoded.workspaceId, 'User not found in database', req);
+        } catch (logError) {
+          console.error('Failed to log auth failure:', logError);
+        }
+      } else {
+        console.warn('User not found but no workspaceId in token for logging');
       }
       return res.status(401).json({ error: 'User not found' });
     }
@@ -82,12 +86,8 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
     next();
   } catch (error) {
     console.error('Authentication error:', error);
-    // Log authentication error
-    try {
-      await logAuthFailure(pool, 'workspace-1', 'Authentication middleware exception', req);
-    } catch (logError) {
-      console.error('Failed to log auth failure:', logError);
-    }
+    // Note: Don't log auth error to securitylog if we don't have workspace context
+    // to avoid NULL constraint violations
     res.status(401).json({ error: 'Authentication failed' });
   }
 };

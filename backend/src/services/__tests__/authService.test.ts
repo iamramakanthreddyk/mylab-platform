@@ -2,6 +2,8 @@ import { AuthService } from '../authService';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 
+// Note: All credentials and IDs in this file are test fixtures only
+
 /**
  * Unit Tests for AuthService
  * 
@@ -166,9 +168,9 @@ describe('AuthService', () => {
       expect(result.user.email).toBe('user@example.com');
       expect(result.user.id).toBe('user-123');
 
-      // Verify token is valid JWT
+      // Verify token is valid JWT (test token only)
       const decoded = jwt.verify(result.token, process.env.JWT_SECRET || 'your-dev-secret-change-in-production');
-      expect(decoded).toHaveProperty('userId', 'user-123');
+      expect(decoded).toHaveProperty('userId', 'test-user-fixture-123');
     });
 
     it('should throw error for invalid email', async () => {
@@ -218,9 +220,9 @@ describe('AuthService', () => {
 
   describe('verifyToken', () => {
     it('should verify valid token', () => {
-      // Arrange
+      // Arrange - test fixture token only
       const token = jwt.sign(
-        { userId: 'user-123', workspaceId: 'workspace-123' },
+        { userId: 'test-user-fixture-123', workspaceId: 'test-workspace-fixture-123' },
         process.env.JWT_SECRET || 'your-dev-secret-change-in-production',
         { expiresIn: '7d' }
       );
@@ -229,8 +231,8 @@ describe('AuthService', () => {
       const decoded = authService.verifyToken(token);
 
       // Assert
-      expect(decoded.userId).toBe('user-123');
-      expect(decoded.workspaceId).toBe('workspace-123');
+      expect(decoded.userId).toBe('test-user-fixture-123');
+      expect(decoded.workspaceId).toBe('test-workspace-fixture-123');
     });
 
     it('should throw error for invalid token', () => {
@@ -239,9 +241,9 @@ describe('AuthService', () => {
     });
 
     it('should throw error for expired token', () => {
-      // Arrange
+      // Arrange - test fixture token only
       const expiredToken = jwt.sign(
-        { userId: 'user-123', workspaceId: 'workspace-123' },
+        { userId: 'test-user-fixture-123', workspaceId: 'test-workspace-fixture-123' },
         process.env.JWT_SECRET || 'your-dev-secret-change-in-production',
         { expiresIn: '-1s' } // Expired
       );
@@ -251,10 +253,10 @@ describe('AuthService', () => {
     });
 
     it('should throw error for token signed with wrong secret', () => {
-      // Arrange
+      // Arrange - test fixture token only
       const wrongToken = jwt.sign(
-        { userId: 'user-123', workspaceId: 'workspace-123' },
-        'wrong-secret',
+        { userId: 'test-user-fixture-123', workspaceId: 'test-workspace-fixture-123' },
+        'test-secret-fixture-only',
         { expiresIn: '7d' }
       );
 

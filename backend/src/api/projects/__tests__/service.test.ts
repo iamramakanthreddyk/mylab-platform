@@ -23,8 +23,8 @@ describe('ProjectService', () => {
           id: 'proj-1',
           workspace_id: 'ws-1',
           name: 'Test Project',
-          client_org_name: 'Client Org',
-          executing_org_name: 'Executing Org'
+          clientOrgName: 'Client Org',
+          executingOrgName: 'Executing Org'
         }
       ];
 
@@ -60,8 +60,8 @@ describe('ProjectService', () => {
         id: 'proj-1',
         workspace_id: 'ws-1',
         name: 'Test Project',
-        client_org_name: 'Client Org',
-        executing_org_name: 'Executing Org'
+        clientOrgName: 'Client Org',
+        executingOrgName: 'Executing Org'
       };
 
       mockPool.query.mockResolvedValueOnce({ rows: [mockProject] });
@@ -101,7 +101,7 @@ describe('ProjectService', () => {
 
       // Mock fetch with org names
       mockPool.query.mockResolvedValueOnce({
-        rows: [{ ...newProject, client_org_name: 'Client', executing_org_name: 'Executor' }]
+        rows: [{ ...newProject, clientOrgName: 'Client', executingOrgName: 'Executor' }]
       });
 
       const result = await ProjectService.createProject('ws-1', 'user-1', {
@@ -111,7 +111,7 @@ describe('ProjectService', () => {
       });
 
       expect(result.name).toBe('New Project');
-      expect(result.client_org_name).toBe('Client');
+      expect(result.clientOrgName).toBe('Client');
     });
 
     it('should throw error if organizations do not exist', async () => {
@@ -139,7 +139,7 @@ describe('ProjectService', () => {
 
       mockPool.query.mockResolvedValueOnce({ rows: [updatedProject] });
       mockPool.query.mockResolvedValueOnce({
-        rows: [{ ...updatedProject, client_org_name: 'Client', executing_org_name: 'Executor' }]
+        rows: [{ ...updatedProject, clientOrgName: 'Client', executingOrgName: 'Executor' }]
       });
 
       const result = await ProjectService.updateProject('proj-1', 'ws-1', {

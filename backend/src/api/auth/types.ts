@@ -14,21 +14,28 @@ export interface LoginRequest {
   password: string;
 }
 
+export interface SetPasswordRequest {
+  email: string;
+  password: string;
+}
+
 export interface LoginResponse {
   success: boolean;
   token: string;
   user: {
     id: string;
     email: string;
-    fullName: string;
+    name: string;
     role: string;
+    workspaceId: string;
   };
 }
 
 export interface TokenPayload {
-  id: string;
+  userId: string;
   email: string;
   role: string;
+  workspaceId: string;
 }
 
 // ============ Custom Error Classes ============

@@ -106,6 +106,23 @@ const migrations: Migration[] = [
         logger.warn('Could not check table existence, skipping index creation', { error: (err as Error).message });
       }
     }
+  },
+
+  {
+    id: '003',
+    name: 'add_projects_status_column',
+    description: 'Add status column to Projects table',
+    up: async (pool: Pool) => {
+      try {
+        await pool.query(`
+          ALTER TABLE "Projects" 
+          ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'active';
+        `);
+        logger.info('✅ Added status column to Projects table');
+      } catch (err) {
+        logger.warn('Could not add status column to Projects', { error: (err as Error).message });
+      }
+    }
   }
 
   // Add more migrations here as your database evolves

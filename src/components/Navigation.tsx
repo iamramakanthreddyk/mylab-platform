@@ -12,15 +12,16 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Flask, User as UserIcon, SignOut, Database } from '@phosphor-icons/react'
 import { canAccessSchema } from '@/lib/auth'
+import { Link, useLocation } from 'react-router-dom'
 
 interface NavigationProps {
   user: User
-  currentView: string
-  onViewChange: (view: string) => void
   onLogout: () => void
 }
 
-export function Navigation({ user, currentView, onViewChange, onLogout }: NavigationProps) {
+export function Navigation({ user, onLogout }: NavigationProps) {
+  const location = useLocation()
+  const currentView = location.pathname.slice(1) || 'dashboard'
   const showSchema = canAccessSchema(user)
   const availableModules = getAvailableModules(user.role)
 
@@ -41,26 +42,26 @@ export function Navigation({ user, currentView, onViewChange, onLogout }: Naviga
 
             <nav className="flex items-center gap-1 ml-6">
               {availableModules
-                .filter(module => ['dashboard', 'projects', 'samples'].includes(module.id))
                 .map(module => (
-                  <Button
-                    key={module.id}
-                    variant={currentView === module.id ? 'default' : 'ghost'}
-                    onClick={() => onViewChange(module.id)}
-                    className="px-4"
-                  >
-                    {module.name}
-                  </Button>
+                  <Link key={module.id} to={`/${module.id}`}>
+                    <Button
+                      variant={currentView === module.id ? 'default' : 'ghost'}
+                      className="px-4"
+                    >
+                      {module.name}
+                    </Button>
+                  </Link>
                 ))}
               {showSchema && (
-                <Button
-                  variant={currentView === 'schema' ? 'default' : 'ghost'}
-                  onClick={() => onViewChange('schema')}
-                  className="px-4 gap-2"
-                >
-                  <Database size={16} />
-                  Schema
-                </Button>
+                <Link to="/schema">
+                  <Button
+                    variant={currentView === 'schema' ? 'default' : 'ghost'}
+                    className="px-4 gap-2"
+                  >
+                    <Database size={16} />
+                    Schema
+                  </Button>
+                </Link>
               )}
             </nav>
           </div>

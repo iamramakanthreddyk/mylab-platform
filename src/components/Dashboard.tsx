@@ -1,4 +1,4 @@
-import { User, Project } from '@/lib/types'
+import { User, Project, Sample } from '@/lib/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -13,16 +13,23 @@ import {
 import { motion } from 'framer-motion'
 import { PaymentNotificationWidget } from '@/components/PaymentNotificationWidget'
 import { SystemNotificationWidget } from '@/components/SystemNotificationWidget'
+import { useNavigate } from 'react-router-dom'
 
 interface DashboardProps {
   user: User
   projects: Project[]
-  onNavigate: (view: string) => void
+  samples: Sample[]
 }
 
-export function Dashboard({ user, projects, onNavigate }: DashboardProps) {
-  const activeProjects = projects.filter(p => p.status === 'Active').length
-  const totalProjects = projects.length
+export function Dashboard({ user, projects, samples }: DashboardProps) {
+  const navigate = useNavigate()
+  // Defensive: ensure data is always an array
+  const safeProjects = projects || []
+  const safeSamples = samples || []
+  const activeProjects = safeProjects.filter(p => p.status === 'Active').length
+  const totalProjects = safeProjects.length
+  const totalSamples = safeSamples.length
+  const analyzedSamples = safeSamples.filter(s => s.status === 'Analyzed').length
 
   const statCards = [
     {
@@ -35,21 +42,21 @@ export function Dashboard({ user, projects, onNavigate }: DashboardProps) {
     },
     {
       title: 'Samples Tracked',
-      value: 156,
+      value: totalSamples,
       icon: Flask,
       color: 'text-accent',
       bgColor: 'bg-accent/10',
     },
     {
       title: 'Analyses Complete',
-      value: 89,
+      value: analyzedSamples,
       icon: ChartLine,
       color: 'text-secondary',
       bgColor: 'bg-secondary/10',
     },
     {
       title: 'Collaborating Orgs',
-      value: 12,
+      value: 0, // Will be calculated when organization data is available
       icon: Users,
       color: 'text-muted-foreground',
       bgColor: 'bg-muted',
@@ -61,7 +68,7 @@ export function Dashboard({ user, projects, onNavigate }: DashboardProps) {
       <div className="max-w-7xl mx-auto px-6 py-8">
         <div className="mb-8">
           <h2 className="text-3xl font-bold mb-2">
-            Welcome back, {user.name.split(' ')[0]}
+            Welcome back, {user.name ? user.name.split(' ')[0] : 'User'}
           </h2>
           <p className="text-muted-foreground">
             Here's what's happening in your laboratory today
@@ -132,7 +139,7 @@ export function Dashboard({ user, projects, onNavigate }: DashboardProps) {
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              {projects.length === 0 ? (
+              {safeProjects.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <FolderOpen size={48} className="mx-auto mb-3 opacity-50" />
                   <p className="mb-3">No projects yet</p>
@@ -142,11 +149,11 @@ export function Dashboard({ user, projects, onNavigate }: DashboardProps) {
                   </Button>
                 </div>
               ) : (
-                projects.slice(0, 5).map((project) => (
+                safeProjects.slice(0, 5).map((project) => (
                   <div
                     key={project.id}
                     className="flex items-center justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted transition-colors cursor-pointer"
-                    onClick={() => onNavigate('projects')}
+                    onClick={() => navigate('/projects')}
                   >
                     <div className="flex-1">
                       <p className="font-medium">{project.name}</p>
@@ -176,7 +183,7 @@ export function Dashboard({ user, projects, onNavigate }: DashboardProps) {
             </CardHeader>
             <CardContent className="space-y-3">
               <Button 
-                onClick={() => onNavigate('projects')} 
+                onClick={() => navigate('/projects')} 
                 className="w-full justify-start gap-3 h-12"
                 variant="outline"
               >
@@ -184,7 +191,7 @@ export function Dashboard({ user, projects, onNavigate }: DashboardProps) {
                 Create New Project
               </Button>
               <Button 
-                onClick={() => onNavigate('samples')} 
+                onClick={() => navigate('/samples')} 
                 className="w-full justify-start gap-3 h-12"
                 variant="outline"
               >
@@ -192,7 +199,7 @@ export function Dashboard({ user, projects, onNavigate }: DashboardProps) {
                 Register Sample
               </Button>
               <Button 
-                onClick={() => onNavigate('samples')} 
+                onClick={() => navigate('/samples')} 
                 className="w-full justify-start gap-3 h-12"
                 variant="outline"
               >
@@ -201,7 +208,7 @@ export function Dashboard({ user, projects, onNavigate }: DashboardProps) {
               </Button>
               {user.role === 'Admin' && (
                 <Button 
-                  onClick={() => onNavigate('schema')} 
+                  onClick={() => navigate('/schema')} 
                   className="w-full justify-start gap-3 h-12"
                   variant="outline"
                 >

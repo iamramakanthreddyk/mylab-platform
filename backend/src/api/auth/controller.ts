@@ -114,5 +114,31 @@ export const authController = {
       }
       throw error;
     }
+  }),
+
+  /**
+   * POST /api/auth/set-password - Set or reset user password
+   */
+  setPassword: asyncHandler(async (req: Request, res: Response) => {
+    const { email, password } = req.body;
+
+    try {
+      const result = await AuthService.setPassword({ email, password });
+
+      logger.info('Password set via API', { email });
+
+      res.status(200).json({
+        success: true,
+        message: result.message
+      });
+    } catch (error) {
+      if (error instanceof UserNotFoundError) {
+        return res.status(404).json({
+          success: false,
+          error: error.message
+        });
+      }
+      throw error;
+    }
   })
 };

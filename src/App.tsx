@@ -1,69 +1,55 @@
 import { useState, useEffect } from 'react'
-import axios from 'axios'
+import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom'
+import axiosInstance from '@/lib/axiosConfig'
 import { User, UserRole, Project, Sample } from '@/lib/types'
 import { FRONTEND_CONFIG, getAvailableModules, checkRouteAccess } from '@/lib/config/frontend'
 import { AuthContextProvider } from '@/lib/AuthContext'
 import { Login } from '@/components/Login'
+import { SetPassword } from '@/components/SetPassword'
 import { SuperAdminLogin } from '@/components/SuperAdminLogin'
 import { AdminDashboard } from '@/components/AdminDashboard'
 import { Navigation } from '@/components/Navigation'
 import { Dashboard } from '@/components/Dashboard'
 import { ProjectsView } from '@/components/ProjectsView'
+import { ProjectDetails } from '@/components/ProjectDetails'
 import { SamplesView } from '@/components/SamplesView'
 import { SchemaExplorer } from '@/components/SchemaExplorer'
 import { NotificationCenter } from '@/components/NotificationCenter'
+import { ModulePlaceholder } from '@/components/ModulePlaceholder'
 import { Toaster } from '@/components/ui/sonner'
 import { Button } from '@/components/ui/button'
 
-const API_BASE = FRONTEND_CONFIG.apiBase
-
-function App() {
+function AppContent() {
+  const navigate = useNavigate()
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [adminToken, setAdminToken] = useState<string | null>(null)
   const [adminUser, setAdminUser] = useState<any>(null)
   const [loginMode, setLoginMode] = useState<'user' | 'admin' | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
   const [samples, setSamples] = useState<Sample[]>([])
-  const [currentView, setCurrentView] = useState<string>('dashboard')
   const [isInitialized, setIsInitialized] = useState(false)
 
-  // Check for saved admin session
+  // Check for saved sessions on app load
   useEffect(() => {
-    const savedToken = localStorage.getItem('adminToken')
-    const savedUser = localStorage.getItem('adminUser')
+    // Check for regular user session
+    const savedToken = localStorage.getItem('authToken')
+    const savedUser = localStorage.getItem('user')
     if (savedToken && savedUser) {
-      setAdminToken(savedToken)
-      setAdminUser(JSON.parse(savedUser))
+      setCurrentUser(JSON.parse(savedUser))
+      setLoginMode('user')
+      // Token is automatically sent by axios interceptor
+    }
+
+    // Check for admin session
+    const adminToken = localStorage.getItem('adminToken')
+    const adminUser = localStorage.getItem('adminUser')
+    if (adminToken && adminUser) {
+      setAdminToken(adminToken)
+      setAdminUser(JSON.parse(adminUser))
       setLoginMode('admin')
     }
+
     setIsInitialized(true)
-  }, [])
-
-  useEffect(() => {
-    const initUser = async () => {
-      if (currentUser) {
-        try {
-          const gitHubUser = await window.spark.user()
-          if (gitHubUser) {
-            setCurrentUser((prev) => {
-              if (!prev) return null
-              return {
-                ...prev,
-                id: String(gitHubUser.id),
-                email: gitHubUser.email || prev.email,
-                name: gitHubUser.login || prev.name,
-                avatarUrl: gitHubUser.avatarUrl || prev.avatarUrl,
-              }
-            })
-          }
-        } catch (error) {
-          console.error('Failed to fetch GitHub user', error)
-        }
-      }
-      setIsInitialized(true)
-    }
-
-    initUser()
   }, [])
 
   useEffect(() => {
@@ -75,43 +61,60 @@ function App() {
 
   const fetchProjects = async () => {
     try {
-      const response = await axios.get(`${API_BASE}/projects`)
-      setProjects(response.data)
-    } catch (error) {
-      console.error('Failed to fetch projects:', error)
+      const response = await axiosInstance.get(`/projects`)
+      // API returns { success, data, count } - extract the data array
+      setProjects(response.data.data || [])
+    } catch (error: any) {
+      // Always set empty array on error to prevent crashes
+      setProjects([])
+      // Log specific error types
+      if (error.response?.status === 404) {
+        console.log('Projects endpoint not available yet')
+      } else if (error.response?.status === 401) {
+        console.error('Not authorized to fetch projects')
+      } else if (error.response?.status === 400) {
+        console.error('Bad request to projects endpoint:', error.response?.data)
+      } else {
+        console.error('Failed to fetch projects:', error)
+      }
     }
   }
 
   const fetchSamples = async () => {
     try {
-      const response = await axios.get(`${API_BASE}/samples`)
-      setSamples(response.data)
-    } catch (error) {
-      console.error('Failed to fetch samples:', error)
+      const response = await axiosInstance.get(`/samples`)
+      // API returns { success, data, count } - extract the data array
+      setSamples(response.data.data || [])
+    } catch (error: any) {
+      // Always set empty array on error to prevent crashes
+      setSamples([])
+      // Log specific error types
+      if (error.response?.status === 404) {
+        console.log('Samples endpoint not available yet')
+      } else if (error.response?.status === 401) {
+        console.error('Not authorized to fetch samples')
+      } else if (error.response?.status === 400) {
+        console.error('Bad request to samples endpoint:', error.response?.data)
+      } else {
+        console.error('Failed to fetch samples:', error)
+      }
     }
   }
 
-  const handleLogin = async (role: UserRole) => {
-    try {
-      const response = await axios.post(`${API_BASE}/auth/login`, { role })
-      setCurrentUser(response.data.user)
-    } catch (error) {
-      console.error('Login failed:', error)
-      // Fallback to mock user
-      const user: User = {
-        id: `user-${Date.now()}`,
-        email: 'user@mylab.com',
-        name: 'Lab User',
-        role,
-        workspaceId: 'workspace-1',
-      }
-      setCurrentUser(user)
-    }
+  const handleLogin = (user: User, token: string) => {
+    setCurrentUser(user)
+    setLoginMode('user')
+    localStorage.setItem('authToken', token)
+    localStorage.setItem('user', JSON.stringify(user))
+    navigate('/dashboard')
   }
 
   const handleLogout = () => {
     setCurrentUser(null)
-    setCurrentView('dashboard')
+    setLoginMode(null)
+    localStorage.removeItem('authToken')
+    localStorage.removeItem('user')
+    navigate('/')
   }
 
   const handleAdminLogin = (token: string, user: any) => {
@@ -130,7 +133,7 @@ function App() {
 
   const createProject = async (projectData: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
-      const response = await axios.post(`${API_BASE}/projects`, projectData)
+      const response = await axiosInstance.post(`/projects`, projectData)
       setProjects(prev => [response.data, ...prev])
     } catch (error) {
       console.error('Failed to create project:', error)
@@ -144,17 +147,12 @@ function App() {
 
   // Superadmin dashboard mode
   if (loginMode === 'admin') {
-    if (!adminToken || !adminUser) {
-      return (
-        <>
-          <SuperAdminLogin onLogin={handleAdminLogin} />
-          <Toaster />
-        </>
-      )
-    }
     return (
       <>
-        <AdminDashboard user={adminUser} token={adminToken} onLogout={handleAdminLogout} />
+        <Routes>
+          <Route path="/" element={<SuperAdminLogin onLogin={handleAdminLogin} />} />
+          <Route path="/admin" element={<AdminDashboard token={adminToken!} user={adminUser} onLogout={handleAdminLogout} />} />
+        </Routes>
         <Toaster />
       </>
     )
@@ -199,7 +197,10 @@ function App() {
   if (!currentUser) {
     return (
       <>
-        <Login onLogin={handleLogin} />
+        <Routes>
+          <Route path="/" element={<Login onLogin={handleLogin} onNeedSetPassword={() => navigate('/set-password')} />} />
+          <Route path="/set-password" element={<SetPassword onSuccess={() => navigate('/')} />} />
+        </Routes>
         <Toaster />
       </>
     )
@@ -210,24 +211,33 @@ function App() {
       <div className="min-h-screen bg-background">
         <Navigation
           user={currentUser}
-          currentView={currentView}
-          onViewChange={setCurrentView}
           onLogout={handleLogout}
         />
-        {currentView === 'dashboard' && (
-          <Dashboard user={currentUser} projects={projects || []} onNavigate={setCurrentView} />
-        )}
-        {currentView === 'projects' && (
-          <ProjectsView user={currentUser} projects={projects || []} onCreateProject={createProject} />
-        )}
-        {currentView === 'samples' && (
-          <SamplesView user={currentUser} samples={samples || []} />
-        )}
-        {currentView === 'schema' && <SchemaExplorer />}
-        {currentView === 'notifications' && <NotificationCenter />}
+        <Routes>
+          <Route path="/dashboard" element={<Dashboard user={currentUser} projects={projects || []} samples={samples || []} />} />
+          <Route path="/projects" element={<ProjectsView user={currentUser} projects={projects || []} onProjectsChange={setProjects} />} />
+          <Route path="/projects/:id" element={<ProjectDetails user={currentUser} />} />
+          <Route path="/samples" element={<SamplesView user={currentUser} samples={samples || []} />} />
+          <Route path="/analytics" element={<ModulePlaceholder user={currentUser} moduleId="analytics" />} />
+          <Route path="/compliance" element={<ModulePlaceholder user={currentUser} moduleId="compliance" />} />
+          <Route path="/integration" element={<ModulePlaceholder user={currentUser} moduleId="integration" />} />
+          <Route path="/marketplace" element={<ModulePlaceholder user={currentUser} moduleId="marketplace" />} />
+          <Route path="/support" element={<ModulePlaceholder user={currentUser} moduleId="support" />} />
+          <Route path="/schema" element={<SchemaExplorer />} />
+          <Route path="/notifications" element={<NotificationCenter />} />
+          <Route path="/" element={<Dashboard user={currentUser} projects={projects || []} samples={samples || []} />} />
+        </Routes>
         <Toaster />
       </div>
     </AuthContextProvider>
+  )
+}
+
+function App() {
+  return (
+    <Router>
+      <AppContent />
+    </Router>
   )
 }
 

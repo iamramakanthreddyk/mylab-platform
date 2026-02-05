@@ -49,26 +49,29 @@ export class AuthService {
       // Hash password
       const passwordHash = await hashPassword(data.password);
 
-      // Create user with org_admin role
+      // Create workspace first (user references workspace)
+      const workspaceResult = await pool.query(
+        `
+        INSERT INTO Workspace (name)
+        VALUES ($1)
+        RETURNING id
+        `,
+        [data.companyName]
+      );
+
+      const workspaceId = workspaceResult.rows[0].id;
+
+      // Create user with org_admin role and the workspace
       const result = await pool.query(
         `
-        INSERT INTO Users (email, password_hash, full_name, role, is_active)
+        INSERT INTO Users (email, password_hash, name, role, workspace_id)
         VALUES ($1, $2, $3, $4, $5)
         RETURNING id, email
         `,
-        [data.email, passwordHash, data.fullName, 'org_admin', true]
+        [data.email, passwordHash, data.fullName, 'org_admin', workspaceId]
       );
 
       const userId = result.rows[0].id;
-
-      // Create workspace for org
-      await pool.query(
-        `
-        INSERT INTO Workspaces (name, created_by)
-        VALUES ($1, $2)
-        `,
-        [data.companyName, userId]
-      );
 
       logger.info('Org admin registered successfully', { userId, email: data.email });
 
@@ -83,6 +86,43 @@ export class AuthService {
   }
 
   /**
+   * Set or reset user password
+   */
+  static async setPassword(data: any): Promise<{ message: string }> {
+    try {
+      logger.info('Setting password for user', { email: data.email });
+
+      // Find user by email
+      const userResult = await pool.query(
+        `SELECT id FROM Users WHERE email = $1`,
+        [data.email]
+      );
+
+      if (userResult.rows.length === 0) {
+        throw new UserNotFoundError(data.email);
+      }
+
+      const userId = userResult.rows[0].id;
+
+      // Hash new password
+      const passwordHash = await hashPassword(data.password);
+
+      // Update password
+      await pool.query(
+        `UPDATE Users SET password_hash = $1, require_password_change = false WHERE id = $2`,
+        [passwordHash, userId]
+      );
+
+      logger.info('Password set successfully', { userId, email: data.email });
+
+      return { message: 'Password set successfully' };
+    } catch (error) {
+      logger.error('Failed to set password', { email: data.email, error });
+      throw error;
+    }
+  }
+
+  /**
    * Login user
    */
   static async login(data: LoginRequest): Promise<LoginResponse> {
@@ -91,9 +131,9 @@ export class AuthService {
 
       const result = await pool.query(
         `
-        SELECT id, email, password_hash, full_name, role, is_active
+        SELECT id, email, password_hash, name, role, workspace_id
         FROM Users
-        WHERE email = $1 AND is_active = true
+        WHERE email = $1
         `,
         [data.email]
       );
@@ -113,9 +153,10 @@ export class AuthService {
 
       // Generate token
       const token = generateToken({
-        id: user.id,
+        userId: user.id,
         email: user.email,
-        role: user.role
+        role: user.role,
+        workspaceId: user.workspace_id
       });
 
       logger.info('User login successful', { userId: user.id, email: user.email });
@@ -126,8 +167,9 @@ export class AuthService {
         user: {
           id: user.id,
           email: user.email,
-          fullName: user.full_name,
-          role: user.role
+          name: user.name,
+          role: user.role,
+          workspaceId: user.workspace_id
         }
       };
     } catch (error) {
@@ -158,7 +200,7 @@ export class AuthService {
     try {
       const result = await pool.query(
         `
-        SELECT id, email, full_name, role, is_active, created_at
+        SELECT id, email, name, role, created_at
         FROM Users
         WHERE id = $1
         `,

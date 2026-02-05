@@ -16,9 +16,9 @@ export class NotificationService {
 
       const result = await pool.query(
         `
-        INSERT INTO Notifications (workspace_id, user_id, type, title, message, data)
+        INSERT INTO Notifications (workspace_id, user_id, type, title, message, metadata)
         VALUES ($1, $2, $3, $4, $5, $6)
-        RETURNING id, workspace_id, user_id, type, title, message, data, read_at, created_at
+        RETURNING id, workspace_id, user_id, type, title, message, metadata, read_at, created_at
         `,
         [
           data.workspace_id,
@@ -46,7 +46,7 @@ export class NotificationService {
     try {
       const result = await pool.query(
         `
-        SELECT id, workspace_id, user_id, type, title, message, data, read_at, created_at
+        SELECT id, workspace_id, user_id, type, title, message, metadata, read_at, created_at
         FROM Notifications
         WHERE id = $1
         `,
@@ -77,7 +77,7 @@ export class NotificationService {
 
       const result = await pool.query(
         `
-        SELECT id, workspace_id, user_id, type, title, message, data, read_at, created_at
+        SELECT id, workspace_id, user_id, type, title, message, metadata, read_at, created_at
         FROM Notifications
         WHERE user_id = $1 OR workspace_id IN (
           SELECT workspace_id FROM WorkspaceUsers WHERE user_id = $1
@@ -120,7 +120,7 @@ export class NotificationService {
         UPDATE Notifications
         SET read_at = NOW()
         WHERE id = $1
-        RETURNING id, workspace_id, user_id, type, title, message, data, read_at, created_at
+        RETURNING id, workspace_id, user_id, type, title, message, metadata, read_at, created_at
         `,
         [notificationId]
       );

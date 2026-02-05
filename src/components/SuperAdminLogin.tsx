@@ -4,15 +4,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { AlertCircle, Eye, EyeOff } from 'lucide-react'
 import { motion } from 'framer-motion'
-import axios from 'axios'
-import { FRONTEND_CONFIG } from '@/lib/config/frontend'
+import axiosInstance from '@/lib/axiosConfig'
 
 interface SuperAdminLoginProps {
   onLogin: (token: string, user: any) => void
   onError?: (message: string) => void
 }
-
-const API_BASE = FRONTEND_CONFIG.apiBase
 
 export function SuperAdminLogin({ onLogin, onError }: SuperAdminLoginProps) {
   const [email, setEmail] = useState('superadmin@mylab.io')
@@ -27,7 +24,7 @@ export function SuperAdminLogin({ onLogin, onError }: SuperAdminLoginProps) {
     setIsLoading(true)
 
     try {
-      const response = await axios.post(`${API_BASE}/admin/auth/login`, {
+      const response = await axiosInstance.post(`/admin/auth/login`, {
         email,
         password,
       })

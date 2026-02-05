@@ -15,20 +15,18 @@ import logger from '../../utils/logger';
 
 export const sampleController = {
   /**
-   * GET /api/samples - List samples for project
+   * GET /api/samples - List samples for project or all samples for workspace
    */
   list: asyncHandler(async (req: Request, res: Response) => {
     const { projectId } = req.query;
     const workspaceId = req.user!.workspaceId;
 
-    if (!projectId) {
-      return res.status(400).json({
-        success: false,
-        error: 'projectId required'
-      });
+    let samples;
+    if (projectId) {
+      samples = await SampleService.listSamples(String(projectId), workspaceId);
+    } else {
+      samples = await SampleService.listAllSamples(workspaceId);
     }
-
-    const samples = await SampleService.listSamples(String(projectId), workspaceId);
 
     res.status(200).json({
       success: true,

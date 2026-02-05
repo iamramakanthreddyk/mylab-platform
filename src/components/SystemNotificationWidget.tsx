@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import axiosInstance from '@/lib/axiosConfig';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -25,14 +26,19 @@ export const SystemNotificationWidget: React.FC = () => {
 
   const loadSystemNotifications = async () => {
     try {
-      const response = await fetch('/api/notifications/system');
-      if (!response.ok) throw new Error('Failed to fetch system notifications');
+      // System notifications endpoint doesn't exist yet
+      // For now, just show empty state
+      setNotifications([]);
+      setLoading(false);
+      return;
       
-      const data = await response.json();
-      setNotifications(data.notifications || []);
+      // Future implementation:
+      // const response = await axiosInstance.get('/notifications/system');
+      // const notificationsData = response.data.data || response.data.notifications || response.data || [];
+      // setNotifications(notificationsData);
     } catch (error) {
       console.error('Error loading system notifications:', error);
-      toast.error('Failed to load system notifications');
+      setNotifications([]);
     } finally {
       setLoading(false);
     }

@@ -14,6 +14,9 @@ router.post('/register', authController.register);
 // Login user (public endpoint)
 router.post('/login', authController.login);
 
+// Set or reset password (public endpoint - users without password can set it)
+router.post('/set-password', authController.setPassword);
+
 // Get current user
 router.get('/me', authenticate, authController.getCurrentUser);
 

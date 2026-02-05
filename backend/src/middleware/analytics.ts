@@ -13,13 +13,13 @@ export const trackLastLogin = async (req: Request, res: Response, next: NextFunc
 
       // Update or insert last login record
       await pool.query(`
-        INSERT INTO LastLogin (user_id, workspace_id, last_login_at, last_login_ip, last_user_agent)
+        INSERT INTO LastLogin (user_id, workspace_id, last_login_at, ip_address, user_agent)
         VALUES ($1, $2, NOW(), $3, $4)
         ON CONFLICT (user_id) 
         DO UPDATE SET 
           last_login_at = NOW(),
-          last_login_ip = $3,
-          last_user_agent = $4,
+          ip_address = $3,
+          user_agent = $4,
           updated_at = NOW()
       `, [req.user.id, req.user.workspaceId, ipAddress, userAgent]);
     }

@@ -1,6 +1,7 @@
-import { useState } from 'react'
-import { useKV } from '@github/spark/hooks'
-import { User, Project } from '@/lib/types'
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import axiosInstance from '@/lib/axiosConfig'
+import { User, Project, Organization } from '@/lib/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,7 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { FolderOpen, Plus, MagnifyingGlass, Calendar } from '@phosphor-icons/react'
+import { FolderOpen, Plus, MagnifyingGlass, Calendar, Trash, Pencil } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { canManageProjects } from '@/lib/auth'
 
@@ -20,8 +21,12 @@ interface ProjectsViewProps {
 }
 
 export function ProjectsView({ user, projects, onProjectsChange }: ProjectsViewProps) {
+  const navigate = useNavigate()
   const [searchQuery, setSearchQuery] = useState('')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [organizations, setOrganizations] = useState<Organization[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null)
   const [newProject, setNewProject] = useState<{
     name: string
     description: string
@@ -31,44 +36,105 @@ export function ProjectsView({ user, projects, onProjectsChange }: ProjectsViewP
   }>({
     name: '',
     description: '',
-    clientOrgId: 'org-1',
-    executingOrgId: 'org-1',
+    clientOrgId: '',
+    executingOrgId: '',
     status: 'Planning',
   })
 
   const canManage = canManageProjects(user)
 
-  const filteredProjects = projects.filter(project =>
-    project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    project.description.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  // Fetch organizations on mount
+  useEffect(() => {
+    fetchOrganizations()
+  }, [])
 
-  const handleCreateProject = () => {
+  const handleCreateProject = async () => {
     if (!newProject.name.trim()) {
       toast.error('Project name is required')
       return
     }
 
-    const project: Project = {
-      id: `proj-${Date.now()}`,
-      workspaceId: user.workspaceId,
-      ...newProject,
-      createdBy: user.id,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+    if (!newProject.clientOrgId || !newProject.executingOrgId) {
+      toast.error('Please select both client and executing organizations')
+      return
     }
 
-    onProjectsChange([...projects, project])
-    setIsDialogOpen(false)
-    setNewProject({
-      name: '',
-      description: '',
-      clientOrgId: 'org-1',
-      executingOrgId: 'org-1',
-      status: 'Planning',
-    })
-    toast.success('Project created successfully')
+    setIsLoading(true)
+    try {
+      const response = await axiosInstance.post('/projects', {
+        name: newProject.name,
+        description: newProject.description,
+        clientOrgId: newProject.clientOrgId,
+        executingOrgId: newProject.executingOrgId,
+        status: newProject.status
+      })
+
+      // API returns { success, data }
+      const createdProject = response.data.data || response.data
+      onProjectsChange([...projects, createdProject])
+      setIsDialogOpen(false)
+      setNewProject({
+        name: '',
+        description: '',
+        clientOrgId: organizations[0]?.id || '',
+        executingOrgId: organizations[1]?.id || organizations[0]?.id || '',
+        status: 'Planning',
+      })
+      toast.success('Project created successfully')
+    } catch (error: any) {
+      console.error('Failed to create project:', error)
+      toast.error(error.response?.data?.error || 'Failed to create project')
+    } finally {
+      setIsLoading(false)
+    }
   }
+
+  const handleDeleteProject = async (projectId: string) => {
+    if (!confirm('Are you sure you want to delete this project?')) return
+
+    try {
+      await axiosInstance.delete(`/projects/${projectId}`)
+      onProjectsChange(projects.filter(p => p.id !== projectId))
+      toast.success('Project deleted successfully')
+    } catch (error: any) {
+      console.error('Failed to delete project:', error)
+      toast.error(error.response?.data?.error || 'Failed to delete project')
+    }
+  }
+
+  const fetchOrganizations = async () => {
+    try {
+      const response = await axiosInstance.get('/organizations')
+      const orgsData = response.data.data || response.data || []
+      setOrganizations(orgsData)
+      // Set default organization if available
+      if (orgsData.length > 0 && !newProject.clientOrgId) {
+        setNewProject(prev => ({
+          ...prev,
+          clientOrgId: orgsData[0].id,
+          executingOrgId: orgsData[0].id
+        }))
+      }
+    } catch (error) {
+      console.log('Organizations endpoint not available yet - using mock data')
+      // Mock data for now
+      const mockOrgs = [
+        { id: 'org-1', name: 'Acme Pharmaceuticals', type: 'Client' as const, workspaceId: user.workspaceId },
+        { id: 'org-2', name: 'Internal Lab', type: 'Laboratory' as const, workspaceId: user.workspaceId }
+      ]
+      setOrganizations(mockOrgs)
+      setNewProject(prev => ({
+        ...prev,
+        clientOrgId: mockOrgs[0].id,
+        executingOrgId: mockOrgs[1].id
+      }))
+    }
+  }
+
+  const filteredProjects = projects.filter(project =>
+    project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    project.description.toLowerCase().includes(searchQuery.toLowerCase())
+  )
 
   const getStatusColor = (status: Project['status']) => {
     switch (status) {
@@ -108,57 +174,42 @@ export function ProjectsView({ user, projects, onProjectsChange }: ProjectsViewP
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
-                    <Label htmlFor="name">Project Name</Label>
-                    <Input
-                      id="name"
-                      placeholder="e.g., Polymer Stability Study"
-                      value={newProject.name}
-                      onChange={(e) => setNewProject({ ...newProject, name: e.target.value })}
-                    />
+                    <Label htmlFor="client">Client Organization</Label>
+                    <Select
+                      value={newProject.clientOrgId}
+                      onValueChange={(val) => setNewProject({ ...newProject, clientOrgId: val })}
+                    >
+                      <SelectTrigger id="client">
+                        <SelectValue placeholder="Select client organization" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {organizations.filter(org => org.type === 'Client' || org.type === 'Internal').map(org => (
+                          <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                        ))}
+                        {organizations.length === 0 && (
+                          <SelectItem value="none" disabled>No organizations available</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="description">Description</Label>
-                    <Textarea
-                      id="description"
-                      placeholder="Describe the project objectives and scope"
-                      value={newProject.description}
-                      onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
-                      rows={4}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="client">Client Organization</Label>
-                      <Select 
-                        value={newProject.clientOrgId} 
-                        onValueChange={(val) => setNewProject({ ...newProject, clientOrgId: val })}
-                      >
-                        <SelectTrigger id="client">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="org-1">Acme Pharmaceuticals</SelectItem>
-                          <SelectItem value="org-2">BioTech Solutions</SelectItem>
-                          <SelectItem value="org-3">Global Materials Inc</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="executing">Executing Lab</Label>
-                      <Select 
-                        value={newProject.executingOrgId} 
-                        onValueChange={(val) => setNewProject({ ...newProject, executingOrgId: val })}
-                      >
-                        <SelectTrigger id="executing">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="org-1">Internal Lab A</SelectItem>
-                          <SelectItem value="org-2">Internal Lab B</SelectItem>
-                          <SelectItem value="org-3">Partner Lab</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    <Label htmlFor="executing">Executing Lab</Label>
+                    <Select
+                      value={newProject.executingOrgId}
+                      onValueChange={(val) => setNewProject({ ...newProject, executingOrgId: val })}
+                    >
+                      <SelectTrigger id="executing">
+                        <SelectValue placeholder="Select executing lab" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {organizations.filter(org => org.type === 'Laboratory' || org.type === 'Internal').map(org => (
+                          <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                        ))}
+                        {organizations.length === 0 && (
+                          <SelectItem value="none" disabled>No organizations available</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="status">Initial Status</Label>
@@ -227,7 +278,11 @@ export function ProjectsView({ user, projects, onProjectsChange }: ProjectsViewP
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredProjects.map((project) => (
-              <Card key={project.id} className="hover:shadow-lg transition-shadow cursor-pointer">
+              <Card 
+                key={project.id} 
+                className="hover:shadow-lg transition-shadow group cursor-pointer"
+                onClick={() => navigate(`/projects/${project.id}`)}
+              >
                 <CardHeader>
                   <div className="flex items-start justify-between mb-2">
                     <CardTitle className="text-lg">{project.name}</CardTitle>
@@ -240,11 +295,42 @@ export function ProjectsView({ user, projects, onProjectsChange }: ProjectsViewP
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-2 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-2">
-                      <Calendar size={14} />
-                      <span>Created {new Date(project.createdAt).toLocaleDateString()}</span>
+                  <div className="space-y-3">
+                    <div className="space-y-2 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-2">
+                        <Calendar size={14} />
+                        <span>Created {new Date(project.createdAt).toLocaleDateString()}</span>
+                      </div>
                     </div>
+                    {canManage && (
+                      <div className="flex gap-2 pt-2 border-t opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 gap-2"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setSelectedProject(project)
+                            toast.info('Edit functionality coming soon')
+                          }}
+                        >
+                          <Pencil size={14} />
+                          Edit
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 gap-2 text-destructive hover:text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDeleteProject(project.id)
+                          }}
+                        >
+                          <Trash size={14} />
+                          Delete
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
