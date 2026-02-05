@@ -2,10 +2,13 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import morgan from 'morgan';
 
 // Must import preload FIRST to load environment variables
 import './preload';
 
+import logger from './utils/logger';
+import { errorHandler, asyncHandler } from './middleware/errorHandler';
 import { pool } from './db';
 import { PLATFORM_CONFIG } from './config/platform';
 import authRoutes from './routes/auth';
@@ -29,10 +32,26 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
+// HTTP request logging
+app.use(morgan('combined', {
+  stream: {
+    write: (message) => logger.http(message.trim())
+  }
+}));
+
 // Rate limiting
-const limiter = rateLimit({
+logger.info('🚀 Initializing MyLab Platform with modules:', {
+  modules: PLATFORM_CONFIG.modules.map(m => m.name)
+}
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
+  handler: (req, res) => {
+    logger.warn('Rate limit exceeded', {
+      ip: req.ip,
+      path: req.path,
+    });
+    res.status(429).json({ error: 'Too many requests, please try again later' });
+  }
 });
 app.use(limiter);
 
@@ -76,11 +95,8 @@ app.get('/api/platform', (req, res) => {
     // Don't expose sensitive config
     database: { ...PLATFORM_CONFIG.database, password: undefined }
   });
-});
-
-// Error handling
-app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error(err.stack);
+});Global error handler (must be last)
+app.use(errorHandler console.error(err.stack);
   res.status(500).json({ error: 'Something went wrong!' });
 });
 
@@ -90,13 +106,15 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
     // Test database connection
     const result = await pool.query('SELECT NOW()');
     console.log('✅ Database connected successfully');
+    logger.info('✅ Database connected successfully');
     
     app.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
-      console.log(`📊 Dashboard: http://localhost:${PORT}/health`);
+      logger.info(`🚀 Server running on port ${PORT}`);
+      logger.info(`📊 Dashboard: http://localhost:${PORT}/health`);
     });
   } catch (err) {
-    console.error('❌ Failed to connect to database:', err);
-    process.exit(1);
+    logger.error('❌ Failed to connect to database:', {
+      error: err instanceof Error ? err.message : String(err),
+    }
   }
 })();

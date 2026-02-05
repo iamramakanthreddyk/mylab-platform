@@ -1,0 +1,252 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'backend/**'
+      - 'src/**'
+      - 'package.json'
+      - '.github/workflows/**'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'backend/**'
+      - 'src/**'
+      - 'package.json'
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  backend-lint:
+    name: Backend Lint
+    runs-on: ubuntu-latest
+    working-directory: ./backend
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: './backend/package-lock.json'
+      
+      - name: Install dependencies
+        working-directory: ./backend
+        run: npm ci
+      
+      - name: Run ESLint
+        working-directory: ./backend
+        run: npm run lint
+        continue-on-error: true
+
+  backend-test:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: mylab_test
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_PORT: 5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: './backend/package-lock.json'
+      
+      - name: Install dependencies
+        working-directory: ./backend
+        run: npm ci
+      
+      - name: Setup test database
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgres://test_user:test_password@localhost:5432/mylab_test
+        run: |
+          npm run db:setup || true
+      
+      - name: Run tests
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgres://test_user:test_password@localhost:5432/mylab_test
+          NODE_ENV: test
+          JWT_SECRET: test_secret_key
+        run: npm test -- --coverage --testTimeout=10000
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./backend/coverage/coverage-final.json
+          flags: backend
+          name: backend-coverage
+        continue-on-error: true
+
+  backend-build:
+    name: Backend Build
+    runs-on: ubuntu-latest
+    needs: [backend-lint, backend-test]
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: './backend/package-lock.json'
+      
+      - name: Install dependencies
+        working-directory: ./backend
+        run: npm ci
+      
+      - name: Build TypeScript
+        working-directory: ./backend
+        run: npm run build
+      
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: backend-build
+          path: backend/dist
+          retention-days: 5
+
+  frontend-lint:
+    name: Frontend Lint
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: './package-lock.json'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run ESLint
+        run: npm run lint
+        continue-on-error: true
+
+  frontend-build:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+    needs: [frontend-lint]
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: './package-lock.json'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Build
+        run: npm run build
+      
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: frontend-build
+          path: dist
+          retention-days: 5
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run npm audit (backend)
+        working-directory: ./backend
+        run: npm audit --production || true
+      
+      - name: Run npm audit (frontend)
+        run: npm audit --production || true
+
+  notify-results:
+    name: Notify CI Results
+    runs-on: ubuntu-latest
+    needs: [backend-build, frontend-build, backend-test]
+    if: always()
+    
+    steps:
+      - name: Mark as Success
+        if: ${{ needs.backend-build.result == 'success' && needs.frontend-build.result == 'success' && needs.backend-test.result == 'success' }}
+        run: echo "✅ All checks passed!"
+      
+      - name: Mark as Failed
+        if: ${{ needs.backend-build.result == 'failure' || needs.frontend-build.result == 'failure' || needs.backend-test.result == 'failure' }}
+        run: echo "❌ Some checks failed" && exit 1
+
+  # DEPLOYMENT TO RAILWAY (Backend) - Triggered on main branch success
+  deploy-backend-railway:
+    name: Deploy Backend to Railway
+    runs-on: ubuntu-latest
+    needs: [backend-build, backend-test]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && needs.backend-build.result == 'success' && needs.backend-test.result == 'success'
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Trigger Railway Deployment
+        # Railway deploys automatically on git push if connected
+        # This step is optional - just documents the deployment
+        run: |
+          echo "✅ Backend built and tested successfully"
+          echo "Railway will auto-deploy on receiving this commit"
+          echo "Monitor at: https://railway.app/project/{PROJECT_ID}"
+
+  # DEPLOYMENT TO VERCEL (Frontend) - Triggered on main branch success
+  deploy-frontend-vercel:
+    name: Deploy Frontend to Vercel
+    runs-on: ubuntu-latest
+    needs: [frontend-build]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && needs.frontend-build.result == 'success'
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Deploy to Vercel
+        uses: vercel/action@master
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          # Optional: set to production on main
+          github-comment: false
+        continue-on-error: true
+        
+      - name: Vercel Deployment Status
+        run: |
+          echo "✅ Frontend deployment to Vercel initiated"
+          echo "Check your Vercel dashboard for deployment status"
