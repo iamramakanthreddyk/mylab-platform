@@ -48,51 +48,63 @@ const migrations: Migration[] = [
     name: 'create_performance_indexes',
     description: 'Create indexes for frequently queried columns',
     up: async (pool: Pool) => {
-      // Create indexes only if they don't exist
-      const indexes = [
-        {
-          name: 'idx_workspace_id_analyses',
-          table: 'Analyses',
-          columns: ['workspace_id'],
-          query: `CREATE INDEX IF NOT EXISTS idx_workspace_id_analyses ON "Analyses"("workspace_id");`
-        },
-        {
-          name: 'idx_user_id_users',
-          table: 'Users',
-          columns: ['user_id'],
-          query: `CREATE INDEX IF NOT EXISTS idx_user_id_users ON "Users"("user_id");`
-        },
-        {
-          name: 'idx_created_at_analyses',
-          table: 'Analyses',
-          columns: ['created_at'],
-          query: `CREATE INDEX IF NOT EXISTS idx_created_at_analyses ON "Analyses"("created_at");`
-        },
-        {
-          name: 'idx_analysis_type',
-          table: 'Analyses',
-          columns: ['analysis_type'],
-          query: `CREATE INDEX IF NOT EXISTS idx_analysis_type ON "Analyses"("analysis_type");`
-        },
-        {
-          name: 'idx_supersedes_id_fk',
-          table: 'Analyses',
-          columns: ['supersedes_id'],
-          query: `
-            CREATE INDEX IF NOT EXISTS idx_supersedes_id_fk ON "Analyses"("supersedes_id");
-            ALTER TABLE "Analyses" 
-            DROP CONSTRAINT IF EXISTS fk_supersedes,
-            ADD CONSTRAINT fk_supersedes FOREIGN KEY ("supersedes_id") 
-            REFERENCES "Analyses"("id") ON DELETE CASCADE;
-          `
-        },
-      ];
+      logger.info('Creating performance indexes...');
+      
+      // Check which tables exist before creating indexes
+      const tableCheckQuery = `
+        SELECT table_name FROM information_schema.tables 
+        WHERE table_schema = 'public'
+      `;
+      try {
+        const tableResult = await pool.query(tableCheckQuery);
+        const existingTables = new Set(tableResult.rows.map((r: any) => r.table_name));
+        
+        const indexes = [
+          {
+            name: 'idx_workspace_id_analyses',
+            table: 'Analyses',
+            query: `CREATE INDEX IF NOT EXISTS idx_workspace_id_analyses ON "Analyses"("workspace_id");`
+          },
+          {
+            name: 'idx_user_id_users',
+            table: 'Users',
+            query: `CREATE INDEX IF NOT EXISTS idx_user_id_users ON "Users"("user_id");`
+          },
+          {
+            name: 'idx_created_at_analyses',
+            table: 'Analyses',
+            query: `CREATE INDEX IF NOT EXISTS idx_created_at_analyses ON "Analyses"("created_at");`
+          },
+          {
+            name: 'idx_analysis_type',
+            table: 'Analyses',
+            query: `CREATE INDEX IF NOT EXISTS idx_analysis_type ON "Analyses"("analysis_type");`
+          },
+          {
+            name: 'idx_supersedes_id_fk',
+            table: 'Analyses',
+            query: `CREATE INDEX IF NOT EXISTS idx_supersedes_id_fk ON "Analyses"("supersedes_id");`
+          },
+        ];
 
-      for (const index of indexes) {
-        await pool.query(index.query);
-        logger.info(`  ✓ ${index.name}`);
+        let created = 0;
+        for (const index of indexes) {
+          if (existingTables.has(index.table)) {
+            try {
+              await pool.query(index.query);
+              logger.info(`  ✓ ${index.name}`);
+              created++;
+            } catch (err) {
+              logger.warn(`  ⚠ ${index.name} - skipped`, { error: (err as Error).message });
+            }
+          } else {
+            logger.warn(`  ⚠ ${index.name} - table "${index.table}" not found, skipping`);
+          }
+        }
+        logger.info(`✅ Created ${created}/${indexes.length} performance indexes`);
+      } catch (err) {
+        logger.warn('Could not check table existence, skipping index creation', { error: (err as Error).message });
       }
-      logger.info('✅ Created performance indexes');
     }
   }
 

@@ -1,5 +1,5 @@
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
+import jwt, { SignOptions } from 'jsonwebtoken';
 import { Pool } from 'pg';
 import logger from '../utils/logger';
 import { AppError, errors } from '../middleware/errorHandler';
@@ -33,9 +33,9 @@ export interface AuthResponse {
  * Handles all authentication-related business logic
  */
 export class AuthService {
-  private pool: Pool;
-  private jwtSecret: string;
-  private jwtExpiry: string;
+  private readonly pool: Pool;
+  private readonly jwtSecret: string;
+  private readonly jwtExpiry: string;
 
   constructor(pool: Pool) {
     this.pool = pool;
@@ -84,7 +84,7 @@ export class AuthService {
          RETURNING id`,
         [
           payload.organizationName,
-          payload.organizationName.toLowerCase().replace(/\s+/g, '-'),
+          payload.organizationName.toLowerCase().replaceAll(/\s+/g, '-'),
           'research'
         ]
       );
@@ -213,10 +213,13 @@ export class AuthService {
    * Generate JWT token
    */
   private generateToken(userId: string, workspaceId: string): string {
+    const signOptions: SignOptions = {
+      expiresIn: this.jwtExpiry as any // Accepts '7d' format
+    };
     return jwt.sign(
       { userId, workspaceId },
       this.jwtSecret,
-      { expiresIn: this.jwtExpiry }
+      signOptions
     );
   }
 
@@ -227,7 +230,7 @@ export class AuthService {
     try {
       const decoded = jwt.verify(token, this.jwtSecret) as { userId: string; workspaceId: string };
       return decoded;
-    } catch (error) {
+    } catch (error: unknown) {
       throw errors.unauthorized('Invalid or expired token');
     }
   }

@@ -1,5 +1,5 @@
 import winston from 'winston';
-import path from 'path';
+import path from 'node:path';
 
 /**
  * Centralized logging configuration using Winston
@@ -39,7 +39,7 @@ const consoleFormat = winston.format.combine(
   winston.format.colorize({ all: true }),
   winston.format.printf((info) => {
     const { timestamp, level, message, ...args } = info;
-    const ts = timestamp?.slice(0, 19).replace('T', ' ');
+    const ts = typeof timestamp === 'string' ? timestamp.slice(0, 19).replace('T', ' ') : String(timestamp);
     return `[${ts}] ${level}: ${message} ${Object.keys(args).length ? JSON.stringify(args, null, 2) : ''}`;
   })
 );

@@ -12,17 +12,19 @@ import { errorHandler, asyncHandler } from './middleware/errorHandler';
 import { pool } from './db';
 import { runMigrations, getMigrationStatus } from './database/migrations';
 import { PLATFORM_CONFIG } from './config/platform';
-import authRoutes from './routes/auth';
-import adminRoutes from './routes/admin';
-import projectRoutes from './routes/projects';
-import sampleRoutes from './routes/samples';
-import derivedSampleRoutes from './routes/derivedSamples';
-import analysisRoutes from './routes/analyses';
-import apiKeyRoutes from './routes/apiKeys';
-import companyRoutes from './routes/company';
-import notificationRoutes from './routes/notifications';
-import accessRoutes from './routes/access';
-import workspaceRoutes from './routes/workspaces';
+// API Routes (new modular structure)
+import authRoutes from './api/auth/routes';
+import adminRoutes from './api/admin/routes';
+import projectRoutes from './api/projects/routes';
+import sampleRoutes from './api/samples/routes';
+import derivedSampleRoutes from './api/derivedSamples/routes';
+import analysisRoutes from './api/analyses/routes';
+import apiKeyRoutes from './api/apiKeys/routes';
+import companyRoutes from './api/company/routes';
+import notificationRoutes from './api/notifications/routes';
+import accessRoutes from './api/access/routes';
+import workspaceRoutes from './api/workspaces/routes';
+import integrationRoutes from './api/integration/routes';
 import { initializeTokenCleanupJob } from './jobs/tokenCleanup';
 
 const app = express();
@@ -96,6 +98,7 @@ app.use('/api/company', companyRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/access', accessRoutes);
 app.use('/api/workspaces', workspaceRoutes);
+app.use('/api/integrations', integrationRoutes);
 
 // Health check with platform info
 app.get('/health', (req: Request, res: Response) => {

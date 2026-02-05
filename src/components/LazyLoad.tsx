@@ -21,7 +21,7 @@ interface LazyComponentProps {
  * Error fallback component for lazy-loaded components
  * Displays a user-friendly error message when a component fails to load
  */
-export function LazyErrorFallback(props: FallbackProps) {
+export function LazyErrorFallback(props: Readonly<FallbackProps>) {
   return (
     <div className="flex items-center justify-center p-8 border border-red-200 rounded-lg bg-red-50">
       <div className="text-center">
@@ -100,10 +100,10 @@ export function withLazyLoad<P extends object>(
 export function LazyRoute({ 
   component: importComponent,
   loadingFallback = <LazyLoadingFallback />
-}: {
+}: Readonly<{
   component: () => Promise<{ default: ComponentType<any> }>;
   loadingFallback?: ReactNode;
-}) {
+}>) {
   const Component = lazy(importComponent);
 
   return (

@@ -1,5 +1,4 @@
 import { AuthService } from '../authService';
-import { errors } from '../../middleware/errorHandler';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 

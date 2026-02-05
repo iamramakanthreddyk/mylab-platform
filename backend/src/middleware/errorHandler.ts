@@ -76,7 +76,6 @@ export const errorHandler = (
       statusCode,
       ...(process.env.NODE_ENV === 'development' && { details }),
       timestamp: new Date().toISOString(),
-      requestId: req.id || 'unknown',
     },
   });
 };
