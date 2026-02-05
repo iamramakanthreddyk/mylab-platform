@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -66,7 +66,7 @@ app.use(morgan('combined', {
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
-  handler: (req, res) => {
+  handler: (req: Request, res: Response) => {
     logger.warn('Rate limit exceeded', {
       ip: req.ip,
       path: req.path,
@@ -98,7 +98,7 @@ app.use('/api/access', accessRoutes);
 app.use('/api/workspaces', workspaceRoutes);
 
 // Health check with platform info
-app.get('/health', (req, res) => {
+app.get('/health', (req: Request, res: Response) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
@@ -112,7 +112,7 @@ app.get('/health', (req, res) => {
 });
 
 // Platform info endpoint
-app.get('/api/platform', (req, res) => {
+app.get('/api/platform', (req: Request, res: Response) => {
   res.json({
     ...PLATFORM_CONFIG,
     // Don't expose sensitive config
@@ -121,7 +121,7 @@ app.get('/api/platform', (req, res) => {
 });
 
 // Migration status endpoint (for debugging/monitoring)
-app.get('/api/admin/migrations', asyncHandler(async (req, res) => {
+app.get('/api/admin/migrations', asyncHandler(async (req: Request, res: Response) => {
   const status = await getMigrationStatus(pool);
   res.json({
     status: 'ok',
