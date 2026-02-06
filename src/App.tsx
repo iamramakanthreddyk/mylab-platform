@@ -158,7 +158,36 @@ function AppContent() {
     )
   }
 
-  // Login mode selection screen
+  // If user is logged in, show main app (regardless of loginMode)
+  if (currentUser) {
+    return (
+      <AuthContextProvider value={{ user: currentUser, isLoading: false, error: null }}>
+        <div className="min-h-screen bg-background">
+          <Navigation
+            user={currentUser}
+            onLogout={handleLogout}
+          />
+          <Routes>
+            <Route path="/dashboard" element={<Dashboard user={currentUser} projects={projects || []} samples={samples || []} />} />
+            <Route path="/projects" element={<ProjectsView user={currentUser} projects={projects || []} onProjectsChange={setProjects} />} />
+            <Route path="/projects/:id" element={<ProjectDetails user={currentUser} />} />
+            <Route path="/samples" element={<SamplesView user={currentUser} samples={samples || []} />} />
+            <Route path="/analytics" element={<ModulePlaceholder user={currentUser} moduleId="analytics" />} />
+            <Route path="/compliance" element={<ModulePlaceholder user={currentUser} moduleId="compliance" />} />
+            <Route path="/integration" element={<ModulePlaceholder user={currentUser} moduleId="integration" />} />
+            <Route path="/marketplace" element={<ModulePlaceholder user={currentUser} moduleId="marketplace" />} />
+            <Route path="/support" element={<ModulePlaceholder user={currentUser} moduleId="support" />} />
+            <Route path="/schema" element={<SchemaExplorer />} />
+            <Route path="/notifications" element={<NotificationCenter />} />
+            <Route path="/" element={<Dashboard user={currentUser} projects={projects || []} samples={samples || []} />} />
+          </Routes>
+          <Toaster />
+        </div>
+      </AuthContextProvider>
+    )
+  }
+
+  // Login mode selection screen (when not logged in)
   if (loginMode === null) {
     return (
       <div className="min-h-screen bg-linear-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-6">
@@ -194,42 +223,14 @@ function AppContent() {
   }
 
   // Regular user login
-  if (!currentUser) {
-    return (
-      <>
-        <Routes>
-          <Route path="/" element={<Login onLogin={handleLogin} onNeedSetPassword={() => navigate('/set-password')} />} />
-          <Route path="/set-password" element={<SetPassword onSuccess={() => navigate('/')} />} />
-        </Routes>
-        <Toaster />
-      </>
-    )
-  }
-
   return (
-    <AuthContextProvider value={{ user: currentUser, isLoading: false, error: null }}>
-      <div className="min-h-screen bg-background">
-        <Navigation
-          user={currentUser}
-          onLogout={handleLogout}
-        />
-        <Routes>
-          <Route path="/dashboard" element={<Dashboard user={currentUser} projects={projects || []} samples={samples || []} />} />
-          <Route path="/projects" element={<ProjectsView user={currentUser} projects={projects || []} onProjectsChange={setProjects} />} />
-          <Route path="/projects/:id" element={<ProjectDetails user={currentUser} />} />
-          <Route path="/samples" element={<SamplesView user={currentUser} samples={samples || []} />} />
-          <Route path="/analytics" element={<ModulePlaceholder user={currentUser} moduleId="analytics" />} />
-          <Route path="/compliance" element={<ModulePlaceholder user={currentUser} moduleId="compliance" />} />
-          <Route path="/integration" element={<ModulePlaceholder user={currentUser} moduleId="integration" />} />
-          <Route path="/marketplace" element={<ModulePlaceholder user={currentUser} moduleId="marketplace" />} />
-          <Route path="/support" element={<ModulePlaceholder user={currentUser} moduleId="support" />} />
-          <Route path="/schema" element={<SchemaExplorer />} />
-          <Route path="/notifications" element={<NotificationCenter />} />
-          <Route path="/" element={<Dashboard user={currentUser} projects={projects || []} samples={samples || []} />} />
-        </Routes>
-        <Toaster />
-      </div>
-    </AuthContextProvider>
+    <>
+      <Routes>
+        <Route path="/" element={<Login onLogin={handleLogin} onNeedSetPassword={() => navigate('/set-password')} />} />
+        <Route path="/set-password" element={<SetPassword onSuccess={() => navigate('/')} />} />
+      </Routes>
+      <Toaster />
+    </>
   )
 }
 

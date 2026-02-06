@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Flask, User as UserIcon, SignOut, Database } from '@phosphor-icons/react'
+import { Flask, User as UserIcon, SignOut, Database, Bell } from '@phosphor-icons/react'
 import { canAccessSchema } from '@/lib/auth'
 import { Link, useLocation } from 'react-router-dom'
 
@@ -66,28 +66,52 @@ export function Navigation({ user, onLogout }: NavigationProps) {
             </nav>
           </div>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="gap-2 h-10">
-                <UserIcon size={18} weight="duotone" />
-                <span className="hidden sm:inline">{user.name}</span>
-                <Badge variant="secondary" className="text-xs">{user.role}</Badge>
+          <div className="flex items-center gap-3">
+            <Link to="/notifications">
+              <Button
+                variant={currentView === 'notifications' ? 'default' : 'ghost'}
+                size="icon"
+                className="rounded-full relative"
+              >
+                <Bell size={20} weight="duotone" />
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>
-                <div className="flex flex-col gap-1">
-                  <p className="font-medium">{user.name}</p>
-                  <p className="text-xs text-muted-foreground font-normal">{user.email}</p>
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={onLogout} className="text-destructive gap-2">
-                <SignOut size={16} />
-                Sign Out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            </Link>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="gap-2 rounded-full px-3 h-10 hover:bg-primary/10">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
+                      <UserIcon size={16} weight="fill" className="text-primary" />
+                    </div>
+                    <div className="hidden sm:flex flex-col items-start gap-0">
+                      <span className="text-sm font-semibold leading-none">{user.name.split(' ')[0]}</span>
+                      <span className="text-xs text-muted-foreground">{user.role}</span>
+                    </div>
+                  </div>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-72">
+                <DropdownMenuLabel>
+                  <div className="flex items-center gap-3 py-2">
+                    <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
+                      <UserIcon size={24} weight="fill" className="text-primary" />
+                    </div>
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <p className="font-semibold text-sm leading-none">{user.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                      <Badge variant="secondary" className="w-fit text-xs mt-1">{user.role}</Badge>
+                    </div>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={onLogout} className="text-destructive gap-2 cursor-pointer py-2">
+                  <SignOut size={16} weight="duotone" />
+                  <span>Sign Out</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </div>
     </div>
