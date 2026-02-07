@@ -406,7 +406,7 @@ export class DatabaseSetup {
         CREATE TABLE IF NOT EXISTS AuditLog (
           id BIGSERIAL PRIMARY KEY,
           object_type VARCHAR(50) NOT NULL,
-          object_id UUID NOT NULL,
+          object_id UUID,
           action audit_action NOT NULL,
           actor_id UUID NOT NULL REFERENCES Users(id),
           actor_workspace UUID NOT NULL REFERENCES Workspace(id),

@@ -265,7 +265,7 @@ export async function createTestSchema(db: TestDatabase): Promise<void> {
     CREATE TABLE IF NOT EXISTS AuditLog (
       id TEXT PRIMARY KEY,
       object_type TEXT NOT NULL,
-      object_id TEXT NOT NULL,
+      object_id TEXT,
       action TEXT NOT NULL,
       actor_id TEXT,
       actor_workspace TEXT,

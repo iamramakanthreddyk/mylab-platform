@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import Joi from 'joi';
 import { errors } from './errorHandler';
 import logger from '../utils/logger';
+import { SAMPLE_SCHEMA } from '../database/schemas';
 
 /**
  * Input validation middleware using Joi
@@ -172,27 +173,11 @@ export const projectSchemas = {
   }),
 };
 
-// Sample Schemas
+// Sample Schemas - Reference SAMPLE_SCHEMA from database/schemas.ts
+// This ensures all APIs use the same validation rules as the database definition
 export const sampleSchemas = {
-  create: Joi.object({
-    projectId: schemas.uuid,
-    clientRefId: Joi.string().max(100).required(),
-    sampleType: Joi.string().valid('blood', 'tissue', 'dna', 'rna', 'protein').required(),
-    quantity: Joi.number().positive().required(),
-    unit: Joi.string().valid('mg', 'g', 'ml', 'ul').required(),
-    collectionDate: Joi.date().iso().optional(),
-    description: schemas.description,
-    metadata: Joi.object().optional(),
-  }),
-
-  update: Joi.object({
-    clientRefId: Joi.string().max(100),
-    sampleType: Joi.string().valid('blood', 'tissue', 'dna', 'rna', 'protein'),
-    quantity: Joi.number().positive(),
-    unit: Joi.string().valid('mg', 'g', 'ml', 'ul'),
-    description: schemas.description,
-    metadata: Joi.object(),
-  }).min(1),
+  create: SAMPLE_SCHEMA.CreateRequest,
+  update: SAMPLE_SCHEMA.UpdateRequest,
 };
 
 // Analysis Schemas

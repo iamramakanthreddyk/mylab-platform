@@ -9,7 +9,7 @@
 
 ### ⚡ Quick Answer (5 minutes)
 **"I need a quick overview"**
-→ Start here: [QUICKREF_COMPANY_PLANS.md](./backend/QUICKREF_COMPANY_PLANS.md)
+→ Start here: [QUICKREF_COMPANY_PLANS.md](./reference/QUICKREF_COMPANY_PLANS.md)
 - Commands & environment variables
 - Essential endpoints
 - Common database queries
@@ -19,7 +19,7 @@
 
 ### 🏗️ Understanding the Architecture (15 minutes)
 **"I need to understand how companies, plans, and GST work together"**
-→ Read: [DATA_MODEL_REFERENCE.md](./backend/DATA_MODEL_REFERENCE.md)
+→ Read: [DATA_MODEL_REFERENCE.md](./reference/DATA_MODEL_REFERENCE.md)
 - Entity relationship diagram
 - Table structures & columns
 - Data flow examples
@@ -30,7 +30,7 @@
 
 ### 📋 Full Feature Documentation (30 minutes)
 **"I need comprehensive documentation"**
-→ Read: [COMPANY_PLANS_GST_GUIDE.md](./backend/COMPANY_PLANS_GST_GUIDE.md)
+→ Read: [COMPANY_PLANS_GST_GUIDE.md](./reference/COMPANY_PLANS_GST_GUIDE.md)
 - Complete feature overview
 - Organizations table details
 - Subscriptions table details
@@ -44,7 +44,7 @@
 
 ### 🧪 Testing & Validation (45 minutes)
 **"I need to test the features or run test cases"**
-→ Follow: [TESTING_COMPANY_PLANS_GST.md](./backend/TESTING_COMPANY_PLANS_GST.md)
+→ Follow: [TESTING_COMPANY_PLANS_GST.md](./development/TESTING_COMPANY_PLANS_GST.md)
 - Step-by-step test procedures
 - Sample requests & expected responses
 - Integration testing workflows
@@ -56,7 +56,7 @@
 
 ### 📝 What Changed & Why (20 minutes)
 **"I need to know what changed in this session"**
-→ Review: [CHANGELOG_COMPANY_PLANS.md](./backend/CHANGELOG_COMPANY_PLANS.md)
+→ Review: [CHANGELOG_COMPANY_PLANS.md](./reference/CHANGELOG_COMPANY_PLANS.md)
 - Summary of all modifications
 - Detailed file-by-file changes
 - Database schema additions
@@ -68,7 +68,7 @@
 
 ### ✅ Project Completion Summary (10 minutes)
 **"I need to verify everything is done"**
-→ Check: [IMPLEMENTATION_SUMMARY.md](./IMPLEMENTATION_SUMMARY.md)
+→ Check: [IMPLEMENTATION_SUMMARY.md](./reference/IMPLEMENTATION_SUMMARY.md)
 - 3 main objectives completed
 - 4 new endpoints delivered
 - Quality assurance validation
@@ -82,12 +82,12 @@
 
 | Document | Location | Purpose | Time | Audience |
 |----------|----------|---------|------|----------|
-| QUICKREF_COMPANY_PLANS.md | /backend | Fast lookup | 5 min | Developers |
-| DATA_MODEL_REFERENCE.md | /backend | Architecture | 15 min | All |
-| COMPANY_PLANS_GST_GUIDE.md | /backend | Full feature guide | 30 min | All |
-| TESTING_COMPANY_PLANS_GST.md | /backend | Test procedures | 45 min | QA/Testers |
-| CHANGELOG_COMPANY_PLANS.md | /backend | Change history | 20 min | DevOps/Leads |
-| IMPLEMENTATION_SUMMARY.md | / (root) | Completion status | 10 min | Managers |
+| QUICKREF_COMPANY_PLANS.md | /reference | Fast lookup | 5 min | Developers |
+| DATA_MODEL_REFERENCE.md | /reference | Architecture | 15 min | All |
+| COMPANY_PLANS_GST_GUIDE.md | /reference | Full feature guide | 30 min | All |
+| TESTING_COMPANY_PLANS_GST.md | /development | Test procedures | 45 min | QA/Testers |
+| CHANGELOG_COMPANY_PLANS.md | /reference | Change history | 20 min | DevOps/Leads |
+| IMPLEMENTATION_SUMMARY.md | /reference | Completion status | 10 min | Managers |
 
 ---
 
@@ -224,7 +224,7 @@
 
 ## 🚀 Getting Started in 5 Minutes
 
-1. **Read**: [QUICKREF_COMPANY_PLANS.md](./backend/QUICKREF_COMPANY_PLANS.md) (5 min)
+1. **Read**: [QUICKREF_COMPANY_PLANS.md](./reference/QUICKREF_COMPANY_PLANS.md) (5 min)
 2. **Setup**: Copy `.env.example` to `.env.local`
 3. **Start**: `npm run develop`
 4. **Test**: One endpoint from QUICKREF
@@ -389,4 +389,4 @@ QUICKREF_COMPANY_PLANS.md ◄─── Start here
 **Created**: February 4, 2026  
 **Status**: Complete & Production Ready
 
-**Start Reading**: [QUICKREF_COMPANY_PLANS.md](./backend/QUICKREF_COMPANY_PLANS.md) (5 minutes)
+**Start Reading**: [QUICKREF_COMPANY_PLANS.md](./reference/QUICKREF_COMPANY_PLANS.md) (5 minutes)

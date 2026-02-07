@@ -1,7 +1,12 @@
 import Joi from 'joi';
+import { SAMPLE_SCHEMA } from '../../database/schemas';
 
 /**
  * Sample request/response types and validation schemas
+ * 
+ * ⚠️ IMPORTANT: All schemas here reference the central SAMPLE_SCHEMA definition
+ * in database/schemas.ts to prevent schema drift.
+ * Do NOT create new validation schemas here - use SAMPLE_SCHEMA instead.
  */
 
 // ============ Request DTOs ============
@@ -13,19 +18,18 @@ export interface ListSamplesRequest {
 export interface CreateSampleRequest {
   projectId: string;
   stageId?: string;
-  name: string;
-  description?: string;
-  sampleType: string;
-  quantity: number;
-  unit: string;
+  sampleId: string;
+  description: string;
+  type?: string;
+  metadata?: Record<string, any>;
 }
 
 export interface UpdateSampleRequest {
-  name?: string;
+  sampleId?: string;
   description?: string;
+  type?: string;
   status?: string;
-  quantity?: number;
-  unit?: string;
+  metadata?: Record<string, any>;
   stageId?: string;
 }
 
@@ -36,11 +40,10 @@ export interface SampleResponse {
   workspace_id: string;
   project_id: string;
   stage_id?: string;
-  name: string;
-  description?: string;
-  sample_type: string;
-  quantity: number;
-  unit: string;
+  sample_id: string;
+  description: string;
+  type?: string;
+  metadata?: Record<string, any>;
   status: string;
   project_name: string;
   created_by: string;
@@ -50,25 +53,11 @@ export interface SampleResponse {
 }
 
 // ============ Validation Schemas ============
+// IMPORTANT: These reference SAMPLE_SCHEMA from database/schemas.ts
+// This is the single source of truth - do not modify these without updating database/schemas.ts
 
-export const createSampleSchema = Joi.object({
-  projectId: Joi.string().uuid().required(),
-  stageId: Joi.string().uuid().optional(),
-  name: Joi.string().required().trim().max(255),
-  description: Joi.string().optional().trim().max(2000),
-  sampleType: Joi.string().required().max(100),
-  quantity: Joi.number().positive().required(),
-  unit: Joi.string().required().max(50)
-});
-
-export const updateSampleSchema = Joi.object({
-  name: Joi.string().optional().trim().max(255),
-  description: Joi.string().optional().trim().max(2000),
-  status: Joi.string().optional().max(50),
-  quantity: Joi.number().optional().positive(),
-  unit: Joi.string().optional().max(50),
-  stageId: Joi.string().uuid().optional()
-});
+export const createSampleSchema = SAMPLE_SCHEMA.CreateRequest;
+export const updateSampleSchema = SAMPLE_SCHEMA.UpdateRequest;
 
 // ============ Custom Error Classes ============
 

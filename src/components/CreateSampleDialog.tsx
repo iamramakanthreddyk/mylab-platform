@@ -25,11 +25,9 @@ export function CreateSampleDialog({ open, onOpenChange, projectId, onSuccess }:
   const [stages, setStages] = useState<Stage[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState({
-    name: '',
+    sampleId: '',
     description: '',
-    sampleType: '',
-    quantity: '',
-    unit: '',
+    type: '',
     stageId: ''
   })
 
@@ -55,8 +53,13 @@ export function CreateSampleDialog({ open, onOpenChange, projectId, onSuccess }:
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!formData.name.trim()) {
-      toast.error('Sample name is required')
+    if (!formData.sampleId.trim()) {
+      toast.error('Sample ID is required')
+      return
+    }
+
+    if (!formData.description.trim()) {
+      toast.error('Description is required')
       return
     }
 
@@ -64,21 +67,17 @@ export function CreateSampleDialog({ open, onOpenChange, projectId, onSuccess }:
     try {
       await axiosInstance.post('/samples', {
         projectId,
-        name: formData.name,
-        description: formData.description,
-        sampleType: formData.sampleType,
-        quantity: formData.quantity ? parseFloat(formData.quantity) : undefined,
-        unit: formData.unit,
+        sampleId: formData.sampleId.trim(),
+        type: formData.type || undefined,
+        description: formData.description.trim(),
         stageId: formData.stageId || undefined
       })
 
       toast.success('Sample created successfully')
       setFormData({
-        name: '',
+        sampleId: '',
         description: '',
-        sampleType: '',
-        quantity: '',
-        unit: '',
+        type: '',
         stageId: stages[0]?.id || ''
       })
       onSuccess()
@@ -103,34 +102,35 @@ export function CreateSampleDialog({ open, onOpenChange, projectId, onSuccess }:
         
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Sample Name *</Label>
+            <Label htmlFor="sampleId">Sample ID *</Label>
             <Input
-              id="name"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              id="sampleId"
+              value={formData.sampleId}
+              onChange={(e) => setFormData({ ...formData, sampleId: e.target.value })}
               placeholder="e.g., Sample-001"
               required
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
+            <Label htmlFor="description">Description *</Label>
             <Textarea
               id="description"
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               placeholder="Describe the sample..."
               rows={3}
+              required
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="sampleType">Sample Type</Label>
+              <Label htmlFor="type">Sample Type</Label>
               <Input
-                id="sampleType"
-                value={formData.sampleType}
-                onChange={(e) => setFormData({ ...formData, sampleType: e.target.value })}
+                id="type"
+                value={formData.type}
+                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                 placeholder="e.g., Blood, Tissue"
               />
             </div>
@@ -155,30 +155,6 @@ export function CreateSampleDialog({ open, onOpenChange, projectId, onSuccess }:
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="quantity">Quantity</Label>
-              <Input
-                id="quantity"
-                type="number"
-                step="0.01"
-                value={formData.quantity}
-                onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                placeholder="e.g., 10"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="unit">Unit</Label>
-              <Input
-                id="unit"
-                value={formData.unit}
-                onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-                placeholder="e.g., mg, mL"
-              />
             </div>
           </div>
 

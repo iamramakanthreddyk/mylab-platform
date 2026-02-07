@@ -1,0 +1,27 @@
+// Central Routes Export
+// Import all route modules
+export { default as authRoutes } from './auth/routes'
+export { default as adminRoutes } from './admin/routes'
+export { default as projectRoutes } from './projects/routes'
+export { default as sampleRoutes } from './samples/routes'
+export { default as derivedSampleRoutes } from './derivedSamples/routes'
+export { default as analysisRoutes } from './analyses/routes'
+export { default as apiKeyRoutes } from './apiKeys/routes'
+export { default as companyRoutes } from './company/routes'
+export { createCompanyDashboardRoutes } from './company/dashboard-routes'
+export { default as organizationRoutes } from './organizations/routes'
+export { default as notificationRoutes } from './notifications/routes'
+export { default as accessRoutes } from './access/routes'
+export { default as workspaceRoutes } from './workspaces/routes'
+export { default as integrationRoutes } from './integration/routes'
+export { createTeamRoutes } from './team/routes'
+
+// Type Exports
+export type * from './auth/types'
+export type * from './admin/types'
+export type * from './projects/types'
+export type * from './samples/types'
+export type * from './organizations/types'
+export type * from './workspaces/types'
+export type * from './notifications/types'
+export type * from './access/types'

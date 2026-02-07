@@ -56,16 +56,15 @@ export const sampleController = {
   create: asyncHandler(async (req: Request, res: Response) => {
     const workspaceId = req.user!.workspaceId;
     const userId = req.user!.id;
-    const { projectId, stageId, name, description, sampleType, quantity, unit } = req.body;
+    const { projectId, stageId, sampleId, description, type, metadata } = req.body;
 
     const sample = await SampleService.createSample(workspaceId, userId, {
       projectId,
       stageId,
-      name,
+      sampleId,
       description,
-      sampleType,
-      quantity,
-      unit
+      type,
+      metadata
     });
 
     logger.info('Sample created via API', { sampleId: sample.id, userId });
@@ -83,14 +82,14 @@ export const sampleController = {
   update: asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
     const workspaceId = req.user!.workspaceId;
-    const { projectId, name, description, status, quantity, unit, stageId } = req.body;
+    const { projectId, sampleId, description, type, status, metadata, stageId } = req.body;
 
     const sample = await SampleService.updateSample(id, workspaceId, projectId, {
-      name,
+      sampleId,
       description,
+      type,
       status,
-      quantity,
-      unit,
+      metadata,
       stageId
     });
 

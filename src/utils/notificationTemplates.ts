@@ -196,13 +196,15 @@ export function createNotificationFromTemplate(
   userId: string,
   workspaceId?: string,
   additionalMetadata?: Record<string, any>
-): Omit<NotificationItem, 'id' | 'timestamp' | 'read'> {
+): NotificationTemplate & { persistent: boolean; metadata: Record<string, any> } {
   return {
     type: template.type,
     title: template.title,
     message: template.message,
+    priority: template.priority,
     actionUrl: template.actionUrl,
     actionLabel: template.actionLabel,
+    expiresInDays: template.expiresInDays,
     persistent: template.priority === 'high',
     metadata: {
       template: true,

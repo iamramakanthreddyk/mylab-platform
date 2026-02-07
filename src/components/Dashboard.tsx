@@ -133,7 +133,7 @@ export function Dashboard({ user, projects, samples }: DashboardProps) {
                   </CardTitle>
                   <CardDescription>Your most active laboratory projects</CardDescription>
                 </div>
-                <Button onClick={() => onNavigate('projects')} variant="outline" size="sm">
+                <Button onClick={() => navigate('/projects')} variant="outline" size="sm">
                   View All
                 </Button>
               </div>
@@ -143,7 +143,7 @@ export function Dashboard({ user, projects, samples }: DashboardProps) {
                 <div className="text-center py-8 text-muted-foreground">
                   <FolderOpen size={48} className="mx-auto mb-3 opacity-50" />
                   <p className="mb-3">No projects yet</p>
-                  <Button onClick={() => onNavigate('projects')} size="sm" className="gap-2">
+                  <Button onClick={() => navigate('/projects')} size="sm" className="gap-2">
                     <Plus size={16} />
                     Create Your First Project
                   </Button>

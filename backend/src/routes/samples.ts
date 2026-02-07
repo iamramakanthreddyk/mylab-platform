@@ -7,6 +7,7 @@ import {
   requireObjectAccess,
   auditLog
 } from '../middleware';
+import { validate, sampleSchemas } from '../middleware/validation';
 
 const router = Router();
 
@@ -38,9 +39,9 @@ router.get('/', authenticate, async (req, res) => {
 });
 
 // POST /api/samples - Create sample with optional stage assignment
-router.post('/', authenticate, auditLog('create', 'sample'), async (req, res) => {
+router.post('/', authenticate, validate(sampleSchemas.create), auditLog('create', 'sample'), async (req, res) => {
   try {
-    const { projectId, stageId, name, description, sampleType, quantity, unit } = req.body;
+    const { projectId, stageId, sampleId, type, description, metadata } = req.body;
     const workspaceId = req.user!.workspaceId;
     const createdBy = req.user!.id;
 
@@ -62,10 +63,10 @@ router.post('/', authenticate, auditLog('create', 'sample'), async (req, res) =>
     }
 
     const result = await pool.query(`
-      INSERT INTO Samples (workspace_id, project_id, stage_id, name, description, sample_type, quantity, unit, created_by)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      INSERT INTO Samples (workspace_id, project_id, stage_id, sample_id, type, description, metadata, created_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
-    `, [workspaceId, projectId, stageId || null, name, description, sampleType, quantity, unit, createdBy]);
+    `, [workspaceId, projectId, stageId || null, sampleId, type, description, metadata ? JSON.stringify(metadata) : null, createdBy]);
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -99,10 +100,10 @@ router.get('/:id', authenticate, requireObjectAccess('sample'), async (req, res)
 });
 
 // PUT /api/samples/:id - Update sample (with optional stage progression)
-router.put('/:id', authenticate, requireObjectAccess('sample', 'processor'), auditLog('update', 'sample'), async (req, res) => {
+router.put('/:id', authenticate, validate(sampleSchemas.update), requireObjectAccess('sample', 'processor'), auditLog('update', 'sample'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, status, quantity, unit, stageId } = req.body;
+    const { sampleId, description, status, type, stageId, metadata } = req.body;
     const projectId = req.query.projectId as string;
 
     // If stage_id provided, validate progression rules
@@ -120,10 +121,10 @@ router.put('/:id', authenticate, requireObjectAccess('sample', 'processor'), aud
 
     const result = await pool.query(`
       UPDATE Samples
-      SET name = $1, description = $2, status = $3, quantity = $4, unit = $5, stage_id = $6, updated_at = NOW()
+      SET sample_id = COALESCE($1, sample_id), type = COALESCE($2, type), description = COALESCE($3, description), status = COALESCE($4, status), metadata = COALESCE($5, metadata), stage_id = COALESCE($6, stage_id), updated_at = NOW()
       WHERE id = $7 AND workspace_id = $8 AND deleted_at IS NULL
       RETURNING *
-    `, [name, description, status, quantity, unit, stageId || null, id, workspaceId]);
+    `, [sampleId || null, type || null, description || null, status || null, metadata ? JSON.stringify(metadata) : null, stageId || null, id, workspaceId]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Sample not found' });

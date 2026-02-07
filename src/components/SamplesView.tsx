@@ -15,16 +15,18 @@ export function SamplesView({ user, samples }: SamplesViewProps) {
   const [searchQuery, setSearchQuery] = useState('')
 
   const filteredSamples = samples.filter(sample =>
-    sample.sampleId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    sample.type.toLowerCase().includes(searchQuery.toLowerCase())
+    sample.sample_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (sample.type && sample.type.toLowerCase().includes(searchQuery.toLowerCase()))
   )
 
   const getStatusColor = (status: Sample['status']) => {
-    switch (status) {
-      case 'Registered': return 'secondary'
-      case 'In Progress': return 'default'
-      case 'Analyzed': return 'outline'
-      case 'Archived': return 'outline'
+    const lowerStatus = String(status).toLowerCase()
+    switch (lowerStatus) {
+      case 'created': return 'secondary'
+      case 'registered': return 'secondary'
+      case 'in progress': return 'default'
+      case 'analyzed': return 'outline'
+      case 'archived': return 'outline'
       default: return 'secondary'
     }
   }
@@ -79,13 +81,13 @@ export function SamplesView({ user, samples }: SamplesViewProps) {
               <Card key={sample.id} className="hover:shadow-lg transition-shadow cursor-pointer">
                 <CardHeader>
                   <div className="flex items-start justify-between mb-2">
-                    <CardTitle className="text-lg font-mono">{sample.sampleId}</CardTitle>
+                    <CardTitle className="text-lg font-mono">{sample.sample_id}</CardTitle>
                     <Badge variant={getStatusColor(sample.status)}>
                       {sample.status}
                     </Badge>
                   </div>
                   <CardDescription>
-                    {sample.type}
+                    {sample.type || 'N/A'}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>

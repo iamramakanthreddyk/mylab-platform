@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { NotificationTemplates } from '@/utils';
 import { useAuth } from '@/lib/AuthContext';
 import { toast } from 'sonner';
 

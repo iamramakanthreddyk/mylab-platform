@@ -2,7 +2,19 @@
 
 A modern, scalable web application for lab data management, designed to streamline workflows in research and analytical environments. MyLab Platform enables secure, multi-tenant data handling with features like workspace isolation, immutable analysis results, audit trails, and comprehensive testing.
 
-## 🚀 Overview
+## � Documentation
+
+**All documentation is organized in the [docs](./docs) folder.**
+
+→ **[Start here: Documentation Index](./docs/INDEX.md)** for complete guides, architecture reference, testing procedures, and deployment information.
+
+**Quick links:**
+- [Guides & Setup](./docs/guides/) - Deployment, setup, and quickstart guides
+- [Architecture & Design](./docs/architecture/) - System design and data models
+- [Reference & API](./docs/reference/) - Complete API reference and data models
+- [Development & Testing](./docs/development/) - Testing procedures and development notes
+
+## �🚀 Overview
 
 MyLab Platform is built for laboratories that need robust data integrity, access control, and collaboration tools. Key entities include:
 - **Workspaces**: Isolated environments for teams or projects

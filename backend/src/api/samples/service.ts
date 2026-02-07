@@ -118,21 +118,20 @@ export class SampleService {
       const result = await pool.query(
         `
         INSERT INTO Samples (
-          workspace_id, project_id, stage_id, name, description,
-          sample_type, quantity, unit, created_by
+          workspace_id, project_id, stage_id, sample_id, type,
+          description, metadata, created_by
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING *
         `,
         [
           workspaceId,
           data.projectId,
           data.stageId || null,
-          data.name,
-          data.description || null,
-          data.sampleType,
-          data.quantity,
-          data.unit,
+          data.sampleId,
+          data.type || null,
+          data.description,
+          data.metadata ? JSON.stringify(data.metadata) : null,
           userId
         ]
       );
@@ -180,9 +179,9 @@ export class SampleService {
       const values: any[] = [];
       let paramIndex = 1;
 
-      if (data.name !== undefined) {
-        updates.push(`name = $${paramIndex++}`);
-        values.push(data.name);
+      if (data.sampleId !== undefined) {
+        updates.push(`sample_id = $${paramIndex++}`);
+        values.push(data.sampleId);
       }
 
       if (data.description !== undefined) {
@@ -190,19 +189,19 @@ export class SampleService {
         values.push(data.description);
       }
 
+      if (data.type !== undefined) {
+        updates.push(`type = $${paramIndex++}`);
+        values.push(data.type);
+      }
+
       if (data.status !== undefined) {
         updates.push(`status = $${paramIndex++}`);
         values.push(data.status);
       }
 
-      if (data.quantity !== undefined) {
-        updates.push(`quantity = $${paramIndex++}`);
-        values.push(data.quantity);
-      }
-
-      if (data.unit !== undefined) {
-        updates.push(`unit = $${paramIndex++}`);
-        values.push(data.unit);
+      if (data.metadata !== undefined) {
+        updates.push(`metadata = $${paramIndex++}`);
+        values.push(data.metadata ? JSON.stringify(data.metadata) : null);
       }
 
       if (data.stageId !== undefined) {

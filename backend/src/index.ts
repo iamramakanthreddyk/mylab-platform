@@ -7,26 +7,32 @@ import morgan from 'morgan';
 // Must import preload FIRST to load environment variables
 import './preload';
 
+// Core Utilities & Config
 import logger from './utils/logger';
-import { errorHandler, asyncHandler } from './middleware/errorHandler';
+import { errorHandler, asyncHandler } from './middleware';
 import { pool } from './db';
-import { runMigrations, getMigrationStatus } from './database/migrations';
-import { DatabaseSetup } from './database/setup';
-import { PLATFORM_CONFIG } from './config/platform';
-// API Routes (new modular structure)
-import authRoutes from './api/auth/routes';
-import adminRoutes from './api/admin/routes';
-import projectRoutes from './api/projects/routes';
-import sampleRoutes from './api/samples/routes';
-import derivedSampleRoutes from './api/derivedSamples/routes';
-import analysisRoutes from './api/analyses/routes';
-import apiKeyRoutes from './api/apiKeys/routes';
-import companyRoutes from './api/company/routes';
-import organizationRoutes from './api/organizations/routes';
-import notificationRoutes from './api/notifications/routes';
-import accessRoutes from './api/access/routes';
-import workspaceRoutes from './api/workspaces/routes';
-import integrationRoutes from './api/integration/routes';
+import { runMigrations, getMigrationStatus, DatabaseSetup } from './database';
+import { PLATFORM_CONFIG } from './config';
+
+// API Routes (modular structure with barrel exports)
+import {
+  authRoutes,
+  adminRoutes,
+  projectRoutes,
+  sampleRoutes,
+  derivedSampleRoutes,
+  analysisRoutes,
+  apiKeyRoutes,
+  companyRoutes,
+  organizationRoutes,
+  notificationRoutes,
+  accessRoutes,
+  workspaceRoutes,
+  integrationRoutes,
+  createCompanyDashboardRoutes,
+  createTeamRoutes,
+} from './api';
+
 import { initializeTokenCleanupJob } from './jobs/tokenCleanup';
 
 const app = express();
@@ -97,11 +103,15 @@ app.use('/api/derived-samples', derivedSampleRoutes);
 app.use('/api/analyses', analysisRoutes);
 app.use('/api/api-keys', apiKeyRoutes);
 app.use('/api/company', companyRoutes);
+app.use('/api/company', createCompanyDashboardRoutes());
 app.use('/api/organizations', organizationRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/access', accessRoutes);
 app.use('/api/workspaces', workspaceRoutes);
 app.use('/api/integrations', integrationRoutes);
+
+// Team management and access control routes
+app.use('/api', createTeamRoutes(pool));
 
 // Health check with platform info
 app.get('/health', (req: Request, res: Response) => {

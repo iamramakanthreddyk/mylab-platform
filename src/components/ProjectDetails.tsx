@@ -371,7 +371,7 @@ export function ProjectDetails({ user }: ProjectDetailsProps) {
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-3 flex-wrap">
-                            <CardTitle className="text-lg">{sample.sampleId}</CardTitle>
+                            <CardTitle className="text-lg">{sample.sample_id}</CardTitle>
                             <Badge className="whitespace-nowrap">{sample.status}</Badge>
                           </div>
                           {sample.description && (
@@ -396,11 +396,11 @@ export function ProjectDetails({ user }: ProjectDetailsProps) {
                         </div>
                         <div>
                           <p className="text-muted-foreground">Created</p>
-                          <p>{new Date(sample.createdAt).toLocaleDateString()}</p>
+                          <p>{new Date(sample.created_at).toLocaleDateString()}</p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">Type</p>
-                          <p>{(sample as any).sampleType || 'N/A'}</p>
+                          <p>{sample.type || 'N/A'}</p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">Status</p>
