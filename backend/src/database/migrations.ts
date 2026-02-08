@@ -10,7 +10,7 @@ import { Pool, QueryResult } from 'pg';
 import logger from '../utils/logger';
 
 // Migration version - increment when adding new migrations
-const MIGRATIONS_VERSION = '013';
+const MIGRATIONS_VERSION = '014';
 
 /**
  * Migration definition
@@ -120,6 +120,7 @@ const migrations: Migration[] = [
       }
     }
   },
+
 
   {
     id: '012',
@@ -873,6 +874,30 @@ const migrations: Migration[] = [
         ADD COLUMN IF NOT EXISTS revision_number INT DEFAULT 1;
       `);
       logger.info('✅ Added audit fields to Analyses table');
+    }
+  },
+
+  {
+    id: '014',
+    name: 'add_project_team_external_flags',
+    description: 'Add external tagging columns for ProjectTeam assignments',
+    up: async (pool: Pool) => {
+      try {
+        await pool.query(`
+          ALTER TABLE IF EXISTS ProjectTeam
+          ADD COLUMN IF NOT EXISTS is_external BOOLEAN DEFAULT false,
+          ADD COLUMN IF NOT EXISTS external_workspace_id UUID;
+        `);
+
+        await pool.query(`
+          CREATE INDEX IF NOT EXISTS idx_project_team_external ON ProjectTeam(is_external);
+        `);
+
+        logger.info('✅ Added external tagging columns to ProjectTeam');
+      } catch (err) {
+        logger.error('Error adding external tagging columns to ProjectTeam', { error: (err as Error).message });
+        throw err;
+      }
     }
   }
 

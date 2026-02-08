@@ -48,7 +48,9 @@ export function createTeamRoutes(pool: Pool): Router {
             u.email,
             u.name,
             pt.assigned_role as "assignedRole",
-            pt.assigned_at as "assignedAt"
+            pt.assigned_at as "assignedAt",
+            pt.is_external as "isExternal",
+            pt.external_workspace_id as "externalWorkspaceId"
           FROM ProjectTeam pt
           JOIN Users u ON pt.user_id = u.id
           WHERE pt.project_id = $1
@@ -90,7 +92,7 @@ export function createTeamRoutes(pool: Pool): Router {
 
         // Get user info to verify they exist
         const userResult = await pool.query(
-          'SELECT id, email FROM Users WHERE id = $1',
+          'SELECT id, email, workspace_id FROM Users WHERE id = $1',
           [userId]
         );
 
@@ -110,6 +112,25 @@ export function createTeamRoutes(pool: Pool): Router {
 
         // Find company from project
         const projectData = projectResult.rows[0];
+        const userData = userResult.rows[0];
+
+        const isExternal = userData.workspace_id !== projectData.workspace_id;
+
+        const orgResult = await pool.query(
+          `SELECT id FROM Organizations
+           WHERE workspace_id = $1 AND deleted_at IS NULL
+           ORDER BY created_at ASC
+           LIMIT 1`,
+          [userData.workspace_id]
+        );
+
+        const companyId = orgResult.rows[0]?.id;
+        if (!companyId) {
+          return res.status(400).json({
+            error: 'Organization not found for user workspace',
+            hint: 'Create an organization before tagging users to projects'
+          });
+        }
 
         // Add to ProjectTeam
         const assignmentId = require('uuid').v4();
@@ -117,21 +138,25 @@ export function createTeamRoutes(pool: Pool): Router {
         await pool.query(
           `INSERT INTO ProjectTeam (
             assignment_id, project_id, user_id, workspace_id, company_id, 
-            assigned_role, assigned_by, assigned_at
+            assigned_role, assigned_by, assigned_at, is_external, external_workspace_id
           ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
           ON CONFLICT (project_id, user_id) 
           DO UPDATE SET 
             assigned_role = EXCLUDED.assigned_role,
             assigned_by = EXCLUDED.assigned_by,
-            assigned_at = NOW()`,
+            assigned_at = NOW(),
+            is_external = EXCLUDED.is_external,
+            external_workspace_id = EXCLUDED.external_workspace_id`,
           [
             assignmentId,
             projectId,
             userId,
             projectData.workspace_id,
-            req.user?.companyId || null,
+            companyId,
             assignedRole,
             req.user?.id || null,
+            isExternal,
+            isExternal ? userData.workspace_id : null,
           ]
         );
 
@@ -148,6 +173,11 @@ export function createTeamRoutes(pool: Pool): Router {
           projectId,
           userId,
           assignedRole,
+          isExternal,
+          externalWorkspaceId: isExternal ? userData.workspace_id : null,
+          warning: isExternal
+            ? 'User belongs to a different workspace and is tagged as external.'
+            : undefined,
         });
       } catch (error) {
         logger.error('Error adding user to team', {

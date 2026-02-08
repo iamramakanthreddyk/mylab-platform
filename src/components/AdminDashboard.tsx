@@ -28,7 +28,13 @@ interface Plan {
   id: string
   name: string
   tier: string
+  description?: string
+  max_users?: number
+  max_projects?: number
+  max_storage_gb?: number
   price_monthly: number
+  features?: any
+  is_active?: boolean
   companies_on_plan: number
   active_companies: number
   monthly_revenue: number
@@ -68,10 +74,13 @@ export function AdminDashboard({ user, token, onLogout }: AdminDashboardProps) {
   const [editPlanForm, setEditPlanForm] = useState({
     name: '',
     tier: 'basic',
+    description: '',
     price_monthly: 0,
     max_users: 1,
     max_projects: 1,
-    max_storage_gb: 1
+    max_storage_gb: 1,
+    features: {},
+    is_active: true
   })
   const [isUpdatingPlan, setIsUpdatingPlan] = useState(false)
 
@@ -168,10 +177,13 @@ export function AdminDashboard({ user, token, onLogout }: AdminDashboardProps) {
     setEditPlanForm({
       name: plan.name,
       tier: plan.tier || 'basic',
+      description: (plan as any).description || '',
       price_monthly: plan.price_monthly || 0,
       max_users: plan.max_users || 1,
       max_projects: plan.max_projects || 1,
-      max_storage_gb: plan.max_storage_gb || 1
+      max_storage_gb: plan.max_storage_gb || 1,
+      features: (plan as any).features || {},
+      is_active: (plan as any).is_active !== undefined ? (plan as any).is_active : true
     })
   }
 
@@ -180,10 +192,13 @@ export function AdminDashboard({ user, token, onLogout }: AdminDashboardProps) {
     setEditPlanForm({
       name: '',
       tier: 'basic',
+      description: '',
       price_monthly: 0,
       max_users: 1,
       max_projects: 1,
-      max_storage_gb: 1
+      max_storage_gb: 1,
+      features: {},
+      is_active: true
     })
   }
 
@@ -738,6 +753,54 @@ export function AdminDashboard({ user, token, onLogout }: AdminDashboardProps) {
                                 />
                               </div>
                             </div>
+
+                            <div className="space-y-4">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                  Description
+                                </label>
+                                <textarea
+                                  value={editPlanForm.description}
+                                  onChange={(e) => setEditPlanForm(prev => ({ ...prev, description: e.target.value }))}
+                                  rows={3}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900"
+                                  placeholder="Plan description..."
+                                />
+                              </div>
+
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                  Features (JSON)
+                                </label>
+                                <textarea
+                                  value={JSON.stringify(editPlanForm.features, null, 2)}
+                                  onChange={(e) => {
+                                    try {
+                                      const parsed = JSON.parse(e.target.value);
+                                      setEditPlanForm(prev => ({ ...prev, features: parsed }));
+                                    } catch {
+                                      // Invalid JSON, keep as string for now
+                                    }
+                                  }}
+                                  rows={4}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 font-mono text-sm"
+                                  placeholder='{"feature1": true, "feature2": "value"}'
+                                />
+                              </div>
+
+                              <div className="flex items-center">
+                                <input
+                                  type="checkbox"
+                                  id="is_active"
+                                  checked={editPlanForm.is_active}
+                                  onChange={(e) => setEditPlanForm(prev => ({ ...prev, is_active: e.target.checked }))}
+                                  className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                />
+                                <label htmlFor="is_active" className="ml-2 text-sm font-medium text-gray-700">
+                                  Plan is active
+                                </label>
+                              </div>
+                            </div>
                           </div>
                         ) : (
                           // View Mode
@@ -745,7 +808,10 @@ export function AdminDashboard({ user, token, onLogout }: AdminDashboardProps) {
                             <div className="flex justify-between items-start mb-3">
                               <div>
                                 <h3 className="font-semibold text-gray-900">{plan.name}</h3>
-                                <p className="text-xs text-gray-600 mt-1">{plan.tier?.toUpperCase() || 'STANDARD'}</p>
+                                <p className="text-xs text-gray-600 mt-1">{plan.tier?.toUpperCase() || 'STANDARD'} • {(plan as any).is_active !== false ? 'Active' : 'Inactive'}</p>
+                                {(plan as any).description && (
+                                  <p className="text-sm text-gray-700 mt-2">{(plan as any).description}</p>
+                                )}
                               </div>
                               <div className="flex items-center gap-2">
                                 <div className="text-right">
@@ -762,10 +828,22 @@ export function AdminDashboard({ user, token, onLogout }: AdminDashboardProps) {
                                 </Button>
                               </div>
                             </div>
-                            <div className="grid grid-cols-3 gap-3 text-sm">
+                            <div className="grid grid-cols-2 md:grid-cols-6 gap-3 text-sm">
                               <div className="bg-white rounded p-2 border border-gray-200">
                                 <p className="text-gray-600 text-xs">Price/Month</p>
                                 <p className="font-semibold text-gray-900">₹{(plan.price_monthly || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</p>
+                              </div>
+                              <div className="bg-white rounded p-2 border border-gray-200">
+                                <p className="text-gray-600 text-xs">Max Users</p>
+                                <p className="font-semibold text-gray-900">{plan.max_users || 'Unlimited'}</p>
+                              </div>
+                              <div className="bg-white rounded p-2 border border-gray-200">
+                                <p className="text-gray-600 text-xs">Max Projects</p>
+                                <p className="font-semibold text-gray-900">{plan.max_projects || 'Unlimited'}</p>
+                              </div>
+                              <div className="bg-white rounded p-2 border border-gray-200">
+                                <p className="text-gray-600 text-xs">Max Storage</p>
+                                <p className="font-semibold text-gray-900">{plan.max_storage_gb || 'Unlimited'} GB</p>
                               </div>
                               <div className="bg-white rounded p-2 border border-gray-200">
                                 <p className="text-gray-600 text-xs">Companies</p>

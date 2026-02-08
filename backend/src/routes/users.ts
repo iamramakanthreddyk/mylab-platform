@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { authenticate, validate, asyncHandler } from '../middleware';
 import { USER_INVITATION_SCHEMA } from '../database/schemas-extended';
 import { logToAuditLog } from '../utils/auditUtils';
+import { getWorkspacePlanLimits, isPositiveLimit } from '../utils/planLimits';
 
 const router = Router();
 
@@ -27,6 +28,45 @@ router.post('/invite',
     // Check if user has permission to invite
     if (req.user!.role !== 'admin' && req.user!.role !== 'manager') {
       return res.status(403).json({ error: 'Only admins and managers can invite users' });
+    }
+
+    const plan = await getWorkspacePlanLimits(pool, workspaceId);
+    if (!plan) {
+      return res.status(403).json({
+        error: 'No active or trial subscription found',
+        hint: 'Assign a plan to this workspace before inviting users'
+      });
+    }
+
+    if (!isPositiveLimit(plan.maxUsers)) {
+      return res.status(400).json({
+        error: 'Plan max_users is not configured',
+        plan: plan.planName
+      });
+    }
+
+    const userCountResult = await pool.query(
+      'SELECT COUNT(*)::int as count FROM Users WHERE workspace_id = $1 AND deleted_at IS NULL',
+      [workspaceId]
+    );
+    const inviteCountResult = await pool.query(
+      `SELECT COUNT(*)::int as count
+       FROM UserInvitations
+       WHERE workspace_id = $1 AND status = 'pending' AND expires_at > NOW()`,
+      [workspaceId]
+    );
+
+    const activeUsers = userCountResult.rows[0].count || 0;
+    const pendingInvites = inviteCountResult.rows[0].count || 0;
+
+    if (activeUsers + pendingInvites >= plan.maxUsers) {
+      return res.status(403).json({
+        error: 'User limit reached for current plan',
+        plan: plan.planName,
+        maxUsers: plan.maxUsers,
+        activeUsers,
+        pendingInvites
+      });
     }
 
     // Check if user already exists in workspace
@@ -148,6 +188,36 @@ router.post('/accept-invitation',
     }
 
     const invitation = inviteResult.rows[0];
+
+    const plan = await getWorkspacePlanLimits(pool, invitation.workspace_id);
+    if (!plan) {
+      return res.status(403).json({
+        error: 'No active or trial subscription found',
+        hint: 'Assign a plan to this workspace before accepting invitations'
+      });
+    }
+
+    if (!isPositiveLimit(plan.maxUsers)) {
+      return res.status(400).json({
+        error: 'Plan max_users is not configured',
+        plan: plan.planName
+      });
+    }
+
+    const userCountResult = await pool.query(
+      'SELECT COUNT(*)::int as count FROM Users WHERE workspace_id = $1 AND deleted_at IS NULL',
+      [invitation.workspace_id]
+    );
+
+    const activeUsers = userCountResult.rows[0].count || 0;
+    if (activeUsers >= plan.maxUsers) {
+      return res.status(403).json({
+        error: 'User limit reached for current plan',
+        plan: plan.planName,
+        maxUsers: plan.maxUsers,
+        activeUsers
+      });
+    }
 
     // Hash password
     const bcrypt = require('bcrypt');

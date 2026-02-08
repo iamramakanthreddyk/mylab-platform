@@ -599,16 +599,19 @@ router.get('/company-plans', verifySuperAdminToken, async (req: SuperAdminReques
         p.id,
         p.name,
         p.tier,
+        p.description,
         p.max_users,
         p.max_projects,
         p.max_storage_gb,
         p.price_monthly,
+        p.features,
+        p.is_active,
         COUNT(DISTINCT s.workspace_id) as companies_on_plan,
         COUNT(DISTINCT CASE WHEN s.status = 'active' THEN s.workspace_id END) as active_companies,
         SUM(CASE WHEN s.status = 'active' THEN p.price_monthly ELSE 0 END) as monthly_revenue
       FROM Plans p
       LEFT JOIN Subscriptions s ON p.id = s.plan_id AND s.deleted_at IS NULL
-      GROUP BY p.id, p.name, p.tier, p.max_users, p.max_projects, p.max_storage_gb, p.price_monthly
+      GROUP BY p.id, p.name, p.tier, p.description, p.max_users, p.max_projects, p.max_storage_gb, p.price_monthly, p.features, p.is_active
       ORDER BY p.tier, p.name
     `);
 
@@ -744,7 +747,7 @@ router.post('/organizations', verifySuperAdminToken, async (req: SuperAdminReque
 router.put('/plans/:planId', verifySuperAdminToken, async (req: SuperAdminRequest, res: Response) => {
   try {
     const { planId } = req.params;
-    const { name, tier, price_monthly, max_users, max_projects, max_storage_gb } = req.body;
+    const { name, tier, description, price_monthly, max_users, max_projects, max_storage_gb, features, is_active } = req.body;
 
     // Validate required fields
     if (!name || !tier) {
@@ -761,15 +764,15 @@ router.put('/plans/:planId', verifySuperAdminToken, async (req: SuperAdminReques
       });
     }
 
-    console.log('Updating plan:', planId, { name, tier, price_monthly });
+    console.log('Updating plan:', planId, { name, tier, description, price_monthly, features, is_active });
 
     // Update plan
     const result = await pool.query(`
       UPDATE Plans
-      SET name = $1, tier = $2::plan_tier, price_monthly = $3, max_users = $4, max_projects = $5, max_storage_gb = $6, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $7
-      RETURNING id, name, tier, price_monthly, max_users, max_projects, max_storage_gb
-    `, [name, tier, price_monthly || 0, max_users || 1, max_projects || 1, max_storage_gb || 1, planId]);
+      SET name = $1, tier = $2::plan_tier, description = $3, price_monthly = $4, max_users = $5, max_projects = $6, max_storage_gb = $7, features = $8, is_active = $9, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $10
+      RETURNING id, name, tier, description, price_monthly, max_users, max_projects, max_storage_gb, features, is_active
+    `, [name, tier, description || null, price_monthly || 0, max_users || null, max_projects || null, max_storage_gb || null, features || {}, is_active !== undefined ? is_active : true, planId]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Plan not found' });
