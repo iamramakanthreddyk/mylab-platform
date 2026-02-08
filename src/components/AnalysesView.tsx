@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { User, Analysis, AnalysisType } from '@/lib/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -23,6 +24,9 @@ interface AnalysesViewProps {
 }
 
 export function AnalysesView({ user }: AnalysesViewProps) {
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const projectId = searchParams.get('projectId')
   const [analyses, setAnalyses] = useState<Analysis[]>([])
   const [analysisTypes, setAnalysisTypes] = useState<AnalysisType[]>([])
   const [searchQuery, setSearchQuery] = useState('')
@@ -35,11 +39,12 @@ export function AnalysesView({ user }: AnalysesViewProps) {
       fetchAnalyses(),
       fetchAnalysisTypes()
     ])
-  }, [])
+  }, [projectId])
 
   const fetchAnalyses = async () => {
     try {
-      const response = await axiosInstance.get('/analyses')
+      const query = projectId ? `?projectId=${projectId}` : ''
+      const response = await axiosInstance.get(`/analyses${query}`)
       setAnalyses(response.data.data || [])
     } catch (error) {
       console.error('Failed to fetch analyses:', error)
@@ -66,11 +71,13 @@ export function AnalysesView({ user }: AnalysesViewProps) {
   }
 
   const filteredAnalyses = analyses.filter(analysis => {
-    const matchesSearch = analysis.analysisType?.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         analysis.externalReference?.toLowerCase().includes(searchQuery.toLowerCase())
+    const typeName = (analysis as any).analysis_type_name || ''
+    const externalRef = (analysis as any).external_reference || ''
+    const matchesSearch = typeName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         externalRef.toLowerCase().includes(searchQuery.toLowerCase())
     
     const matchesStatus = statusFilter === 'all' || analysis.status === statusFilter
-    const matchesType = typeFilter === 'all' || analysis.analysisTypeId === typeFilter
+    const matchesType = typeFilter === 'all' || (analysis as any).analysis_type_id === typeFilter
 
     return matchesSearch && matchesStatus && matchesType
   })
@@ -102,17 +109,44 @@ export function AnalysesView({ user }: AnalysesViewProps) {
     return `${Math.round(bytes / Math.pow(1024, i) * 100) / 100} ${sizes[i]}`
   }
 
+  const goToReportPage = (analysis: Analysis) => {
+    const query = projectId ? `?projectId=${projectId}` : ''
+    navigate(`/analyses/${analysis.id}/complete${query}`)
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-6 py-8">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h2 className="text-3xl font-bold mb-2">Analyses</h2>
+            <div className="flex items-center gap-3 mb-2">
+              <Button variant="outline" size="sm" className="h-9" onClick={() => navigate('/dashboard')}>
+                Back to Dashboard
+              </Button>
+              {projectId && (
+                <Button variant="outline" size="sm" className="h-9" onClick={() => navigate(`/projects/${projectId}`)}>
+                  Back to Project
+                </Button>
+              )}
+            </div>
+            <h2 className="text-3xl font-bold">Analyses</h2>
             <p className="text-muted-foreground">
-              View and manage analysis results from internal and external labs
+              {projectId
+                ? 'Project analyses and reports'
+                : 'View and manage analysis results from internal and external labs'}
             </p>
           </div>
-          <Button className="gap-2">
+          <Button
+            className="gap-2"
+            onClick={() => {
+              const target = analyses.find(item => item.status !== 'completed') || analyses[0]
+              if (target) {
+                goToReportPage(target)
+              } else {
+                toast.info('No analyses available to update')
+              }
+            }}
+          >
             <Plus size={18} />
             Upload Results
           </Button>
@@ -178,7 +212,17 @@ export function AnalysesView({ user }: AnalysesViewProps) {
                 : "Try adjusting your search or filter criteria"
               }
             </p>
-            <Button className="gap-2">
+            <Button
+              className="gap-2"
+              onClick={() => {
+                const target = analyses.find(item => item.status !== 'completed') || analyses[0]
+                if (target) {
+                  goToReportPage(target)
+                } else {
+                  toast.info('No analyses available to update')
+                }
+              }}
+            >
               <Plus size={18} />
               Upload First Results
             </Button>
@@ -192,7 +236,7 @@ export function AnalysesView({ user }: AnalysesViewProps) {
                     <div className="flex items-center gap-2">
                       <TestTube size={16} className="text-purple-500" />
                       <CardTitle className="text-lg">
-                        {analysis.analysisType?.name || 'Unknown Analysis'}
+                        {(analysis as any).analysis_type_name || 'Unknown Analysis'}
                       </CardTitle>
                     </div>
                     <Badge variant={getStatusColor(analysis.status)}>
@@ -200,41 +244,41 @@ export function AnalysesView({ user }: AnalysesViewProps) {
                     </Badge>
                   </div>
                   <CardDescription className="flex items-center justify-between">
-                    <span>{analysis.analysisType?.category || 'Unknown Category'}</span>
+                    <span>{(analysis as any).analysis_category || 'Unknown Category'}</span>
                     <span className="text-xs">
-                      {analysis.execution_mode === 'external' ? 'External' : 'Internal'}
+                      {(analysis as any).execution_mode === 'external' ? 'External' : 'Internal'}
                     </span>
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {analysis.filePath && (
+                  {(analysis as any).file_path && (
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <FileText size={12} />
-                      <span>File: {formatFileSize(analysis.fileSizeBytes)}</span>
-                      {analysis.fileChecksum && (
+                      <span>File: {formatFileSize((analysis as any).file_size_bytes)}</span>
+                      {(analysis as any).file_checksum && (
                         <span className="text-green-600">✓ Verified</span>
                       )}
                     </div>
                   )}
 
-                  {analysis.receivedAt && (
+                  {(analysis as any).received_at && (
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <Calendar size={12} />
-                      <span>Received: {new Date(analysis.receivedAt).toLocaleDateString()}</span>
+                      <span>Received: {new Date((analysis as any).received_at).toLocaleDateString()}</span>
                     </div>
                   )}
 
-                  {analysis.performedAt && (
+                  {(analysis as any).performed_at && (
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <Calendar size={12} />
-                      <span>Performed: {new Date(analysis.performedAt).toLocaleDateString()}</span>
+                      <span>Performed: {new Date((analysis as any).performed_at).toLocaleDateString()}</span>
                     </div>
                   )}
 
-                  {analysis.externalReference && (
+                  {(analysis as any).external_reference && (
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <Buildings size={12} />
-                      <span>Ref: {analysis.externalReference}</span>
+                      <span>Ref: {(analysis as any).external_reference}</span>
                     </div>
                   )}
 
@@ -257,13 +301,37 @@ export function AnalysesView({ user }: AnalysesViewProps) {
                   )}
 
                   <div className="flex justify-between items-center text-xs text-muted-foreground border-t pt-3">
-                    <span>Uploaded: {analysis.uploadedAt ? new Date(analysis.uploadedAt).toLocaleDateString() : 'Not available'}</span>
+                    <span>Uploaded: {(analysis as any).uploaded_at ? new Date((analysis as any).uploaded_at).toLocaleDateString() : 'Not available'}</span>
                     <div className="flex gap-2">
-                      <Button variant="ghost" size="sm" className="h-6 px-2">
+                      {analysis.status !== 'completed' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-6 px-2"
+                          onClick={() => goToReportPage(analysis)}
+                        >
+                          Add Report
+                        </Button>
+                      )}
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-6 px-2"
+                        onClick={() => goToReportPage(analysis)}
+                        title="View full analysis report"
+                      >
                         <Eye size={12} />
                       </Button>
-                      {analysis.filePath && (
-                        <Button variant="ghost" size="sm" className="h-6 px-2">
+                      {(analysis as any).file_path && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-6 px-2"
+                          onClick={() => {
+                            toast.info('Download functionality coming soon. View the full report to access files.')
+                          }}
+                          title="Download analysis results"
+                        >
                           <Download size={12} />
                         </Button>
                       )}

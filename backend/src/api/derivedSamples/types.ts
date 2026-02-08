@@ -4,18 +4,30 @@
 
 export interface CreateDerivedSampleRequest {
   parent_sample_id: string;
-  name: string;
+  derived_id?: string;
+  name?: string;
   description?: string;
-  derivation_method: string;
+  derivation_method?: string;
+  execution_mode?: 'platform' | 'external';
+  executed_by_org_id?: string;
+  external_reference?: string;
+  performed_at?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface DerivedSampleResponse {
   id: string;
   parent_sample_id: string;
   workspace_id: string;
-  name: string;
+  name?: string;
+  derived_id?: string;
   description?: string;
-  derivation_method: string;
+  derivation_method?: string;
+  execution_mode?: 'platform' | 'external';
+  executed_by_org_id?: string;
+  external_reference?: string;
+  performed_at?: string | null;
+  metadata?: Record<string, unknown> | null;
   created_at: string;
 }
 

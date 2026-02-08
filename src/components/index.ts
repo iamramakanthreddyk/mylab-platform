@@ -16,7 +16,9 @@ export { ProjectNotificationWorkflow } from './ProjectNotificationWorkflow'
 export { ProjectTrialsPage } from './ProjectTrialsPage'
 export { SamplesView } from './SamplesView'
 export { BatchesView } from './BatchesView'
+export { BatchDetailView } from './BatchDetailView'
 export { AnalysesView } from './AnalysesView'
+export { CompleteAnalysisPage } from './CompleteAnalysisPage'
 export { SchemaExplorer } from './SchemaExplorer'
 
 // Dialog & Workflow Components

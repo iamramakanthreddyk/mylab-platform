@@ -10,7 +10,7 @@ import { Pool, QueryResult } from 'pg';
 import logger from '../utils/logger';
 
 // Migration version - increment when adding new migrations
-const MIGRATIONS_VERSION = '012';
+const MIGRATIONS_VERSION = '013';
 
 /**
  * Migration definition
@@ -858,6 +858,21 @@ const migrations: Migration[] = [
         logger.error('Error creating gap fix tables', { error: (err as Error).message });
         throw err;
       }
+    }
+  },
+
+  {
+    id: '013',
+    name: 'add_analysis_audit_fields',
+    description: 'Add audit fields for tracking analysis edits: edited_by, edited_at, revision_number',
+    up: async (pool: Pool) => {
+      await pool.query(`
+        ALTER TABLE Analyses
+        ADD COLUMN IF NOT EXISTS edited_by UUID REFERENCES Users(id),
+        ADD COLUMN IF NOT EXISTS edited_at TIMESTAMP,
+        ADD COLUMN IF NOT EXISTS revision_number INT DEFAULT 1;
+      `);
+      logger.info('✅ Added audit fields to Analyses table');
     }
   }
 

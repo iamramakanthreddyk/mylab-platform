@@ -111,11 +111,17 @@ export const analysisController = {
   update: asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
     const workspaceId = req.user!.workspaceId;
-    const { status, results } = req.body;
+    const userId = req.user!.id;
+    const { status, results, filePath, fileChecksum, fileSizeBytes, performedAt, externalReference } = req.body;
 
-    const analysis = await AnalysisService.updateAnalysis(id, workspaceId, {
+    const analysis = await AnalysisService.updateAnalysis(id, workspaceId, userId, {
       status,
-      results
+      results,
+      filePath,
+      fileChecksum,
+      fileSizeBytes,
+      performedAt,
+      externalReference
     });
 
     logger.info('Analysis updated via API', { analysisId: id, userId: req.user!.id });

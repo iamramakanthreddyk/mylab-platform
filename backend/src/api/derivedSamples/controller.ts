@@ -14,15 +14,35 @@ export const derivedSampleController = {
    */
   create: asyncHandler(async (req: Request, res: Response) => {
     const { workspaceId, parentId } = req.params;
-    const { name, description, derivation_method } = req.body;
+    const {
+      derived_id,
+      name,
+      description,
+      derivation_method,
+      execution_mode,
+      executed_by_org_id,
+      external_reference,
+      performed_at,
+      metadata
+    } = req.body;
 
     try {
-      const sample = await DerivedSampleService.createDerivedSample(workspaceId, {
-        parent_sample_id: parentId,
-        name,
-        description,
-        derivation_method
-      });
+      const sample = await DerivedSampleService.createDerivedSample(
+        workspaceId,
+        {
+          parent_sample_id: parentId,
+          derived_id: derived_id || name,
+          name,
+          description,
+          derivation_method,
+          execution_mode,
+          executed_by_org_id,
+          external_reference,
+          performed_at,
+          metadata
+        },
+        req.user!.id
+      );
 
       logger.info('Derived sample created via API', { sampleId: sample.id, userId: req.user!.id });
 

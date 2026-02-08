@@ -34,6 +34,11 @@ export interface CreateAnalysisRequest {
 export interface UpdateAnalysisRequest {
   status?: typeof ANALYSIS_STATUS_VALUES[number];
   results?: Record<string, any>;
+  filePath?: string;
+  fileChecksum?: string;
+  fileSizeBytes?: number;
+  performedAt?: string;
+  externalReference?: string;
 }
 
 // ============ Response DTOs ============
@@ -53,6 +58,10 @@ export interface AnalysisResponse {
   executed_by_org_name?: string;
   source_org_name?: string;
   uploaded_by_name?: string;
+  edited_by?: string;
+  edited_at?: string;
+  edited_by_name?: string;
+  revision_number?: number;
   created_at: string;
   updated_at: string;
 }
@@ -76,7 +85,12 @@ export const createAnalysisSchema = Joi.object({
 
 export const updateAnalysisSchema = Joi.object({
   status: Joi.string().lowercase().valid(...ANALYSIS_STATUS_VALUES).optional(),
-  results: Joi.object().optional()
+  results: Joi.object().optional(),
+  filePath: Joi.string().optional(),
+  fileChecksum: Joi.string().optional(),
+  fileSizeBytes: Joi.number().positive().optional(),
+  performedAt: Joi.date().optional(),
+  externalReference: Joi.string().optional()
 }).min(1);
 
 // ============ Custom Error Classes ============

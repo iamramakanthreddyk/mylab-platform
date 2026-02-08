@@ -528,6 +528,16 @@ export function ProjectDetails({ user }: ProjectDetailsProps) {
                     <p className="text-xs text-muted-foreground">ready for analysis</p>
                   </div>
                 )}
+                {samples.length > 0 && (
+                  <Button
+                    onClick={() => navigate(`/analyses?projectId=${id}`)}
+                    variant={analyses.length > 0 ? 'outline' : 'default'}
+                    className="gap-2"
+                  >
+                    <ChartBar size={16} />
+                    {analyses.length > 0 ? 'Go to Analysis' : 'Start Analysis'}
+                  </Button>
+                )}
               </div>
             </CardHeader>
             {analyses.length > 0 && (

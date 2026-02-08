@@ -347,7 +347,7 @@ export interface Analysis {
   performed_date: string
   
   // Results and conclusions
-  results?: string // Can be text or structured data
+  results?: Record<string, any> | string // Can be text or structured data
   conclusions?: string
   
   // Status and execution

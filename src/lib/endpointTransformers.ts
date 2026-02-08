@@ -64,8 +64,14 @@ export function transformDerivedSampleForAPI(sampleData: any): any {
   return {
     parent_sample_id: sampleData.parentId || sampleData.parent_sample_id,
     name: sampleData.derivedId || sampleData.name,
+    derived_id: sampleData.derivedId || sampleData.derived_id || sampleData.name,
     description: sampleData.description || undefined,
-    derivation_method: sampleData.derivation_method || sampleData.derivedId || 'unknown'
+    derivation_method: sampleData.derivation_method || sampleData.derivedId || 'unknown',
+    execution_mode: sampleData.executionMode || sampleData.execution_mode,
+    executed_by_org_id: sampleData.executedByOrgId || sampleData.executed_by_org_id,
+    external_reference: sampleData.externalReference || sampleData.external_reference,
+    performed_at: sampleData.performedAt || sampleData.performed_at,
+    metadata: sampleData.metadata
   };
 }
 

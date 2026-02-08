@@ -40,6 +40,7 @@ import usersRoutes from './routes/users';
 import analysisTypesRoutes from './routes/analysis-types';
 import filesRoutes from './routes/files';
 import analysisRequestsRoutes from './routes/analysis-requests';
+import adminSuperRoutes from './routes/admin';
 
 import { initializeTokenCleanupJob } from './jobs/tokenCleanup';
 
@@ -104,14 +105,15 @@ initializeTokenCleanupJob();
 
 // Static routes for now (will be dynamic later)
 app.use('/api/auth', authRoutes);
-app.use('/api/admin', adminRoutes);
+app.use('/api/admin', adminSuperRoutes); // Superadmin routes (login, etc.)
+app.use('/api/admin', adminRoutes); // Regular admin routes
 app.use('/api/users', usersRoutes);
 app.use('/api/analysis-types', analysisTypesRoutes);
 app.use('/api/files', filesRoutes);
 app.use('/api/analysis-requests', analysisRequestsRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/samples', sampleRoutes);
-app.use('/api/derived-samples', derivedSampleRoutes);
+app.use('/api', derivedSampleRoutes);
 app.use('/api/batches', batchRoutes);
 app.use('/api/analyses', analysisRoutes);
 app.use('/api/api-keys', apiKeyRoutes);

@@ -162,6 +162,11 @@ export class StageService {
       }
 
       updates.push(`updated_at = NOW()`);
+      
+      // Add WHERE clause parameters - paramIndex is already at the next available index
+      const idParamIndex = paramIndex;
+      const workspaceParamIndex = paramIndex + 1;
+      
       values.push(stageId);
       values.push(workspaceId);
 
@@ -169,7 +174,7 @@ export class StageService {
         `
         UPDATE projectstages
         SET ${updates.join(', ')}
-        WHERE id = $${paramIndex++} AND owner_workspace_id = $${paramIndex++}
+        WHERE id = $${idParamIndex} AND owner_workspace_id = $${workspaceParamIndex}
         RETURNING
           id,
           project_id as "projectId",

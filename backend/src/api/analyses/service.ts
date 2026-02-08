@@ -40,12 +40,14 @@ export class AnalysisService {
                at.category as analysis_category,
                o.name as executed_by_org_name,
                so.name as source_org_name,
-               u.name as uploaded_by_name
+               u.name as uploaded_by_name,
+               u_edited.email as edited_by_name
         FROM Analyses a
         JOIN AnalysisTypes at ON a.analysis_type_id = at.id
         JOIN Organizations o ON a.executed_by_org_id = o.id
         JOIN Organizations so ON a.source_org_id = so.id
         JOIN Users u ON a.uploaded_by = u.id
+        LEFT JOIN Users u_edited ON a.edited_by = u_edited.id
         WHERE a.workspace_id = $1 AND a.deleted_at IS NULL
       `;
 
@@ -91,9 +93,11 @@ export class AnalysisService {
         `
         SELECT a.*,
                at.name as analysis_type_name,
-               at.category as analysis_category
+               at.category as analysis_category,
+               u_edited.email as edited_by_name
         FROM Analyses a
         JOIN AnalysisTypes at ON a.analysis_type_id = at.id
+        LEFT JOIN Users u_edited ON a.edited_by = u_edited.id
         WHERE a.id = $1 AND a.workspace_id = $2 AND a.deleted_at IS NULL
         `,
         [analysisId, workspaceId]
@@ -124,7 +128,8 @@ export class AnalysisService {
       // Verify batch exists and belongs to workspace
       const batchCheck = await pool.query(
         `
-        SELECT workspace_id, status FROM Batches
+        SELECT workspace_id, status, executed_by_org_id
+        FROM Batches
         WHERE id = $1 AND deleted_at IS NULL
         `,
         [data.batchId]
@@ -170,6 +175,47 @@ export class AnalysisService {
         throw new ConflictingAnalysisError('Authoritative result already exists for batch');
       }
 
+      let executedByOrgId = data.executedByOrgId;
+      let sourceOrgId = data.sourceOrgId;
+
+      if (!executedByOrgId || executedByOrgId === workspaceId) {
+        executedByOrgId = batch.executed_by_org_id || null;
+      }
+
+      if (!sourceOrgId || sourceOrgId === workspaceId) {
+        sourceOrgId = executedByOrgId;
+      }
+
+      if (!executedByOrgId) {
+        const orgResult = await pool.query(
+          `SELECT id FROM Organizations WHERE workspace_id = $1 LIMIT 1`,
+          [workspaceId]
+        );
+
+        if (orgResult.rows.length === 0) {
+          const createOrgResult = await pool.query(
+            `
+            INSERT INTO Organizations (workspace_id, name, type)
+            VALUES ($1, $2, $3::org_type)
+            RETURNING id
+            `,
+            [workspaceId, 'Default Internal Lab', 'analyzer']
+          );
+
+          if (createOrgResult.rows.length === 0) {
+            throw new InvalidAnalysisDataError('Unable to resolve execution organization');
+          }
+
+          executedByOrgId = createOrgResult.rows[0].id;
+        } else {
+          executedByOrgId = orgResult.rows[0].id;
+        }
+      }
+
+      if (!sourceOrgId) {
+        sourceOrgId = executedByOrgId;
+      }
+
       const result = await pool.query(
         `
         INSERT INTO Analyses (
@@ -191,8 +237,8 @@ export class AnalysisService {
           data.filePath,
           data.fileChecksum,
           data.fileSizeBytes,
-          data.executedByOrgId,
-          data.sourceOrgId,
+          executedByOrgId,
+          sourceOrgId,
           data.externalReference || null,
           data.performedAt || null
         ]
@@ -212,10 +258,11 @@ export class AnalysisService {
   static async updateAnalysis(
     analysisId: string,
     workspaceId: string,
+    userId: string,
     data: UpdateAnalysisRequest
   ): Promise<AnalysisResponse> {
     try {
-      logger.info('Updating analysis', { analysisId, workspaceId });
+      logger.info('Updating analysis', { analysisId, workspaceId, userId });
 
       const updates: string[] = [];
       const values: any[] = [];
@@ -231,11 +278,45 @@ export class AnalysisService {
         values.push(JSON.stringify(data.results));
       }
 
+      if (data.filePath !== undefined) {
+        updates.push(`file_path = $${paramIndex++}`);
+        values.push(data.filePath);
+      }
+
+      if (data.fileChecksum !== undefined) {
+        updates.push(`file_checksum = $${paramIndex++}`);
+        values.push(data.fileChecksum);
+      }
+
+      if (data.fileSizeBytes !== undefined) {
+        updates.push(`file_size_bytes = $${paramIndex++}`);
+        values.push(data.fileSizeBytes);
+      }
+
+      if (data.performedAt !== undefined) {
+        updates.push(`performed_at = $${paramIndex++}`);
+        values.push(data.performedAt);
+      }
+
+      if (data.externalReference !== undefined) {
+        updates.push(`external_reference = $${paramIndex++}`);
+        values.push(data.externalReference);
+      }
+
       if (updates.length === 0) {
         throw new InvalidAnalysisDataError('No fields to update');
       }
 
       updates.push(`updated_at = NOW()`);
+      updates.push(`edited_by = $${paramIndex++}`);
+      values.push(userId);
+      updates.push(`edited_at = NOW()`);
+      updates.push(`revision_number = COALESCE(revision_number, 1) + 1`);
+      
+      // Add WHERE clause parameters - paramIndex is already at the next available index
+      const idParamIndex = paramIndex;
+      const workspaceParamIndex = paramIndex + 1;
+      
       values.push(analysisId);
       values.push(workspaceId);
 
@@ -243,7 +324,7 @@ export class AnalysisService {
         `
         UPDATE Analyses
         SET ${updates.join(', ')}
-        WHERE id = $${paramIndex + 1} AND workspace_id = $${paramIndex + 2} AND deleted_at IS NULL
+        WHERE id = $${idParamIndex} AND workspace_id = $${workspaceParamIndex} AND deleted_at IS NULL
         RETURNING *
         `,
         values

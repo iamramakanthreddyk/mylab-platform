@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { User, Batch, Organization } from '@/lib/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { ChartLine, MagnifyingGlass, Plus, Users, Calendar, TestTube } from '@phosphor-icons/react'
+import { ChartLine, MagnifyingGlass, Plus, Users, Calendar, TestTube, CheckCircle, Clock, ArrowRight } from '@phosphor-icons/react'
 import axiosInstance from '@/lib/axiosConfig'
 import { toast } from 'sonner'
 
@@ -12,8 +13,15 @@ interface BatchesViewProps {
   user: User
 }
 
+interface BatchWithAnalytics extends Batch {
+  analysisCount?: number
+  completedCount?: number
+  inProgressCount?: number
+}
+
 export function BatchesView({ user }: BatchesViewProps) {
-  const [batches, setBatches] = useState<Batch[]>([])
+  const navigate = useNavigate()
+  const [batches, setBatches] = useState<BatchWithAnalytics[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [isLoading, setIsLoading] = useState(true)
 
@@ -24,7 +32,33 @@ export function BatchesView({ user }: BatchesViewProps) {
   const fetchBatches = async () => {
     try {
       const response = await axiosInstance.get('/batches')
-      setBatches(response.data.data || [])
+      const batchesData = response.data.data || []
+      
+      // Fetch analysis counts for each batch
+      const batchesWithAnalytics = await Promise.all(
+        batchesData.map(async (batch: Batch) => {
+          try {
+            const analysesResponse = await axiosInstance.get(`/analyses?batchId=${batch.id}`)
+            const analyses = analysesResponse.data.data || []
+            return {
+              ...batch,
+              analysisCount: analyses.length,
+              completedCount: analyses.filter((a: any) => a.status === 'completed').length,
+              inProgressCount: analyses.filter((a: any) => a.status === 'in_progress').length
+            }
+          } catch (error) {
+            console.error(`Failed to fetch analyses for batch ${batch.id}:`, error)
+            return {
+              ...batch,
+              analysisCount: 0,
+              completedCount: 0,
+              inProgressCount: 0
+            }
+          }
+        })
+      )
+      
+      setBatches(batchesWithAnalytics)
     } catch (error) {
       console.error('Failed to fetch batches:', error)
       setBatches([])
@@ -118,7 +152,11 @@ export function BatchesView({ user }: BatchesViewProps) {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredBatches.map((batch) => (
-              <Card key={batch.id} className="hover:shadow-lg transition-shadow cursor-pointer">
+              <Card 
+                key={batch.id} 
+                className="hover:shadow-lg transition-shadow cursor-pointer group"
+                onClick={() => navigate(`/batches/${batch.id}`)}
+              >
                 <CardHeader>
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center gap-2">
@@ -134,6 +172,39 @@ export function BatchesView({ user }: BatchesViewProps) {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
+                  {/* Sample and Analysis Counts */}
+                  <div className="grid grid-cols-3 gap-2 py-3 px-3 bg-muted rounded-lg">
+                    <div className="text-center">
+                      <div className="text-sm font-medium text-muted-foreground">Samples</div>
+                      <div className="flex items-center justify-center gap-1 mt-1">
+                        <TestTube size={14} className="text-blue-500" />
+                        <span className="text-lg font-bold">{batch.sampleCount || 0}</span>
+                      </div>
+                    </div>
+                    <div className="text-center border-l border-r">
+                      <div className="text-sm font-medium text-muted-foreground">Analyses</div>
+                      <div className="flex items-center justify-center gap-1 mt-1">
+                        <ChartLine size={14} className="text-purple-500" />
+                        <span className="text-lg font-bold">{batch.analysisCount || 0}</span>
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-sm font-medium text-muted-foreground">Done</div>
+                      <div className="flex items-center justify-center gap-1 mt-1">
+                        <CheckCircle size={14} className="text-green-600" />
+                        <span className="text-lg font-bold">{batch.completedCount || 0}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Progress Info */}
+                  {batch.inProgressCount! > 0 && (
+                    <div className="flex items-center gap-2 text-xs text-blue-600 bg-blue-50 p-2 rounded">
+                      <Clock size={12} />
+                      <span>{batch.inProgressCount} analysis(es) in progress</span>
+                    </div>
+                  )}
+                  
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Users size={12} />
                     <span>Execution: {batch.executionMode}</span>
@@ -148,7 +219,7 @@ export function BatchesView({ user }: BatchesViewProps) {
 
                   {batch.completedAt && (
                     <div className="flex items-center gap-2 text-xs text-green-600">
-                      <TestTube size={12} />
+                      <CheckCircle size={12} />
                       <span>Completed: {new Date(batch.completedAt).toLocaleDateString()}</span>
                     </div>
                   )}
@@ -163,7 +234,7 @@ export function BatchesView({ user }: BatchesViewProps) {
 
                   <div className="flex justify-between items-center text-xs text-muted-foreground border-t pt-3">
                     <span>Created: {new Date(batch.createdAt).toLocaleDateString()}</span>
-                    <span>Click for details</span>
+                    <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
                   </div>
                 </CardContent>
               </Card>

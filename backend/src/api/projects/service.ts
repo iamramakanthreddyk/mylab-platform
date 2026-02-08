@@ -232,6 +232,10 @@ export class ProjectService {
       }
 
       updates.push(`updated_at = NOW()`);
+      
+      // Add WHERE clause parameters - paramIndex is already at the next available index
+      const idParamIndex = paramIndex;
+      const workspaceParamIndex = paramIndex + 1;
 
       values.push(projectId);
       values.push(workspaceId);
@@ -240,7 +244,7 @@ export class ProjectService {
         `
         UPDATE projects
         SET ${updates.join(', ')}
-        WHERE id = $${paramIndex++} AND workspace_id = $${paramIndex++} AND deleted_at IS NULL
+        WHERE id = $${idParamIndex} AND workspace_id = $${workspaceParamIndex} AND deleted_at IS NULL
         RETURNING *
         `,
         values

@@ -17,6 +17,7 @@ import { ProjectDetails } from '@/components/ProjectDetails'
 import { ProjectTrialsPage } from '@/components/ProjectTrialsPage'
 import { SamplesView } from '@/components/SamplesView'
 import { BatchesView } from '@/components/BatchesView'
+import { BatchDetailView } from '@/components/BatchDetailView'
 import { AnalysesView } from '@/components/AnalysesView'
 import { SchemaExplorer } from '@/components/SchemaExplorer'
 import { NotificationCenter } from '@/components/NotificationCenter'
@@ -24,6 +25,7 @@ import { UsersManager } from '@/components/UsersManager'
 import { CreateSamplePage } from '@/components/CreateSamplePage'
 import { CreateStagePage } from '@/components/CreateStagePage'
 import { CreateAnalysisPage } from '@/components/CreateAnalysisPage'
+import { CompleteAnalysisPage } from '@/components/CompleteAnalysisPage'
 import { SupplyChainCollaboration } from '@/components/SupplyChainCollaboration'
 import { ModulePlaceholder } from '@/components/ModulePlaceholder'
 import { Toaster } from '@/components/ui/sonner'
@@ -213,7 +215,9 @@ function AppContent() {
             <Route path="/samples" element={<SamplesView user={currentUser} samples={samples || []} onSamplesChange={setSamples} />} />
             <Route path="/users" element={<UsersManager user={currentUser} />} />
             <Route path="/batches" element={<BatchesView user={currentUser} />} />
+            <Route path="/batches/:batchId" element={<BatchDetailView user={currentUser} />} />
             <Route path="/analyses" element={<AnalysesView user={currentUser} />} />
+            <Route path="/analyses/:analysisId/complete" element={<CompleteAnalysisPage user={currentUser} />} />
             <Route path="/analytics" element={<ModulePlaceholder user={currentUser} moduleId="analytics" />} />
             <Route path="/compliance" element={<ModulePlaceholder user={currentUser} moduleId="compliance" />} />
             <Route path="/integration" element={<ModulePlaceholder user={currentUser} moduleId="integration" />} />
