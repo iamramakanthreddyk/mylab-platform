@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import axiosInstance from '@/lib/axiosConfig'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -13,6 +14,7 @@ interface LoginProps {
 }
 
 export function Login({ onLogin, onNeedSetPassword }: LoginProps) {
+  const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -110,6 +112,16 @@ export function Login({ onLogin, onNeedSetPassword }: LoginProps) {
               >
                 {isLoading ? 'Signing In...' : 'Sign In to Platform'}
               </Button>
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => navigate('/forgot-password')}
+                  className="text-sm text-primary hover:underline"
+                >
+                  Forgot your password?
+                </button>
+              </div>
             </form>
 
             <div className="pt-4 border-t text-center text-xs text-muted-foreground">

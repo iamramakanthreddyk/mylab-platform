@@ -606,3 +606,348 @@ export const SAMPLE_ACCESS_SCHEMA = {
   selectColumns: ['access_id', 'sample_id', 'user_id', 'workspace_id', 'access_level', 'can_share', 'shared_by_user_id', 'shared_date', 'created_at'],
   updateColumns: ['access_level', 'can_share'],
 } as const;
+
+// ============================================================================
+// SUPPLY CHAIN ORGANIZATIONS TABLE SCHEMA
+// ============================================================================
+/**
+ * Organizations table - Stores partner organizations for supply chain collaboration
+ * 
+ * Database Definition:
+ * CREATE TABLE Organizations (
+ *   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+ *   name VARCHAR(255) NOT NULL,
+ *   type VARCHAR(50) NOT NULL,
+ *   capabilities TEXT[],
+ *   certifications TEXT[],
+ *   location VARCHAR(255),
+ *   contact_email VARCHAR(255),
+ *   contact_phone VARCHAR(50),
+ *   contact_address TEXT,
+ *   partnership_status VARCHAR(20) DEFAULT 'active',
+ *   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ *   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ *   deleted_at TIMESTAMP
+ * );
+ */
+export const ORGANIZATION_SCHEMA = {
+  // Database column definitions
+  columns: {
+    id: { type: 'UUID', required: true, primaryKey: true },
+    name: { type: 'VARCHAR(255)', required: true },
+    type: { type: 'VARCHAR(50)', required: true, description: 'manufacturer, laboratory, research_institute, testing_facility' },
+    capabilities: { type: 'TEXT[]', required: false, description: 'Array of capabilities like analysis types, manufacturing processes' },
+    certifications: { type: 'TEXT[]', required: false, description: 'Quality certifications like ISO 17025, GMP, etc' },
+    location: { type: 'VARCHAR(255)', required: false },
+    contact_email: { type: 'VARCHAR(255)', required: false },
+    contact_phone: { type: 'VARCHAR(50)', required: false },
+    contact_address: { type: 'TEXT', required: false },
+    partnership_status: { type: 'VARCHAR(20)', required: false, default: 'active', description: 'active, pending, inactive' },
+    created_at: { type: 'TIMESTAMP', required: false, default: 'CURRENT_TIMESTAMP' },
+    updated_at: { type: 'TIMESTAMP', required: false, default: 'CURRENT_TIMESTAMP' },
+    deleted_at: { type: 'TIMESTAMP', required: false },
+  },
+
+  // TypeScript types for runtime validation
+  types: {
+    Row: {
+      id: 'string (UUID)',
+      name: 'string',
+      type: 'string',
+      capabilities: 'string[] | null',
+      certifications: 'string[] | null',
+      location: 'string | null',
+      contact_email: 'string | null',
+      contact_phone: 'string | null',
+      contact_address: 'string | null',
+      partnership_status: 'string',
+      created_at: 'Date',
+      updated_at: 'Date',
+      deleted_at: 'Date | null',
+    },
+  },
+
+  CreateRequest: Joi.object({
+    name: Joi.string().required().max(255),
+    type: Joi.string().required().valid('manufacturer', 'laboratory', 'research_institute', 'testing_facility'),
+    capabilities: Joi.array().items(Joi.string()).optional(),
+    certifications: Joi.array().items(Joi.string()).optional(),
+    location: Joi.string().optional().max(255),
+    contactEmail: Joi.string().email().optional().max(255),
+    contactPhone: Joi.string().optional().max(50),
+    contactAddress: Joi.string().optional(),
+    partnershipStatus: Joi.string().optional().valid('active', 'pending', 'inactive'),
+  }).unknown(false),
+
+  UpdateRequest: Joi.object({
+    name: Joi.string().optional().max(255),
+    type: Joi.string().optional().valid('manufacturer', 'laboratory', 'research_institute', 'testing_facility'),
+    capabilities: Joi.array().items(Joi.string()).optional(),
+    certifications: Joi.array().items(Joi.string()).optional(),
+    location: Joi.string().optional().max(255),
+    contactEmail: Joi.string().email().optional().max(255),
+    contactPhone: Joi.string().optional().max(50),
+    contactAddress: Joi.string().optional(),
+    partnershipStatus: Joi.string().optional().valid('active', 'pending', 'inactive'),
+  }).unknown(false),
+
+  insertColumns: ['id', 'name', 'type', 'capabilities', 'certifications', 'location', 'contact_email', 'contact_phone', 'contact_address', 'partnership_status', 'created_at', 'updated_at'],
+  selectColumns: ['id', 'name', 'type', 'capabilities', 'certifications', 'location', 'contact_email', 'contact_phone', 'contact_address', 'partnership_status', 'created_at', 'updated_at', 'deleted_at'],
+  updateColumns: ['name', 'type', 'capabilities', 'certifications', 'location', 'contact_email', 'contact_phone', 'contact_address', 'partnership_status', 'updated_at'],
+} as const;
+
+// ============================================================================
+// SUPPLY CHAIN REQUESTS TABLE SCHEMA
+// ============================================================================
+/**
+ * SupplyChainRequests table - Stores collaboration requests between organizations
+ * 
+ * Database Definition:
+ * CREATE TABLE SupplyChainRequests (
+ *   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+ *   from_organization_id UUID NOT NULL REFERENCES Organizations(id),
+ *   to_organization_id UUID NOT NULL REFERENCES Organizations(id),
+ *   from_project_id UUID NOT NULL REFERENCES Projects(id),
+ *   workflow_type VARCHAR(50) NOT NULL,
+ *   material_data JSONB NOT NULL,
+ *   requirements JSONB,
+ *   status VARCHAR(20) DEFAULT 'pending',
+ *   priority VARCHAR(10) DEFAULT 'medium',
+ *   due_date TIMESTAMP,
+ *   assigned_to UUID REFERENCES Users(id),
+ *   notes TEXT,
+ *   created_by UUID NOT NULL REFERENCES Users(id),
+ *   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ *   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ *   deleted_at TIMESTAMP
+ * );
+ */
+export const SUPPLY_CHAIN_REQUEST_SCHEMA = {
+  // Database column definitions
+  columns: {
+    id: { type: 'UUID', required: true, primaryKey: true },
+    from_organization_id: { type: 'UUID', required: true, foreignKey: 'Organizations' },
+    to_organization_id: { type: 'UUID', required: true, foreignKey: 'Organizations' },
+    from_project_id: { type: 'UUID', required: true, foreignKey: 'Projects' },
+    workflow_type: { type: 'VARCHAR(50)', required: true, description: 'analysis_only, material_transfer, product_continuation, supply_chain' },
+    material_data: { type: 'JSONB', required: true, description: 'Material specifications, analysis results, batch info' },
+    requirements: { type: 'JSONB', required: false, description: 'Analysis type, methodology, timeline, quality standards' },
+    status: { type: 'VARCHAR(20)', required: false, default: 'pending', description: 'pending, accepted, in_progress, completed, rejected' },
+    priority: { type: 'VARCHAR(10)', required: false, default: 'medium', description: 'low, medium, high, urgent' },
+    due_date: { type: 'TIMESTAMP', required: false },
+    assigned_to: { type: 'UUID', required: false, foreignKey: 'Users' },
+    notes: { type: 'TEXT', required: false },
+    created_by: { type: 'UUID', required: true, foreignKey: 'Users' },
+    created_at: { type: 'TIMESTAMP', required: false, default: 'CURRENT_TIMESTAMP' },
+    updated_at: { type: 'TIMESTAMP', required: false, default: 'CURRENT_TIMESTAMP' },
+    deleted_at: { type: 'TIMESTAMP', required: false },
+  },
+
+  // TypeScript types for runtime validation
+  types: {
+    Row: {
+      id: 'string (UUID)',
+      from_organization_id: 'string (UUID)',
+      to_organization_id: 'string (UUID)',
+      from_project_id: 'string (UUID)',
+      workflow_type: 'string',
+      material_data: 'Record<string, any>',
+      requirements: 'Record<string, any> | null',
+      status: 'string',
+      priority: 'string',
+      due_date: 'Date | null',
+      assigned_to: 'string (UUID) | null',
+      notes: 'string | null',
+      created_by: 'string (UUID)',
+      created_at: 'Date',
+      updated_at: 'Date',
+      deleted_at: 'Date | null',
+    },
+  },
+
+  CreateRequest: Joi.object({
+    fromOrganizationId: Joi.string().uuid().required(),
+    toOrganizationId: Joi.string().uuid().required(),
+    fromProjectId: Joi.string().uuid().required(),
+    workflowType: Joi.string().required().valid('analysis_only', 'material_transfer', 'product_continuation', 'supply_chain'),
+    materialData: Joi.object().required(),
+    requirements: Joi.object().optional(),
+    priority: Joi.string().optional().valid('low', 'medium', 'high', 'urgent'),
+    dueDate: Joi.date().optional(),
+    notes: Joi.string().optional(),
+  }).unknown(false),
+
+  UpdateRequest: Joi.object({
+    status: Joi.string().optional().valid('pending', 'accepted', 'in_progress', 'completed', 'rejected'),
+    assignedTo: Joi.string().uuid().optional(),
+    notes: Joi.string().optional(),
+    materialData: Joi.object().optional(),
+    requirements: Joi.object().optional(),
+    priority: Joi.string().optional().valid('low', 'medium', 'high', 'urgent'),
+    dueDate: Joi.date().optional(),
+  }).unknown(false),
+
+  insertColumns: ['id', 'from_organization_id', 'to_organization_id', 'from_project_id', 'workflow_type', 'material_data', 'requirements', 'status', 'priority', 'due_date', 'assigned_to', 'notes', 'created_by', 'created_at', 'updated_at'],
+  selectColumns: ['id', 'from_organization_id', 'to_organization_id', 'from_project_id', 'workflow_type', 'material_data', 'requirements', 'status', 'priority', 'due_date', 'assigned_to', 'notes', 'created_by', 'created_at', 'updated_at', 'deleted_at'],
+  updateColumns: ['status', 'assigned_to', 'notes', 'material_data', 'requirements', 'priority', 'due_date', 'updated_at'],
+} as const;
+
+// ============================================================================
+// MATERIAL HANDOFFS TABLE SCHEMA
+// ============================================================================
+/**
+ * MaterialHandoffs table - Tracks physical material transfers between organizations
+ * 
+ * Database Definition:
+ * CREATE TABLE MaterialHandoffs (
+ *   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+ *   supply_chain_request_id UUID NOT NULL REFERENCES SupplyChainRequests(id),
+ *   from_organization_id UUID NOT NULL REFERENCES Organizations(id),
+ *   to_organization_id UUID NOT NULL REFERENCES Organizations(id),
+ *   material_id UUID,
+ *   quantity DECIMAL(10,3),
+ *   unit VARCHAR(50),
+ *   shipping_info JSONB,
+ *   chain_of_custody JSONB NOT NULL,
+ *   status VARCHAR(20) DEFAULT 'preparing',
+ *   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ *   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ *   deleted_at TIMESTAMP
+ * );
+ */
+export const MATERIAL_HANDOFF_SCHEMA = {
+  // Database column definitions
+  columns: {
+    id: { type: 'UUID', required: true, primaryKey: true },
+    supply_chain_request_id: { type: 'UUID', required: true, foreignKey: 'SupplyChainRequests' },
+    from_organization_id: { type: 'UUID', required: true, foreignKey: 'Organizations' },
+    to_organization_id: { type: 'UUID', required: true, foreignKey: 'Organizations' },
+    material_id: { type: 'UUID', required: false, description: 'Reference to material/sample ID' },
+    quantity: { type: 'DECIMAL(10,3)', required: false },
+    unit: { type: 'VARCHAR(50)', required: false },
+    shipping_info: { type: 'JSONB', required: false, description: 'Carrier, tracking number, dates' },
+    chain_of_custody: { type: 'JSONB', required: true, description: 'Array of handoff records' },
+    status: { type: 'VARCHAR(20)', required: false, default: 'preparing', description: 'preparing, shipped, delivered, received, processed' },
+    created_at: { type: 'TIMESTAMP', required: false, default: 'CURRENT_TIMESTAMP' },
+    updated_at: { type: 'TIMESTAMP', required: false, default: 'CURRENT_TIMESTAMP' },
+    deleted_at: { type: 'TIMESTAMP', required: false },
+  },
+
+  // TypeScript types for runtime validation
+  types: {
+    Row: {
+      id: 'string (UUID)',
+      supply_chain_request_id: 'string (UUID)',
+      from_organization_id: 'string (UUID)',
+      to_organization_id: 'string (UUID)',
+      material_id: 'string (UUID) | null',
+      quantity: 'number | null',
+      unit: 'string | null',
+      shipping_info: 'Record<string, any> | null',
+      chain_of_custody: 'Record<string, any>',
+      status: 'string',
+      created_at: 'Date',
+      updated_at: 'Date',
+      deleted_at: 'Date | null',
+    },
+  },
+
+  CreateRequest: Joi.object({
+    supplyChainRequestId: Joi.string().uuid().required(),
+    fromOrganizationId: Joi.string().uuid().required(),
+    toOrganizationId: Joi.string().uuid().required(),
+    materialId: Joi.string().uuid().optional(),
+    quantity: Joi.number().optional(),
+    unit: Joi.string().optional().max(50),
+    shippingInfo: Joi.object().optional(),
+    chainOfCustody: Joi.array().items(Joi.object()).required(),
+  }).unknown(false),
+
+  UpdateRequest: Joi.object({
+    status: Joi.string().optional().valid('preparing', 'shipped', 'delivered', 'received', 'processed'),
+    shippingInfo: Joi.object().optional(),
+    chainOfCustody: Joi.array().items(Joi.object()).optional(),
+    quantity: Joi.number().optional(),
+    unit: Joi.string().optional().max(50),
+  }).unknown(false),
+
+  insertColumns: ['id', 'supply_chain_request_id', 'from_organization_id', 'to_organization_id', 'material_id', 'quantity', 'unit', 'shipping_info', 'chain_of_custody', 'status', 'created_at', 'updated_at'],
+  selectColumns: ['id', 'supply_chain_request_id', 'from_organization_id', 'to_organization_id', 'material_id', 'quantity', 'unit', 'shipping_info', 'chain_of_custody', 'status', 'created_at', 'updated_at', 'deleted_at'],
+  updateColumns: ['status', 'shipping_info', 'chain_of_custody', 'quantity', 'unit', 'updated_at'],
+} as const;
+
+// ============================================================================
+// ANALYSIS TYPES TABLE SCHEMA
+// ============================================================================
+/**
+ * AnalysisTypes table - Stores types of analyses that can be performed
+ * 
+ * Database Definition:
+ * CREATE TABLE AnalysisTypes (
+ *   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+ *   name VARCHAR(255) NOT NULL,
+ *   description TEXT,
+ *   category VARCHAR(100),
+ *   methods TEXT[],
+ *   typical_duration VARCHAR(50),
+ *   equipment_required TEXT[],
+ *   is_active BOOLEAN DEFAULT true,
+ *   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+ *   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+ * );
+ */
+export const ANALYSIS_TYPE_SCHEMA = {
+  // Database column definitions
+  columns: {
+    id: { type: 'UUID', required: true, primaryKey: true },
+    name: { type: 'VARCHAR(255)', required: true },
+    description: { type: 'TEXT', required: false },
+    category: { type: 'VARCHAR(100)', required: false },
+    methods: { type: 'TEXT[]', required: false, description: 'Array of analysis methods/techniques' },
+    typical_duration: { type: 'VARCHAR(50)', required: false },
+    equipment_required: { type: 'TEXT[]', required: false, description: 'Array of required equipment' },
+    is_active: { type: 'BOOLEAN', required: false, default: true },
+    created_at: { type: 'TIMESTAMP', required: false, default: 'CURRENT_TIMESTAMP' },
+    updated_at: { type: 'TIMESTAMP', required: false, default: 'CURRENT_TIMESTAMP' },
+  },
+
+  // TypeScript types for runtime validation
+  types: {
+    Row: {
+      id: 'string (UUID)',
+      name: 'string',
+      description: 'string | null',
+      category: 'string | null',
+      methods: 'string[] | null',
+      typical_duration: 'string | null',
+      equipment_required: 'string[] | null',
+      is_active: 'boolean',
+      created_at: 'Date',
+      updated_at: 'Date',
+    },
+  },
+
+  CreateRequest: Joi.object({
+    name: Joi.string().required().max(255),
+    description: Joi.string().optional(),
+    category: Joi.string().optional().max(100),
+    methods: Joi.array().items(Joi.string()).optional(),
+    typicalDuration: Joi.string().optional().max(50),
+    equipmentRequired: Joi.array().items(Joi.string()).optional(),
+    isActive: Joi.boolean().optional(),
+  }).unknown(false),
+
+  UpdateRequest: Joi.object({
+    name: Joi.string().optional().max(255),
+    description: Joi.string().optional(),
+    category: Joi.string().optional().max(100),
+    methods: Joi.array().items(Joi.string()).optional(),
+    typicalDuration: Joi.string().optional().max(50),
+    equipmentRequired: Joi.array().items(Joi.string()).optional(),
+    isActive: Joi.boolean().optional(),
+  }).unknown(false),
+
+  insertColumns: ['id', 'name', 'description', 'category', 'methods', 'typical_duration', 'equipment_required', 'is_active', 'created_at', 'updated_at'],
+  selectColumns: ['id', 'name', 'description', 'category', 'methods', 'typical_duration', 'equipment_required', 'is_active', 'created_at', 'updated_at'],
+  updateColumns: ['name', 'description', 'category', 'methods', 'typical_duration', 'equipment_required', 'is_active', 'updated_at'],
+} as const;

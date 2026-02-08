@@ -33,6 +33,13 @@ import {
   createTeamRoutes,
 } from './api';
 
+// Supply Chain Routes - Direct import  
+import supplyChainRoutes from './routes/supply-chain';
+import usersRoutes from './routes/users';
+import analysisTypesRoutes from './routes/analysis-types';
+import filesRoutes from './routes/files';
+import analysisRequestsRoutes from './routes/analysis-requests';
+
 import { initializeTokenCleanupJob } from './jobs/tokenCleanup';
 
 const app = express();
@@ -97,6 +104,10 @@ initializeTokenCleanupJob();
 // Static routes for now (will be dynamic later)
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/users', usersRoutes);
+app.use('/api/analysis-types', analysisTypesRoutes);
+app.use('/api/files', filesRoutes);
+app.use('/api/analysis-requests', analysisRequestsRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/samples', sampleRoutes);
 app.use('/api/derived-samples', derivedSampleRoutes);
@@ -109,6 +120,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/access', accessRoutes);
 app.use('/api/workspaces', workspaceRoutes);
 app.use('/api/integrations', integrationRoutes);
+app.use('/api/supply-chain', supplyChainRoutes);
 
 // Team management and access control routes
 app.use('/api', createTeamRoutes(pool));

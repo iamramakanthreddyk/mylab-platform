@@ -173,10 +173,30 @@ const MODULES: FrontendModule[] = [
   {
     id: 'samples',
     name: 'Samples',
-    description: 'Sample tracking and management',
+    description: 'Sample tracking and experimental trials management',
     route: '/samples',
     component: 'SamplesView',
     icon: 'BeakerIcon',
+    requiresAuth: true,
+    roles: ['Admin', 'Manager', 'Scientist']
+  },
+  {
+    id: 'batches',
+    name: 'Batches',
+    description: 'Analysis batch management and tracking',
+    route: '/batches',
+    component: 'BatchesView',
+    icon: 'CircleStackIcon',
+    requiresAuth: true,
+    roles: ['Admin', 'Manager', 'Scientist']
+  },
+  {
+    id: 'analyses',
+    name: 'Analyses',
+    description: 'Analysis results and data management',
+    route: '/analyses',
+    component: 'AnalysesView',
+    icon: 'ChartPieIcon',
     requiresAuth: true,
     roles: ['Admin', 'Manager', 'Scientist']
   },

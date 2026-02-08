@@ -5,9 +5,6 @@ import { User, Project, Sample } from '@/lib/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { CreateSampleDialog } from './CreateSampleDialog'
-import { CreateStageDialog } from './CreateStageDialog'
 import {
   ArrowLeft, 
   Flask, 
@@ -16,7 +13,7 @@ import {
   Users, 
   FileText,
   Calendar,
-  Building,
+  Buildings,
   Plus,
   Trash,
   GearSix,
@@ -48,8 +45,6 @@ export function ProjectDetails({ user }: ProjectDetailsProps) {
   const [stages, setStages] = useState<Stage[]>([])
   const [analyses, setAnalyses] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [showCreateSample, setShowCreateSample] = useState(false)
-  const [showCreateStage, setShowCreateStage] = useState(false)
 
   useEffect(() => {
     if (id) {
@@ -192,13 +187,13 @@ export function ProjectDetails({ user }: ProjectDetailsProps) {
                 </div>
                 {project.clientOrgName && (
                   <div className="flex items-center gap-2">
-                    <Building size={16} />
+                    <Buildings size={16} />
                     <span>Client: {project.clientOrgName}</span>
                   </div>
                 )}
                 {project.executingOrgName && (
                   <div className="flex items-center gap-2">
-                    <Building size={16} />
+                    <Buildings size={16} />
                     <span>Lab: {project.executingOrgName}</span>
                   </div>
                 )}
@@ -207,375 +202,327 @@ export function ProjectDetails({ user }: ProjectDetailsProps) {
           </div>
         </div>
 
-        {/* Main Content */}
-        <Tabs defaultValue="overview" className="space-y-6">
-          <div className="border-b bg-linear-to-r from-background to-background/50">
-            <TabsList className="w-full h-auto justify-start gap-1 rounded-none border-0 bg-transparent p-0">
-              <TabsTrigger 
-                value="overview" 
-                className="flex-col items-center justify-center gap-1.5 rounded-lg p-4 text-xs sm:text-sm data-[state=active]:bg-primary/10 data-[state=active]:text-primary border-b-2 border-b-transparent data-[state=active]:border-b-primary sm:flex-row sm:gap-2 transition-all"
-              >
-                <Info size={18} weight="duotone" />
-                <span>Overview</span>
-              </TabsTrigger>
-
-              <TabsTrigger 
-                value="samples"
-                className="flex-col items-center justify-center gap-1.5 rounded-lg p-4 text-xs sm:text-sm data-[state=active]:bg-primary/10 data-[state=active]:text-primary border-b-2 border-b-transparent data-[state=active]:border-b-primary sm:flex-row sm:gap-2 transition-all"
-              >
-                <Flask size={18} weight="duotone" />
-                <span>Samples</span>
-                <Badge variant="secondary" className="ml-1">{samples.length}</Badge>
-              </TabsTrigger>
-
-              <TabsTrigger 
-                value="stages"
-                className="flex-col items-center justify-center gap-1.5 rounded-lg p-4 text-xs sm:text-sm data-[state=active]:bg-primary/10 data-[state=active]:text-primary border-b-2 border-b-transparent data-[state=active]:border-b-primary sm:flex-row sm:gap-2 transition-all"
-              >
-                <Rows size={18} weight="duotone" />
-                <span>Stages</span>
-                <Badge variant="secondary" className="ml-1">{stages.length}</Badge>
-              </TabsTrigger>
-
-              <TabsTrigger 
-                value="analyses"
-                className="flex-col items-center justify-center gap-1.5 rounded-lg p-4 text-xs sm:text-sm data-[state=active]:bg-primary/10 data-[state=active]:text-primary border-b-2 border-b-transparent data-[state=active]:border-b-primary sm:flex-row sm:gap-2 transition-all"
-              >
-                <ChartBar size={18} weight="duotone" />
-                <span>Analyses</span>
-                <Badge variant="secondary" className="ml-1">{analyses.length}</Badge>
-              </TabsTrigger>
-
-              <TabsTrigger 
-                value="documents"
-                className="flex-col items-center justify-center gap-1.5 rounded-lg p-4 text-xs sm:text-sm data-[state=active]:bg-primary/10 data-[state=active]:text-primary border-b-2 border-b-transparent data-[state=active]:border-b-primary sm:flex-row sm:gap-2 transition-all"
-              >
-                <Folder size={18} weight="duotone" />
-                <span>Documents</span>
-              </TabsTrigger>
-            </TabsList>
-          </div>
-
-          <TabsContent value="overview" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium">Total Samples</CardTitle>
-                  <Flask className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{samples.length}</div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Active samples in project
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium">Stages</CardTitle>
-                  <FolderOpen className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{stages.length}</div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Workflow stages
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium">Analyses</CardTitle>
-                  <ChartBar className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{analyses.length}</div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Completed analyses
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Project Information</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Project ID</p>
-                    <p className="text-sm font-mono mt-1">{project.id}</p>
+        {/* Research Journey Workflow */}
+        <div className="space-y-8">
+          {/* Progress Overview */}
+          <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-xl text-blue-900">Research Journey</CardTitle>
+                  <CardDescription className="text-blue-700">
+                    Track your progress through the complete research workflow
+                  </CardDescription>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-blue-900">
+                    {Math.round(((samples.length > 0 ? 25 : 0) + (stages.length > 0 ? 25 : 0) + (analyses.length > 0 ? 50 : 0)) * 1)}%
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Status</p>
-                    <p className="text-sm mt-1">{project.status}</p>
+                  <div className="text-xs text-blue-700">Complete</div>
+                </div>
+              </div>
+            </CardHeader>
+          </Card>
+
+          {/* Step 1: Project Setup */}
+          <Card className={`transition-all ${stages.length === 0 ? 'ring-2 ring-blue-200 bg-blue-50/30' : 'bg-green-50/30 border-green-200'}`}>
+            <CardHeader>
+              <div className="flex items-center gap-4">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                  stages.length > 0 ? 'bg-green-500 text-white' : 'bg-blue-500 text-white'
+                }`}>
+                  {stages.length > 0 ? (
+                    <span className="text-lg font-bold">✓</span>
+                  ) : (
+                    <span className="text-lg font-bold">1</span>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <CardTitle className="text-lg">Step 1: Setup & Organization</CardTitle>
+                  <CardDescription>
+                    {stages.length === 0 
+                      ? 'Optional: Create stages to organize your research workflow'
+                      : `${stages.length} workflow stages created`}
+                  </CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={() => navigate(`/projects/${id}/create-stage`)} 
+                    variant={stages.length === 0 ? 'default' : 'outline'}
+                    className="gap-2"
+                  >
+                    <Plus size={16} />
+                    {stages.length === 0 ? 'Create First Stage' : 'Add Stage'}
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            {stages.length > 0 && (
+              <CardContent>
+                <div className="grid gap-3">
+                  {stages.slice(0, 3).map((stage, index) => (
+                    <div key={stage.id} className="flex items-center gap-3 p-3 bg-white rounded-lg border">
+                      <div className="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-sm font-semibold">
+                        {index + 1}
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium">{stage.name}</p>
+                        <p className="text-sm text-muted-foreground">{stage.status}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {stages.length > 3 && (
+                    <p className="text-sm text-muted-foreground text-center py-2">
+                      +{stages.length - 3} more stages...
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            )}
+          </Card>
+
+          {/* Step 2: Sample Collection */}
+          <Card className={`transition-all ${samples.length === 0 ? 'ring-2 ring-blue-200 bg-blue-50/30' : 'bg-green-50/30 border-green-200'}`}>
+            <CardHeader>
+              <div className="flex items-center gap-4">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                  samples.length > 0 ? 'bg-green-500 text-white' : 'bg-blue-500 text-white'
+                }`}>
+                  {samples.length > 0 ? (
+                    <span className="text-lg font-bold">✓</span>
+                  ) : (
+                    <span className="text-lg font-bold">2</span>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <CardTitle className="text-lg">Step 2: Sample Collection & Trials</CardTitle>
+                  <CardDescription>
+                    {samples.length === 0 
+                      ? 'Add samples to begin your research work'
+                      : `${samples.length} samples collected with experimental data`}
+                  </CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={() => navigate(`/projects/${id}/create-sample`)} 
+                    variant={samples.length === 0 ? 'default' : 'outline'}
+                    className="gap-2"
+                  >
+                    <Plus size={16} />
+                    {samples.length === 0 ? 'Add First Sample' : 'Add Sample'}
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            {samples.length > 0 && (
+              <CardContent>
+                <div className="grid gap-3">
+                  {samples.slice(0, 4).map((sample) => {
+                    const trialsCount = sample.trials?.length || 0
+                    const successfulTrials = sample.trials?.filter(t => t.success).length || 0
+                    
+                    return (
+                      <div key={sample.id} className="flex items-center gap-3 p-3 bg-white rounded-lg border">
+                        <Flask size={20} className="text-blue-500" />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium">{sample.name}</p>
+                            <Badge variant="secondary">{sample.status}</Badge>
+                          </div>
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
+                            <span>{sample.sample_id}</span>
+                            {trialsCount > 0 && (
+                              <span>🧪 {successfulTrials}/{trialsCount} trials successful</span>
+                            )}
+                          </div>
+                        </div>
+                        <Button
+                          onClick={() => navigate(`/projects/${id}/samples/${sample.id}/create-analysis`)}
+                          size="sm"
+                          variant="ghost"
+                          className="gap-1 text-blue-600 hover:text-blue-700"
+                        >
+                          <ChartBar size={14} />
+                          Analyze
+                        </Button>
+                      </div>
+                    )
+                  })}
+                  {samples.length > 4 && (
+                    <p className="text-sm text-muted-foreground text-center py-2">
+                      +{samples.length - 4} more samples...
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            )}
+          </Card>
+
+          {/* Step 3: Analysis */}
+          <Card className={`transition-all ${analyses.length === 0 ? (samples.length > 0 ? 'ring-2 ring-blue-200 bg-blue-50/30' : 'bg-gray-100 border-gray-200') : 'bg-green-50/30 border-green-200'}`}>
+            <CardHeader>
+              <div className="flex items-center gap-4">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                  analyses.length > 0 
+                    ? 'bg-green-500 text-white' 
+                    : samples.length > 0 
+                      ? 'bg-blue-500 text-white' 
+                      : 'bg-gray-400 text-white'
+                }`}>
+                  {analyses.length > 0 ? (
+                    <span className="text-lg font-bold">✓</span>
+                  ) : (
+                    <span className="text-lg font-bold">3</span>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <CardTitle className="text-lg">Step 3: Analysis & Testing</CardTitle>
+                  <CardDescription>
+                    {analyses.length === 0 
+                      ? samples.length > 0
+                        ? 'Ready to analyze your samples - choose analysis methods'
+                        : 'Analysis will be available after adding samples'
+                      : `${analyses.length} analyses completed or in progress`}
+                  </CardDescription>
+                </div>
+                {samples.length > 0 && (
+                  <div className="text-right">
+                    <p className="text-sm font-medium">{samples.length} samples</p>
+                    <p className="text-xs text-muted-foreground">ready for analysis</p>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Client Organization</p>
-                    <p className="text-sm mt-1">{project.clientOrgName || 'N/A'}</p>
+                )}
+              </div>
+            </CardHeader>
+            {analyses.length > 0 && (
+              <CardContent>
+                <div className="grid gap-3">
+                  {analyses.slice(0, 3).map((analysis) => (
+                    <div key={analysis.id} className="flex items-center gap-3 p-3 bg-white rounded-lg border">
+                      <ChartBar size={20} className="text-purple-500" />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">{analysis.description || 'Analysis'}</p>
+                          <Badge variant={analysis.status === 'Completed' ? 'default' : 'secondary'}>
+                            {analysis.status}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {analysis.execution_mode === 'external' ? 'External Lab' : 'Internal Lab'}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                  {analyses.length > 3 && (
+                    <p className="text-sm text-muted-foreground text-center py-2">
+                      +{analyses.length - 3} more analyses...
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            )}
+          </Card>
+
+          {/* Step 4: Results & Documentation */}
+          <Card className={`transition-all ${analyses.length === 0 ? 'bg-gray-100 border-gray-200' : 'ring-2 ring-green-200 bg-green-50/30'}`}>
+            <CardHeader>
+              <div className="flex items-center gap-4">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                  analyses.length > 0 ? 'bg-green-500 text-white' : 'bg-gray-400 text-white'
+                }`}>
+                  <span className="text-lg font-bold">4</span>
+                </div>
+                <div className="flex-1">
+                  <CardTitle className="text-lg">Step 4: Results & Documentation</CardTitle>
+                  <CardDescription>
+                    {analyses.length === 0 
+                      ? 'Final results and documentation will appear here'
+                      : 'Review analysis results and generate reports'}
+                  </CardDescription>
+                </div>
+                {analyses.length > 0 && (
+                  <div className="flex gap-2">
+                    <Button variant="outline" className="gap-2">
+                      <FileText size={16} />
+                      Generate Report
+                    </Button>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Executing Lab</p>
-                    <p className="text-sm mt-1">{project.executingOrgName || 'N/A'}</p>
+                )}
+              </div>
+            </CardHeader>
+            {analyses.length > 0 && (
+              <CardContent>
+                <div className="bg-white rounded-lg border p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-medium">Research Summary</h4>
+                    <Badge variant="outline">Ready for Review</Badge>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Created</p>
-                    <p className="text-sm mt-1">{new Date(project.createdAt).toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Last Updated</p>
-                    <p className="text-sm mt-1">{new Date(project.updatedAt).toLocaleString()}</p>
+                  <div className="grid grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <p className="text-muted-foreground">Samples Processed</p>
+                      <p className="font-semibold">{samples.length}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Analyses Complete</p>
+                      <p className="font-semibold">{analyses.filter(a => a.status === 'Completed').length}/{analyses.length}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Success Rate</p>
+                      <p className="font-semibold">
+                        {analyses.length > 0 
+                          ? Math.round((analyses.filter(a => a.status === 'Completed').length / analyses.length) * 100)
+                          : 0}%
+                      </p>
+                    </div>
                   </div>
                 </div>
               </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="samples" className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-              <div>
-                <h3 className="text-lg font-semibold">Project Samples</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {samples.length} {samples.length === 1 ? 'sample' : 'samples'} in this project
-                </p>
-              </div>
-              <Button onClick={() => setShowCreateSample(true)} className="gap-2 sm:w-auto w-full">
-                <Plus size={18} />
-                Add Sample
-              </Button>
-            </div>
-
-            {samples.length === 0 ? (
-              <Card className="border-2 border-dashed">
-                <CardContent className="text-center py-16">
-                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
-                    <Flask size={32} className="text-primary" />
-                  </div>
-                  <h3 className="text-lg font-semibold mb-2">No samples yet</h3>
-                  <p className="text-muted-foreground mb-6 max-w-sm">
-                    Add samples to this project to track and manage your research materials. Samples can be optional assigned to workflow stages.
-                  </p>
-                  <Button onClick={() => setShowCreateSample(true)} size="lg" className="gap-2">
-                    <Plus size={18} />
-                    Create First Sample
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid gap-3">
-                {samples.map((sample) => (
-                  <Card key={sample.id} className="hover:shadow-md transition-shadow">
-                    <CardHeader>
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-3 flex-wrap">
-                            <CardTitle className="text-lg">{sample.sample_id}</CardTitle>
-                            <Badge className="whitespace-nowrap">{sample.status}</Badge>
-                          </div>
-                          {sample.description && (
-                            <CardDescription className="mt-2">{sample.description}</CardDescription>
-                          )}
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteSample(sample.id)}
-                          className="text-destructive hover:text-destructive shrink-0"
-                        >
-                          <Trash size={16} />
-                        </Button>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                        <div>
-                          <p className="text-muted-foreground">Sample ID</p>
-                          <p className="font-mono text-xs">{sample.id.substring(0, 8)}...</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Created</p>
-                          <p>{new Date(sample.created_at).toLocaleDateString()}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Type</p>
-                          <p>{sample.type || 'N/A'}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Status</p>
-                          <p>{sample.status}</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
             )}
-          </TabsContent>
+          </Card>
 
-          <TabsContent value="stages" className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
-              <div>
-                <h3 className="text-lg font-semibold">Workflow Stages</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Organize your project into {stages.length === 0 ? 'workflow phases' : `${stages.length} workflow phase${stages.length !== 1 ? 's' : ''}`}
-                </p>
-              </div>
-              <Button onClick={() => setShowCreateStage(true)} className="gap-2 sm:w-auto w-full">
-                <Plus size={18} />
-                Add Stage
-              </Button>
-            </div>
-
-            {stages.length === 0 ? (
-              <Card className="border-2 border-dashed">
-                <CardContent className="text-center py-16">
-                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
-                    <Rows size={32} className="text-primary" />
-                  </div>
-                  <h3 className="text-lg font-semibold mb-2">No stages yet</h3>
-                  <p className="text-muted-foreground mb-6 max-w-sm">
-                    Create stages to organize your project workflow. For example: Sample Preparation, Analysis, Quality Control, Review.
-                  </p>
-                  <Button onClick={() => setShowCreateStage(true)} size="lg" className="gap-2">
-                    <Plus size={18} />
-                    Create First Stage
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-3">
-                {stages.map((stage, index) => (
-                  <Card key={stage.id} className="hover:shadow-md transition-shadow">
-                    <CardHeader>
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex items-start gap-3 flex-1 min-w-0">
-                          <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-primary/10 text-primary font-semibold text-sm shrink-0 mt-0.5">
-                            {index + 1}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <CardTitle className="text-lg">{stage.name}</CardTitle>
-                            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
-                              <Badge variant="outline" className="text-xs">{stage.status}</Badge>
-                              <span>Created {new Date(stage.createdAt).toLocaleDateString()}</span>
-                            </p>
-                          </div>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteStage(stage.id)}
-                          className="text-destructive hover:text-destructive shrink-0"
-                        >
-                          <Trash size={16} />
-                        </Button>
-                      </div>
-                    </CardHeader>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="analyses" className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
-              <div>
-                <h3 className="text-lg font-semibold">Analyses</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Track and manage sample analyses and results for this project
-                </p>
-              </div>
-              <Button disabled className="gap-2 sm:w-auto w-full" title="Coming soon">
-                <Plus size={18} />
-                Request Analysis
-              </Button>
-            </div>
-
-            {analyses.length === 0 ? (
-              <Card className="border-2 border-dashed">
-                <CardContent className="text-center py-16">
-                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
-                    <ChartBar size={32} className="text-primary" />
-                  </div>
-                  <h3 className="text-lg font-semibold mb-2">No analyses yet</h3>
-                  <p className="text-muted-foreground mb-6 max-w-sm">
-                    Request or upload analyses for your samples. Track results, quality metrics, and conclusions all in one place.
-                  </p>
-                  <Button disabled size="lg" className="gap-2" title="Coming soon">
-                    <Plus size={18} />
-                    Request Analysis
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-3">
-                {analyses.map((analysis) => (
-                  <Card key={analysis.id} className="hover:shadow-md transition-shadow">
-                    <CardContent className="pt-6">
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-lg">{analysis.analysisType}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {new Date(analysis.createdAt).toLocaleString()}
-                          </p>
-                        </div>
-                        <Badge>{analysis.status}</Badge>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="documents" className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
-              <div>
-                <h3 className="text-lg font-semibold">Documents</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Manage and organize project documents and files
-                </p>
-              </div>
-              <Button disabled className="gap-2 sm:w-auto w-full" title="Coming soon">
-                <Plus size={18} />
-                Upload Document
-              </Button>
-            </div>
-
-            <Card className="border-2 border-dashed">
-              <CardContent className="text-center py-16">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
-                  <Folder size={32} className="text-primary" />
-                </div>
-                <h3 className="text-lg font-semibold mb-2">Documents coming soon</h3>
-                <p className="text-muted-foreground mb-6 max-w-sm">
-                  Upload and manage project documents like protocols, reports, certificates, and other files.
-                </p>
-                <Button disabled size="lg" className="gap-2" title="Coming soon">
-                  <Plus size={18} />
-                  Upload Document
+          {/* Quick Actions */}
+          <Card className="bg-gradient-to-r from-gray-50 to-slate-50 border-gray-200">
+            <CardHeader>
+              <CardTitle className="text-lg">Quick Actions</CardTitle>
+              <CardDescription>Jump to any step in your research workflow</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <Button 
+                  onClick={() => navigate(`/projects/${id}/create-stage`)} 
+                  variant="ghost" 
+                  className="h-auto flex-col gap-2 p-4"
+                >
+                  <Folder size={20} className="text-blue-500" />
+                  <span className="text-sm">Add Stage</span>
                 </Button>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-
-        {/* Dialogs */}
-        <CreateSampleDialog
-          open={showCreateSample}
-          onOpenChange={setShowCreateSample}
-          projectId={id!}
-          onSuccess={fetchProjectSamples}
-        />
-
-        <CreateStageDialog
-          open={showCreateStage}
-          onOpenChange={setShowCreateStage}
-          projectId={id!}
-          nextOrderIndex={stages.length}
-          onSuccess={fetchProjectStages}
-        />
+                <Button 
+                  onClick={() => navigate(`/projects/${id}/create-sample`)} 
+                  variant="ghost" 
+                  className="h-auto flex-col gap-2 p-4"
+                >
+                  <Flask size={20} className="text-green-500" />
+                  <span className="text-sm">Add Sample</span>
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  className="h-auto flex-col gap-2 p-4"
+                  disabled={samples.length === 0}
+                >
+                  <ChartBar size={20} className={samples.length > 0 ? 'text-purple-500' : 'text-gray-400'} />
+                  <span className="text-sm">Run Analysis</span>
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  className="h-auto flex-col gap-2 p-4"
+                  disabled={analyses.length === 0}
+                >
+                  <FileText size={20} className={analyses.length > 0 ? 'text-orange-500' : 'text-gray-400'} />
+                  <span className="text-sm">View Results</span>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   )

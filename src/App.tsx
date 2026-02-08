@@ -6,6 +6,9 @@ import { FRONTEND_CONFIG, getAvailableModules, checkRouteAccess } from '@/lib/co
 import { AuthContextProvider } from '@/lib/AuthContext'
 import { Login } from '@/components/Login'
 import { SetPassword } from '@/components/SetPassword'
+import { Register } from '@/components/Register'
+import { ForgotPassword } from '@/components/ForgotPassword'
+import { ResetPassword } from '@/components/ResetPassword'
 import { SuperAdminLogin } from '@/components/SuperAdminLogin'
 import { AdminDashboard } from '@/components/AdminDashboard'
 import { Navigation } from '@/components/Navigation'
@@ -13,8 +16,15 @@ import { Dashboard } from '@/components/Dashboard'
 import { ProjectsView } from '@/components/ProjectsView'
 import { ProjectDetails } from '@/components/ProjectDetails'
 import { SamplesView } from '@/components/SamplesView'
+import { BatchesView } from '@/components/BatchesView'
+import { AnalysesView } from '@/components/AnalysesView'
 import { SchemaExplorer } from '@/components/SchemaExplorer'
 import { NotificationCenter } from '@/components/NotificationCenter'
+import { UsersManager } from '@/components/UsersManager'
+import { CreateSamplePage } from '@/components/CreateSamplePage'
+import { CreateStagePage } from '@/components/CreateStagePage'
+import { CreateAnalysisPage } from '@/components/CreateAnalysisPage'
+import { SupplyChainCollaboration } from '@/components/SupplyChainCollaboration'
 import { ModulePlaceholder } from '@/components/ModulePlaceholder'
 import { Toaster } from '@/components/ui/sonner'
 import { Button } from '@/components/ui/button'
@@ -171,7 +181,14 @@ function AppContent() {
             <Route path="/dashboard" element={<Dashboard user={currentUser} projects={projects || []} samples={samples || []} />} />
             <Route path="/projects" element={<ProjectsView user={currentUser} projects={projects || []} onProjectsChange={setProjects} />} />
             <Route path="/projects/:id" element={<ProjectDetails user={currentUser} />} />
-            <Route path="/samples" element={<SamplesView user={currentUser} samples={samples || []} />} />
+            <Route path="/projects/:projectId/create-stage" element={<CreateStagePage user={currentUser} />} />
+            <Route path="/projects/:projectId/create-sample" element={<CreateSamplePage user={currentUser} />} />
+            <Route path="/projects/:projectId/samples/:sampleId/create-analysis" element={<CreateAnalysisPage user={currentUser} />} />
+            <Route path="/supply-chain/collaboration" element={<SupplyChainCollaboration user={currentUser} />} />
+            <Route path="/samples" element={<SamplesView user={currentUser} samples={samples || []} onSamplesChange={setSamples} />} />
+            <Route path="/users" element={<UsersManager user={currentUser} />} />
+            <Route path="/batches" element={<BatchesView user={currentUser} />} />
+            <Route path="/analyses" element={<AnalysesView user={currentUser} />} />
             <Route path="/analytics" element={<ModulePlaceholder user={currentUser} moduleId="analytics" />} />
             <Route path="/compliance" element={<ModulePlaceholder user={currentUser} moduleId="compliance" />} />
             <Route path="/integration" element={<ModulePlaceholder user={currentUser} moduleId="integration" />} />
@@ -227,6 +244,10 @@ function AppContent() {
     <>
       <Routes>
         <Route path="/" element={<Login onLogin={handleLogin} onNeedSetPassword={() => navigate('/set-password')} />} />
+        <Route path="/login" element={<Login onLogin={handleLogin} onNeedSetPassword={() => navigate('/set-password')} />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/set-password" element={<SetPassword onSuccess={() => navigate('/')} />} />
       </Routes>
       <Toaster />

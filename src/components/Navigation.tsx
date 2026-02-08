@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Flask, User as UserIcon, SignOut, Database, Bell } from '@phosphor-icons/react'
+import { Flask, User as UserIcon, SignOut, Database, Bell, Buildings } from '@phosphor-icons/react'
 import { canAccessSchema } from '@/lib/auth'
 import { Link, useLocation } from 'react-router-dom'
 
@@ -52,6 +52,31 @@ export function Navigation({ user, onLogout }: NavigationProps) {
                     </Button>
                   </Link>
                 ))}
+              
+              {/* Supply Chain Collaboration - for inter-organizational workflows */}
+              <Link to="/supply-chain/collaboration">
+                <Button
+                  variant={currentView.startsWith('supply-chain') ? 'default' : 'ghost'}
+                  className="px-4 gap-2"
+                >
+                  <Buildings size={16} />
+                  Supply Chain
+                </Button>
+              </Link>
+              
+              {/* Users Management */}
+              {(user.role === 'Admin' || user.role === 'Manager') && (
+                <Link to="/users">
+                  <Button
+                    variant={currentView === 'users' ? 'default' : 'ghost'}
+                    className="px-4 gap-2"
+                  >
+                    <UserIcon size={16} />
+                    Users
+                  </Button>
+                </Link>
+              )}
+              
               {showSchema && (
                 <Link to="/schema">
                   <Button
