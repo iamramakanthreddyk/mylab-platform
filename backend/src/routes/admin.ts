@@ -480,27 +480,34 @@ router.get('/organizations', verifySuperAdminToken, async (req: SuperAdminReques
         o.workspace_id,
         o.type,
         o.gst_number,
-        o.created_at
+        o.gst_percentage,
+        NULL::VARCHAR as industry,
+        NULL::VARCHAR as country,
+        p.name as plan_name,
+        s.status as subscription_status,
+        CURRENT_TIMESTAMP as created_at
       FROM Organizations o
+      LEFT JOIN Subscriptions s ON o.workspace_id = s.workspace_id AND s.deleted_at IS NULL
+      LEFT JOIN Plans p ON s.plan_id = p.id
       WHERE o.deleted_at IS NULL
     `;
 
     const params: any[] = [];
     if (searchTerm) {
-      query += ` AND o.name ILIKE $${params.length + 1}`;
+      query += ` AND (o.name ILIKE $${params.length + 1} OR o.gst_number ILIKE $${params.length + 1})`;
       params.push(`%${searchTerm}%`);
     }
 
-    query += ` ORDER BY o.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    query += ` ORDER BY o.name ASC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(limit, offset);
 
     const result = await pool.query(query, params);
 
     // Get total count
-    let countQuery = `SELECT COUNT(*) as count FROM Organizations WHERE deleted_at IS NULL`;
+    let countQuery = `SELECT COUNT(DISTINCT o.id) as count FROM Organizations o WHERE o.deleted_at IS NULL`;
     const countParams: any[] = [];
     if (searchTerm) {
-      countQuery += ` AND name ILIKE $${countParams.length + 1}`;
+      countQuery += ` AND (o.name ILIKE $${countParams.length + 1} OR o.gst_number ILIKE $${countParams.length + 1})`;
       countParams.push(`%${searchTerm}%`);
     }
     const countResult = await pool.query(countQuery, countParams);
@@ -590,7 +597,7 @@ router.get('/company-plans', verifySuperAdminToken, async (req: SuperAdminReques
     const result = await pool.query(`
       SELECT
         p.id,
-        p.name as plan_name,
+        p.name,
         p.tier,
         p.max_users,
         p.max_projects,
@@ -612,6 +619,172 @@ router.get('/company-plans', verifySuperAdminToken, async (req: SuperAdminReques
   } catch (error) {
     console.error('Company plans error:', error);
     res.status(500).json({ error: 'Failed to fetch company plan mappings' });
+  }
+});
+
+// POST /api/admin/organizations - Create new organization with admin user
+router.post('/organizations', verifySuperAdminToken, async (req: SuperAdminRequest, res: Response) => {
+  try {
+    const {
+      name,
+      type,
+      email,
+      password,
+      gst_number,
+      gst_percentage,
+      country,
+      industry,
+      company_size,
+      website,
+      primary_contact_name,
+      primary_contact_email,
+      primary_contact_phone
+    } = req.body;
+
+    // Validate required fields
+    if (!name || !type || !email || !password) {
+      return res.status(400).json({
+        error: 'Missing required fields: name, type, email, password'
+      });
+    }
+
+    // Validate organization type
+    const validTypes = ['client', 'cro', 'analyzer', 'vendor', 'pharma'];
+    if (!validTypes.includes(type)) {
+      return res.status(400).json({
+        error: `Invalid organization type. Must be one of: ${validTypes.join(', ')}`
+      });
+    }
+
+    console.log('Creating organization with admin user:', { name, type, email });
+
+    // Start transaction
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      // Create workspace first
+      const workspaceSlug = name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+      const workspaceResult = await client.query(`
+        INSERT INTO Workspace (name, slug, type)
+        VALUES ($1, $2, 'research'::workspace_type)
+        RETURNING id
+      `, [name, workspaceSlug]);
+
+      const workspaceId = workspaceResult.rows[0].id;
+
+      // Create organization
+      const orgResult = await client.query(`
+        INSERT INTO Organizations (
+          workspace_id, name, type, gst_number, gst_percentage, country,
+          industry, company_size, website, primary_contact_name,
+          primary_contact_email, primary_contact_phone
+        )
+        VALUES ($1, $2, $3::org_type, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        RETURNING id
+      `, [
+        workspaceId, name, type, gst_number, gst_percentage || 18.0, country,
+        industry, company_size, website, primary_contact_name,
+        primary_contact_email, primary_contact_phone
+      ]);
+
+      const organizationId = orgResult.rows[0].id;
+
+      // Hash password and create admin user
+      const bcrypt = require('bcrypt');
+      const passwordHash = await bcrypt.hash(password, 10);
+
+      const userResult = await client.query(`
+        INSERT INTO Users (workspace_id, email, name, role, password_hash)
+        VALUES ($1, $2, $3, 'admin'::user_role, $4)
+        RETURNING id
+      `, [workspaceId, email, primary_contact_name || name + ' Admin', passwordHash]);
+
+      const userId = userResult.rows[0].id;
+
+      await client.query('COMMIT');
+
+      console.log('✅ Organization and admin user created successfully:', {
+        organizationId,
+        userId,
+        workspaceId
+      });
+
+      res.status(201).json({
+        message: 'Organization and admin user created successfully',
+        organization: {
+          id: organizationId,
+          name,
+          type,
+          email,
+          workspace_id: workspaceId
+        },
+        admin_user: {
+          id: userId,
+          email,
+          name: primary_contact_name || name + ' Admin'
+        }
+      });
+
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+
+  } catch (error) {
+    console.error('Create organization error:', error);
+    res.status(500).json({ error: 'Failed to create organization' });
+  }
+});
+
+// PUT /api/admin/plans/:planId - Update plan details
+router.put('/plans/:planId', verifySuperAdminToken, async (req: SuperAdminRequest, res: Response) => {
+  try {
+    const { planId } = req.params;
+    const { name, tier, price_monthly, max_users, max_projects, max_storage_gb } = req.body;
+
+    // Validate required fields
+    if (!name || !tier) {
+      return res.status(400).json({
+        error: 'Plan name and tier are required'
+      });
+    }
+
+    // Validate tier
+    const validTiers = ['basic', 'pro', 'enterprise', 'custom'];
+    if (!validTiers.includes(tier)) {
+      return res.status(400).json({
+        error: `Invalid tier. Must be one of: ${validTiers.join(', ')}`
+      });
+    }
+
+    console.log('Updating plan:', planId, { name, tier, price_monthly });
+
+    // Update plan
+    const result = await pool.query(`
+      UPDATE Plans
+      SET name = $1, tier = $2::plan_tier, price_monthly = $3, max_users = $4, max_projects = $5, max_storage_gb = $6, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $7
+      RETURNING id, name, tier, price_monthly, max_users, max_projects, max_storage_gb
+    `, [name, tier, price_monthly || 0, max_users || 1, max_projects || 1, max_storage_gb || 1, planId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Plan not found' });
+    }
+
+    console.log('✅ Plan updated successfully:', result.rows[0]);
+
+    res.json({
+      message: 'Plan updated successfully',
+      plan: result.rows[0]
+    });
+
+  } catch (error) {
+    console.error('Update plan error:', error);
+    res.status(500).json({ error: 'Failed to update plan' });
   }
 });
 

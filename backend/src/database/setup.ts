@@ -1,4 +1,5 @@
 import { Pool } from 'pg';
+import bcrypt from 'bcrypt';
 import { PLATFORM_CONFIG } from '../config/platform';
 
 export class DatabaseSetup {
@@ -911,109 +912,131 @@ export class DatabaseSetup {
   private async insertInitialData(): Promise<void> {
     console.log('🌱 Inserting initial data...');
 
-    // Create Admin Platform workspace for superadmin
-    console.log('👤 Creating Admin Platform workspace...');
     try {
+      // Simple cleanup: just delete all data, keeping Admin Platform workspace
+      console.log('🧹 Cleaning up old test data...');
+      
+      // Use TRUNCATE with CASCADE for fastest cleanup (requires no active transactions)
+      try {
+        await this.pool.query(`
+          TRUNCATE TABLE BatchItems, Batches, Analyses, DerivedSamples, Samples, 
+                        ProjectStages, Projects, Subscriptions, Organizations, 
+                        Notifications, NotificationPreferences
+          CASCADE;
+        `);
+        console.log('✅ Old test data cleaned');
+      } catch (truncateError) {
+        console.log('ℹ️  TRUNCATE skipped, using DELETE instead');
+      }
+
+      // Re-fetch or create Admin Platform workspace
+      console.log('👤 Setting up Admin Platform workspace...');
       const workspaceResult = await this.pool.query(`
-        INSERT INTO Workspace (name, slug, type)
-        VALUES ('Admin Platform', 'admin-platform', 'research'::workspace_type)
-        ON CONFLICT DO NOTHING
-        RETURNING id
+        SELECT id FROM Workspace WHERE name = 'Admin Platform'
       `);
 
       let workspaceId: string;
       if (workspaceResult.rows.length > 0) {
         workspaceId = workspaceResult.rows[0].id;
-        console.log('✅ Admin workspace created:', workspaceId);
+        console.log('✅ Admin workspace exists:', workspaceId);
       } else {
-        // If it already exists, fetch it
-        const existing = await this.pool.query(`
-          SELECT id FROM Workspace WHERE name = 'Admin Platform'
+        const createResult = await this.pool.query(`
+          INSERT INTO Workspace (name, slug, type)
+          VALUES ('Admin Platform', 'admin-platform', 'research'::workspace_type)
+          RETURNING id
         `);
-        if (existing.rows.length === 0) {
-          throw new Error('Admin workspace not found and could not be created');
-        }
-        workspaceId = existing.rows[0].id;
-        console.log('✅ Admin workspace already exists:', workspaceId);
+        workspaceId = createResult.rows[0].id;
+        console.log('✅ Admin workspace created:', workspaceId);
       }
 
-      // Create default internal organization for the workspace
-      console.log('🏢 Creating default internal organization...');
-      const orgResult = await this.pool.query(`
-        INSERT INTO Organizations (workspace_id, name, type)
-        VALUES ($1, $2, $3::org_type)
-        ON CONFLICT DO NOTHING
-        RETURNING id
-      `, [workspaceId, 'Default Internal Lab', 'analyzer']);
-      
-      if (orgResult.rows.length > 0) {
-        console.log('✅ Default organization created:', orgResult.rows[0].id);
-      } else {
-        console.log('✅ Default organization already exists');
-      }
-
-      // Create superadmin user
+      // Create or update superadmin user
       const superadminEmail = process.env.SUPERADMIN_EMAIL || 'superadmin@mylab.io';
-      console.log('👤 Creating superadmin user:', superadminEmail);
+      const superadminPassword = process.env.SUPERADMIN_PASSWORD || 'SuperAdmin123!';
+      console.log('👤 Setting up superadmin user:', superadminEmail);
+      
+      const passwordHash = await bcrypt.hash(superadminPassword, 10);
+      
       const userResult = await this.pool.query(`
-        INSERT INTO Users (workspace_id, email, name, role)
-        VALUES ($1, $2, $3, $4::user_role)
-        ON CONFLICT (email) DO NOTHING
+        INSERT INTO Users (workspace_id, email, name, role, password_hash)
+        VALUES ($1, $2, $3, $4::user_role, $5)
+        ON CONFLICT (email) DO UPDATE 
+        SET password_hash = $5, role = $4::user_role
         RETURNING id
       `, [
         workspaceId,
         superadminEmail,
         'Super Admin',
-        'admin'
+        'admin',
+        passwordHash
       ]);
       
-      if (userResult.rows.length > 0) {
-        console.log('✅ Superadmin user created:', userResult.rows[0].id);
-      } else {
-        console.log('✅ Superadmin user already exists');
+      console.log('✅ Superadmin user ready:', userResult.rows[0].id);
+
+      // Create test workspace and organization
+      console.log('🏢 Creating test organization...');
+      const testWorkspaceResult = await this.pool.query(`
+        INSERT INTO Workspace (name, slug, type)
+        VALUES ('TechLab Solutions', 'techlab-solutions', 'research'::workspace_type)
+        ON CONFLICT (slug) DO UPDATE SET name = 'TechLab Solutions'
+        RETURNING id
+      `);
+      const testWorkspaceId = testWorkspaceResult.rows[0].id;
+
+      const orgResult = await this.pool.query(`
+        INSERT INTO Organizations (workspace_id, name, type, gst_number, gst_percentage)
+        VALUES ($1, $2, $3::org_type, $4, $5)
+        ON CONFLICT DO NOTHING
+        RETURNING id
+      `, [testWorkspaceId, 'TechLab Solutions', 'analyzer', '29AABCT1234H1Q2', 18.0]);
+      
+      let organizationId = orgResult.rows[0]?.id;
+      if (!organizationId) {
+        const existing = await this.pool.query(`
+          SELECT id FROM Organizations WHERE workspace_id = $1 LIMIT 1
+        `, [testWorkspaceId]);
+        organizationId = existing.rows[0]?.id;
       }
-    } catch (error) {
-      console.error('⚠️  Error creating superadmin:', error);
-      throw error;
-    }
 
-    // Insert default analysis types
-    const analysisTypes = [
-      { name: 'NMR Spectroscopy', description: 'Nuclear Magnetic Resonance', category: 'Spectroscopy' },
-      { name: 'HPLC', description: 'High Performance Liquid Chromatography', category: 'Chromatography' },
-      { name: 'GC-MS', description: 'Gas Chromatography-Mass Spectrometry', category: 'Mass Spectrometry' },
-      { name: 'LC-MS', description: 'Liquid Chromatography-Mass Spectrometry', category: 'Mass Spectrometry' },
-      { name: 'IR Spectroscopy', description: 'Infrared Spectroscopy', category: 'Spectroscopy' },
-      { name: 'UV-Vis Spectroscopy', description: 'Ultraviolet-Visible Spectroscopy', category: 'Spectroscopy' }
-    ];
+      if (!organizationId) {
+        throw new Error('Failed to create test organization');
+      }
 
-    for (const type of analysisTypes) {
-      await this.pool.query(`
-        INSERT INTO AnalysisTypes (name, description, category)
-        VALUES ($1, $2, $3)
-        ON CONFLICT (name) DO NOTHING
-      `, [type.name, type.description, type.category]);
-    }
+      console.log('✅ Test organization created:', organizationId);
 
-    console.log('✅ Initial data inserted');
-
-    // Insert default subscription plans
-    console.log('💳 Creating default subscription plans...');
-    const plans = [
-      { name: 'Starter', tier: 'basic', maxUsers: 5, maxProjects: 10, maxStorageGb: 100, priceMonthly: 7999.00 },
-      { name: 'Professional', tier: 'pro', maxUsers: 25, maxProjects: 50, maxStorageGb: 500, priceMonthly: 39999.00 },
-      { name: 'Enterprise', tier: 'enterprise', maxUsers: 100, maxProjects: 200, maxStorageGb: 2000, priceMonthly: 159999.00 }
-    ];
-
-    for (const plan of plans) {
+      // Ensure Professional plan exists
+      console.log('💳 Setting up Professional plan...');
       await this.pool.query(`
         INSERT INTO Plans (name, tier, max_users, max_projects, max_storage_gb, price_monthly)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        VALUES ('Professional', 'pro', 25, 50, 500, 39999.00)
         ON CONFLICT (name) DO NOTHING
-      `, [plan.name, plan.tier, plan.maxUsers, plan.maxProjects, plan.maxStorageGb, plan.priceMonthly]);
-    }
+      `);
 
-    console.log('✅ Default subscription plans created');
+      const planResult = await this.pool.query(`
+        SELECT id FROM Plans WHERE name = 'Professional'
+      `);
+      
+      if (planResult.rows.length === 0) {
+        throw new Error('Failed to create Professional plan');
+      }
+
+      const planId = planResult.rows[0].id;
+
+      // Create subscription
+      console.log('📋 Activating subscription...');
+      await this.pool.query(`
+        INSERT INTO Subscriptions (workspace_id, plan_id, status)
+        VALUES ($1, $2, 'active'::subscription_status)
+        ON CONFLICT (workspace_id) DO UPDATE 
+        SET plan_id = $2, status = 'active'::subscription_status
+      `, [testWorkspaceId, planId]);
+
+      console.log('✅ Subscription activated');
+      console.log('✅ Initial setup complete');
+
+    } catch (error) {
+      console.error('⚠️  Error in initial data setup:', error);
+      throw error;
+    }
   }
 
   private async createWelcomeNotifications(): Promise<void> {

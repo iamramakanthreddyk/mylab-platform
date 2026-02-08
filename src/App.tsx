@@ -157,6 +157,7 @@ function AppContent() {
     setAdminToken(token)
     setAdminUser(user)
     setLoginMode('admin')
+    navigate('/admin')
   }
 
   const handleAdminLogout = () => {
