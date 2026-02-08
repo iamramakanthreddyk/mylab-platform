@@ -118,15 +118,16 @@ export class SampleService {
       const result = await pool.query(
         `
         INSERT INTO Samples (
-          workspace_id, project_id, stage_id, sample_id, type,
+          workspace_id, project_id, trial_id, stage_id, sample_id, type,
           description, metadata, created_by
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING *
         `,
         [
           workspaceId,
           data.projectId,
+          data.trialId || null,
           data.stageId || null,
           data.sampleId,
           data.type || null,
@@ -207,6 +208,11 @@ export class SampleService {
       if (data.stageId !== undefined) {
         updates.push(`stage_id = $${paramIndex++}`);
         values.push(data.stageId || null);
+      }
+
+      if (data.trialId !== undefined) {
+        updates.push(`trial_id = $${paramIndex++}`);
+        values.push(data.trialId || null);
       }
 
       if (updates.length === 0) {

@@ -55,11 +55,28 @@ export const batchController = {
     const workspaceId = req.user!.workspaceId;
     const userId = req.user!.id;
     const organizationId = req.user!.orgId || req.user!.workspaceId; // Fallback to workspace if org not available
-    const { sampleIds, parameters } = req.body;
+    const {
+      batchId,
+      description,
+      parameters,
+      status,
+      executionMode,
+      executedByOrgId,
+      externalReference,
+      performedAt,
+      sampleIds
+    } = req.body;
 
     const batch = await BatchService.createBatch(workspaceId, userId, organizationId, {
-      sampleIds: sampleIds || [],
-      parameters
+      batchId,
+      description,
+      parameters,
+      status,
+      executionMode,
+      executedByOrgId,
+      externalReference,
+      performedAt,
+      sampleIds: sampleIds || []
     });
 
     logger.info('Batch created via API', { batchId: batch.id, userId });

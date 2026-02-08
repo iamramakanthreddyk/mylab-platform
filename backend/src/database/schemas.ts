@@ -38,6 +38,7 @@ export const SAMPLE_SCHEMA = {
   columns: {
     id: { type: 'UUID', required: true, primaryKey: true },
     project_id: { type: 'UUID', required: true, foreignKey: 'Projects' },
+    trial_id: { type: 'UUID', required: false, foreignKey: 'Trials' },
     stage_id: { type: 'UUID', required: false, foreignKey: 'ProjectStages' },
     workspace_id: { type: 'UUID', required: true, foreignKey: 'Workspace' },
     sample_id: { type: 'VARCHAR(100)', required: true, description: 'User-facing sample identifier' },
@@ -57,6 +58,7 @@ export const SAMPLE_SCHEMA = {
     Row: {
       id: 'string (UUID)',
       project_id: 'string (UUID)',
+      trial_id: 'string | null (UUID)',
       stage_id: 'string | null (UUID)',
       workspace_id: 'string (UUID)',
       sample_id: 'string',
@@ -77,6 +79,7 @@ export const SAMPLE_SCHEMA = {
     sampleId: Joi.string().max(100).required(),
     description: Joi.string().required().max(2000),
     type: Joi.string().optional().max(50),
+    trialId: Joi.string().uuid().optional(),
     stageId: Joi.string().uuid().optional(),
     metadata: Joi.object().optional(),
   }).unknown(false),
@@ -86,14 +89,15 @@ export const SAMPLE_SCHEMA = {
     description: Joi.string().optional().max(2000),
     type: Joi.string().optional().max(50),
     status: Joi.string().optional().max(50),
+    trialId: Joi.string().uuid().optional(),
     stageId: Joi.string().uuid().optional(),
     metadata: Joi.object().optional(),
   }).unknown(false).min(1),
 
   // Database query schemas
-  insertColumns: ['workspace_id', 'project_id', 'stage_id', 'sample_id', 'type', 'description', 'metadata', 'created_by'],
-  selectColumns: ['id', 'project_id', 'stage_id', 'workspace_id', 'sample_id', 'type', 'description', 'metadata', 'status', 'created_by', 'created_at', 'updated_at', 'deleted_at'],
-  updateColumns: ['sample_id', 'type', 'description', 'metadata', 'status', 'stage_id'],
+  insertColumns: ['workspace_id', 'project_id', 'trial_id', 'stage_id', 'sample_id', 'type', 'description', 'metadata', 'created_by'],
+  selectColumns: ['id', 'project_id', 'trial_id', 'stage_id', 'workspace_id', 'sample_id', 'type', 'description', 'metadata', 'status', 'created_by', 'created_at', 'updated_at', 'deleted_at'],
+  updateColumns: ['sample_id', 'type', 'description', 'metadata', 'status', 'trial_id', 'stage_id'],
 } as const;
 
 // ============================================================================

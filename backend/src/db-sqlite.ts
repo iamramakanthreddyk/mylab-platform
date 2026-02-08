@@ -173,15 +173,50 @@ async function createSchema(db: Database): Promise<void> {
       workspace_id TEXT NOT NULL,
       name TEXT NOT NULL,
       description TEXT,
+      workflow_mode TEXT DEFAULT 'trial_first',
       created_by TEXT,
       created_at TEXT,
       updated_at TEXT,
       FOREIGN KEY(workspace_id) REFERENCES Workspace(id)
     );
 
+    CREATE TABLE IF NOT EXISTS Trials (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      workspace_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      objective TEXT,
+      parameters TEXT,
+      parameters_json TEXT,
+      equipment TEXT,
+      notes TEXT,
+      status TEXT DEFAULT 'planned',
+      performed_at TEXT,
+      created_by TEXT NOT NULL,
+      created_at TEXT,
+      updated_at TEXT,
+      deleted_at TEXT,
+      FOREIGN KEY(project_id) REFERENCES Projects(id),
+      FOREIGN KEY(workspace_id) REFERENCES Workspace(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS TrialParameterTemplates (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      workspace_id TEXT NOT NULL,
+      columns TEXT NOT NULL,
+      created_by TEXT NOT NULL,
+      created_at TEXT,
+      updated_at TEXT,
+      UNIQUE(project_id, workspace_id),
+      FOREIGN KEY(project_id) REFERENCES Projects(id),
+      FOREIGN KEY(workspace_id) REFERENCES Workspace(id)
+    );
+
     CREATE TABLE IF NOT EXISTS Samples (
       id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL,
+      trial_id TEXT,
       workspace_id TEXT NOT NULL,
       name TEXT NOT NULL,
       type TEXT,
@@ -189,6 +224,7 @@ async function createSchema(db: Database): Promise<void> {
       created_at TEXT,
       updated_at TEXT,
       FOREIGN KEY(project_id) REFERENCES Projects(id),
+      FOREIGN KEY(trial_id) REFERENCES Trials(id),
       FOREIGN KEY(workspace_id) REFERENCES Workspace(id)
     );
 

@@ -46,13 +46,14 @@ export const projectController = {
   create: asyncHandler(async (req: Request, res: Response) => {
     const workspaceId = req.user!.workspaceId;
     const userId = req.user!.id;
-    const { name, description, clientOrgId, executingOrgId } = req.body;
+    const { name, description, clientOrgId, executingOrgId, workflowMode } = req.body;
 
     const project = await ProjectService.createProject(workspaceId, userId, {
       name,
       description,
       clientOrgId,
-      executingOrgId
+      executingOrgId,
+      workflowMode
     });
 
     logger.info('Project created via API', { projectId: project.id, userId });
@@ -70,12 +71,13 @@ export const projectController = {
   update: asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
     const workspaceId = req.user!.workspaceId;
-    const { name, description, status } = req.body;
+    const { name, description, status, workflowMode } = req.body;
 
     const project = await ProjectService.updateProject(id, workspaceId, {
       name,
       description,
-      status
+      status,
+      workflowMode
     });
 
     logger.info('Project updated via API', { projectId: id, userId: req.user!.id });

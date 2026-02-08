@@ -18,6 +18,7 @@ export interface ListSamplesRequest {
 export interface CreateSampleRequest {
   projectId: string;
   stageId?: string;
+  trialId?: string;
   sampleId: string;
   description: string;
   type?: string;
@@ -31,6 +32,7 @@ export interface UpdateSampleRequest {
   status?: string;
   metadata?: Record<string, any>;
   stageId?: string;
+  trialId?: string;
 }
 
 // ============ Response DTOs ============
@@ -39,6 +41,7 @@ export interface SampleResponse {
   id: string;
   workspace_id: string;
   project_id: string;
+  trial_id?: string;
   stage_id?: string;
   sample_id: string;
   description: string;

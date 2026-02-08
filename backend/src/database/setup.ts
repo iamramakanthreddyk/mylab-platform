@@ -215,10 +215,44 @@ export class DatabaseSetup {
           name VARCHAR(255) NOT NULL,
           description TEXT,
           status VARCHAR(50) DEFAULT 'active',
+          workflow_mode VARCHAR(50) DEFAULT 'trial_first',
           created_by UUID NOT NULL REFERENCES Users(id),
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           deleted_at TIMESTAMP
+        );
+      `,
+
+      Trials: `
+        CREATE TABLE IF NOT EXISTS Trials (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          project_id UUID NOT NULL REFERENCES Projects(id) ON DELETE CASCADE,
+          workspace_id UUID NOT NULL REFERENCES Workspace(id),
+          name VARCHAR(255) NOT NULL,
+          objective TEXT,
+          parameters TEXT,
+          parameters_json JSONB,
+          equipment TEXT,
+          notes TEXT,
+          status VARCHAR(50) DEFAULT 'planned',
+          performed_at DATE,
+          created_by UUID NOT NULL REFERENCES Users(id),
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          deleted_at TIMESTAMP
+        );
+      `,
+
+      TrialParameterTemplates: `
+        CREATE TABLE IF NOT EXISTS TrialParameterTemplates (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          project_id UUID NOT NULL REFERENCES Projects(id) ON DELETE CASCADE,
+          workspace_id UUID NOT NULL REFERENCES Workspace(id),
+          columns JSONB NOT NULL,
+          created_by UUID NOT NULL REFERENCES Users(id),
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(project_id, workspace_id)
         );
       `,
 
@@ -239,6 +273,7 @@ export class DatabaseSetup {
         CREATE TABLE IF NOT EXISTS Samples (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
           project_id UUID NOT NULL REFERENCES Projects(id) ON DELETE CASCADE,
+          trial_id UUID REFERENCES Trials(id) ON DELETE SET NULL,
           stage_id UUID REFERENCES ProjectStages(id) ON DELETE SET NULL,
           workspace_id UUID NOT NULL REFERENCES Workspace(id),
           sample_id VARCHAR(100) NOT NULL,
@@ -900,6 +935,21 @@ export class DatabaseSetup {
         }
         workspaceId = existing.rows[0].id;
         console.log('✅ Admin workspace already exists:', workspaceId);
+      }
+
+      // Create default internal organization for the workspace
+      console.log('🏢 Creating default internal organization...');
+      const orgResult = await this.pool.query(`
+        INSERT INTO Organizations (workspace_id, name, type)
+        VALUES ($1, $2, $3::org_type)
+        ON CONFLICT DO NOTHING
+        RETURNING id
+      `, [workspaceId, 'Default Internal Lab', 'analyzer']);
+      
+      if (orgResult.rows.length > 0) {
+        console.log('✅ Default organization created:', orgResult.rows[0].id);
+      } else {
+        console.log('✅ Default organization already exists');
       }
 
       // Create superadmin user

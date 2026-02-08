@@ -10,7 +10,7 @@ import { Pool, QueryResult } from 'pg';
 import logger from '../utils/logger';
 
 // Migration version - increment when adding new migrations
-const MIGRATIONS_VERSION = '008';
+const MIGRATIONS_VERSION = '012';
 
 /**
  * Migration definition
@@ -40,6 +40,110 @@ const migrations: Migration[] = [
         );
       `);
       logger.info('✅ Created schema_migrations table');
+    }
+  },
+
+  {
+    id: '009',
+    name: 'add_projects_workflow_mode',
+    description: 'Add workflow_mode column to Projects table to support trial-first or analysis-first journeys',
+    up: async (pool: Pool) => {
+      try {
+        await pool.query(`
+          ALTER TABLE IF EXISTS projects
+          ADD COLUMN IF NOT EXISTS workflow_mode VARCHAR(50) DEFAULT 'trial_first';
+        `);
+        logger.info('✅ Added workflow_mode to Projects table');
+      } catch (err) {
+        logger.error('Error adding workflow_mode to Projects', { error: (err as Error).message });
+        throw err;
+      }
+    }
+  },
+
+  {
+    id: '010',
+    name: 'add_trials_and_sample_trial_id',
+    description: 'Create Trials table and add trial_id to Samples for experiment-driven workflows',
+    up: async (pool: Pool) => {
+      try {
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS trials (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            workspace_id UUID NOT NULL REFERENCES workspace(id),
+            name VARCHAR(255) NOT NULL,
+            objective TEXT,
+            parameters TEXT,
+            equipment TEXT,
+            notes TEXT,
+            status VARCHAR(50) DEFAULT 'planned',
+            performed_at DATE,
+            created_by UUID NOT NULL REFERENCES users(id),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            deleted_at TIMESTAMP
+          );
+        `);
+
+        await pool.query(`
+          ALTER TABLE IF EXISTS samples
+          ADD COLUMN IF NOT EXISTS trial_id UUID REFERENCES trials(id) ON DELETE SET NULL;
+        `);
+
+        await pool.query(`
+          CREATE INDEX IF NOT EXISTS idx_trials_project ON trials(project_id);
+        `);
+
+        logger.info('✅ Added Trials table and trial_id column');
+      } catch (err) {
+        logger.error('Error adding Trials table', { error: (err as Error).message });
+        throw err;
+      }
+    }
+  },
+
+  {
+    id: '011',
+    name: 'add_trial_parameters_json',
+    description: 'Add parameters_json column to Trials for structured trial readings',
+    up: async (pool: Pool) => {
+      try {
+        await pool.query(`
+          ALTER TABLE IF EXISTS trials
+          ADD COLUMN IF NOT EXISTS parameters_json JSONB;
+        `);
+        logger.info('✅ Added parameters_json to Trials table');
+      } catch (err) {
+        logger.error('Error adding parameters_json to Trials', { error: (err as Error).message });
+        throw err;
+      }
+    }
+  },
+
+  {
+    id: '012',
+    name: 'add_trial_parameter_templates',
+    description: 'Add TrialParameterTemplates table for per-project trial column definitions',
+    up: async (pool: Pool) => {
+      try {
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS trial_parameter_templates (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            workspace_id UUID NOT NULL REFERENCES workspace(id),
+            columns JSONB NOT NULL,
+            created_by UUID NOT NULL REFERENCES users(id),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(project_id, workspace_id)
+          );
+        `);
+        logger.info('✅ Added trial_parameter_templates table');
+      } catch (err) {
+        logger.error('Error adding trial_parameter_templates', { error: (err as Error).message });
+        throw err;
+      }
     }
   },
 

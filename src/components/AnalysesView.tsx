@@ -77,22 +77,20 @@ export function AnalysesView({ user }: AnalysesViewProps) {
 
   const getStatusColor = (status: Analysis['status']) => {
     switch (status) {
-      case 'Completed': return 'default'
-      case 'In Progress': return 'secondary'
-      case 'Pending': return 'outline'
-      case 'Failed': return 'destructive'
-      case 'Cancelled': return 'destructive'
+      case 'completed': return 'default'
+      case 'in_progress': return 'secondary'
+      case 'pending': return 'outline'
+      case 'failed': return 'destructive'
       default: return 'outline'
     }
   }
 
   const getStatusDisplay = (status: Analysis['status']) => {
     switch (status) {
-      case 'In Progress': return 'In Progress'
-      case 'Pending': return 'Pending'
-      case 'Completed': return 'Completed'
-      case 'Failed': return 'Failed'
-      case 'Cancelled': return 'Cancelled'
+      case 'in_progress': return 'In Progress'
+      case 'pending': return 'Pending'
+      case 'completed': return 'Completed'
+      case 'failed': return 'Failed'
       default: return status
     }
   }

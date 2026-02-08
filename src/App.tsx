@@ -14,6 +14,7 @@ import { Navigation } from '@/components/Navigation'
 import { Dashboard } from '@/components/Dashboard'
 import { ProjectsView } from '@/components/ProjectsView'
 import { ProjectDetails } from '@/components/ProjectDetails'
+import { ProjectTrialsPage } from '@/components/ProjectTrialsPage'
 import { SamplesView } from '@/components/SamplesView'
 import { BatchesView } from '@/components/BatchesView'
 import { AnalysesView } from '@/components/AnalysesView'
@@ -92,7 +93,11 @@ function AppContent() {
     try {
       const response = await axiosInstance.get(`/projects`)
       // API returns { success, data, count } - extract the data array
-      setProjects(response.data.data || [])
+      const projectsData = response.data.data || []
+      setProjects(projectsData.map((project: any) => ({
+        ...project,
+        workflowMode: project.workflowMode ?? project.workflow_mode
+      })))
     } catch (error: any) {
       // Always set empty array on error to prevent crashes
       setProjects([])
@@ -200,6 +205,7 @@ function AppContent() {
             <Route path="/dashboard" element={<Dashboard user={currentUser} projects={projects || []} samples={samples || []} />} />
             <Route path="/projects" element={<ProjectsView user={currentUser} projects={projects || []} onProjectsChange={setProjects} />} />
             <Route path="/projects/:id" element={<ProjectDetails user={currentUser} />} />
+            <Route path="/projects/:projectId/trials" element={<ProjectTrialsPage user={currentUser} />} />
             <Route path="/projects/:projectId/create-stage" element={<CreateStagePage user={currentUser} />} />
             <Route path="/projects/:projectId/create-sample" element={<CreateSamplePage user={currentUser} />} />
             <Route path="/projects/:projectId/samples/:sampleId/create-analysis" element={<CreateAnalysisPage user={currentUser} />} />

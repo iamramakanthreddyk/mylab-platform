@@ -33,15 +33,16 @@ router.get('/', authenticate, async (req, res) => {
 // POST /api/projects - Create project
 router.post('/', authenticate, auditLog('create', 'project'), async (req, res) => {
   try {
-    const { name, description, clientOrgId, executingOrgId } = req.body;
+    const { name, description, clientOrgId, executingOrgId, workflowMode } = req.body;
     const workspaceId = req.user!.workspaceId;
     const createdBy = req.user!.id;
+    const workflow_mode = workflowMode || 'trial_first';
 
     const result = await pool.query(`
-      INSERT INTO Projects (workspace_id, name, description, client_org_id, executing_org_id, created_by)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO Projects (workspace_id, name, description, client_org_id, executing_org_id, workflow_mode, created_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
-    `, [workspaceId, name, description, clientOrgId, executingOrgId, createdBy]);
+    `, [workspaceId, name, description, clientOrgId, executingOrgId, workflow_mode, createdBy]);
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -79,15 +80,19 @@ router.get('/:id', authenticate, requireObjectAccess('project'), async (req, res
 router.put('/:id', authenticate, requireObjectAccess('project', 'processor'), auditLog('update', 'project'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, status } = req.body;
+    const { name, description, status, workflowMode } = req.body;
     const workspaceId = req.user!.workspaceId;
 
     const result = await pool.query(`
       UPDATE Projects
-      SET name = $1, description = $2, status = $3, updated_at = NOW()
-      WHERE id = $4 AND workspace_id = $5
+      SET name = COALESCE($1, name),
+          description = COALESCE($2, description),
+          status = COALESCE($3, status),
+          workflow_mode = COALESCE($4, workflow_mode),
+          updated_at = NOW()
+      WHERE id = $5 AND workspace_id = $6
       RETURNING *
-    `, [name, description, status, id, workspaceId]);
+    `, [name, description, status, workflowMode, id, workspaceId]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Project not found' });

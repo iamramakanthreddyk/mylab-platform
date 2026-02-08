@@ -112,6 +112,7 @@ export interface Project {
   executingOrgId: string
   executingOrgName: string
   status: 'Planning' | 'Active' | 'On Hold' | 'Completed' | 'Archived'
+  workflowMode?: 'analysis_first' | 'trial_first'
   createdBy: string
   createdAt: string
   updatedAt: string
@@ -121,6 +122,7 @@ export interface Sample {
   id: string
   project_id: string
   workspace_id: string
+  trial_id?: string | null
   projectStageId?: string | null // Updated to match component usage
   name: string // Added name property
   sample_id: string
@@ -137,6 +139,24 @@ export interface Sample {
   created_at: string
   updated_at: string
   deleted_at?: string | null
+}
+
+export interface Trial {
+  id: string
+  project_id: string
+  workspace_id: string
+  name: string
+  objective?: string
+  parameters?: string
+  parameters_json?: Record<string, string | number> | null
+  equipment?: string
+  notes?: string
+  status: 'planned' | 'running' | 'completed'
+  performed_at?: string
+  created_by: string
+  created_at: string
+  updated_at: string
+  deleted_at?: string
 }
 
 export interface AnalysisReport {
@@ -287,6 +307,7 @@ export interface Batch {
   completedAt?: string
   createdAt: string
   updatedAt: string
+  sampleCount?: number
 }
 
 export interface BatchItem {
@@ -330,8 +351,8 @@ export interface Analysis {
   conclusions?: string
   
   // Status and execution
-  status: 'Pending' | 'In Progress' | 'Completed' | 'Failed' | 'Cancelled'
-  execution_mode: 'internal' | 'external'
+  status: 'pending' | 'in_progress' | 'completed' | 'failed'
+  execution_mode: 'platform' | 'external'
   external_lab?: string
   integrity_check: 'passed' | 'warning' | 'failed'
   

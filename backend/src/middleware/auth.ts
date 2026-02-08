@@ -216,7 +216,24 @@ export const auditLog = (action: string, objectType: string) =>
       // Log after response is sent
       if (req.user) {
         try {
-          const objectId = req.params.id || req.body.id || null;
+          let objectId = req.params.id || req.body.id || null;
+
+          if (!objectId && data) {
+            let payload: any = data;
+            if (typeof data === 'string') {
+              try {
+                payload = JSON.parse(data);
+              } catch {
+                payload = null;
+              }
+            }
+
+            objectId = payload?.data?.id || payload?.id || null;
+          }
+
+          if (!objectId) {
+            return originalSend.call(this, data);
+          }
           pool.query(`
             INSERT INTO AuditLog (object_type, object_id, action, actor_id, actor_workspace, actor_org_id, details, ip_address, user_agent)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)

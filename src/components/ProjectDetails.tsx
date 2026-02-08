@@ -5,10 +5,13 @@ import { User, Project, Sample } from '@/lib/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   ArrowLeft, 
   Flask, 
   ChartBar, 
+  TestTube,
   FolderOpen, 
   Users, 
   FileText,
@@ -44,7 +47,14 @@ export function ProjectDetails({ user }: ProjectDetailsProps) {
   const [samples, setSamples] = useState<Sample[]>([])
   const [stages, setStages] = useState<Stage[]>([])
   const [analyses, setAnalyses] = useState<any[]>([])
+  const [trials, setTrials] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [workflowMode, setWorkflowMode] = useState<NonNullable<Project['workflowMode']>>('trial_first')
+  const [isWorkflowUpdating, setIsWorkflowUpdating] = useState(false)
+  const isTrialFirst = workflowMode === 'trial_first'
+  const progressPercent = isTrialFirst
+    ? Math.round((trials.length > 0 ? 30 : 0) + (samples.length > 0 ? 30 : 0) + (analyses.length > 0 ? 40 : 0))
+    : Math.round(((samples.length > 0 ? 25 : 0) + (stages.length > 0 ? 25 : 0) + (analyses.length > 0 ? 50 : 0)) * 1)
 
   useEffect(() => {
     if (id) {
@@ -52,15 +62,28 @@ export function ProjectDetails({ user }: ProjectDetailsProps) {
         fetchProjectDetails(),
         fetchProjectSamples(),
         fetchProjectStages(),
-        fetchProjectAnalyses()
+        fetchProjectAnalyses(),
+        fetchProjectTrials()
       ])
     }
   }, [id])
 
+  useEffect(() => {
+    if (project?.workflowMode) {
+      setWorkflowMode(project.workflowMode)
+    } else {
+      setWorkflowMode('trial_first')
+    }
+  }, [project])
+
   const fetchProjectDetails = async () => {
     try {
       const response = await axiosInstance.get(`/projects/${id}`)
-      setProject(response.data.data || response.data)
+      const projectData = response.data.data || response.data
+      setProject({
+        ...projectData,
+        workflowMode: projectData.workflowMode ?? projectData.workflow_mode
+      })
     } catch (error: any) {
       console.error('Failed to fetch project:', error)
       toast.error('Failed to load project details')
@@ -97,6 +120,38 @@ export function ProjectDetails({ user }: ProjectDetailsProps) {
     } catch (error) {
       console.error('Failed to fetch analyses:', error)
       setAnalyses([])
+    }
+  }
+
+  const fetchProjectTrials = async () => {
+    try {
+      const response = await axiosInstance.get(`/projects/${id}/trials`)
+      setTrials(response.data.data || [])
+    } catch (error) {
+      console.error('Failed to fetch trials:', error)
+      setTrials([])
+    }
+  }
+
+  const handleUpdateWorkflow = async () => {
+    if (!id) {
+      return
+    }
+
+    setIsWorkflowUpdating(true)
+    try {
+      const response = await axiosInstance.put(`/projects/${id}`, { workflowMode })
+      const updatedProject = response.data.data || response.data
+      setProject({
+        ...updatedProject,
+        workflowMode: updatedProject.workflowMode ?? updatedProject.workflow_mode
+      })
+      toast.success('Project workflow updated')
+    } catch (error: any) {
+      console.error('Failed to update workflow:', error)
+      toast.error(error.response?.data?.error || 'Failed to update workflow')
+    } finally {
+      setIsWorkflowUpdating(false)
     }
   }
 
@@ -202,6 +257,41 @@ export function ProjectDetails({ user }: ProjectDetailsProps) {
           </div>
         </div>
 
+        <Card className="border border-slate-200">
+          <CardHeader>
+            <CardTitle className="text-lg">Project Workflow</CardTitle>
+            <CardDescription>Choose the journey this project should follow</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-end">
+              <div className="space-y-2">
+                <Label htmlFor="workflowMode">Workflow Mode</Label>
+                <Select
+                  value={workflowMode}
+                  onValueChange={(value) => setWorkflowMode(value as NonNullable<Project['workflowMode']>)}
+                >
+                  <SelectTrigger id="workflowMode">
+                    <SelectValue placeholder="Select workflow" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="trial_first">Trial-first (Flow chemistry)</SelectItem>
+                    <SelectItem value="analysis_first">Analysis-first (QC / Routine analysis)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                onClick={handleUpdateWorkflow}
+                disabled={isWorkflowUpdating || workflowMode === (project?.workflowMode || 'trial_first')}
+              >
+                {isWorkflowUpdating ? 'Saving...' : 'Save Workflow'}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Trial-first starts with experiments and then selects samples for analysis. Analysis-first goes directly to sample analysis.
+            </p>
+          </CardContent>
+        </Card>
+
         {/* Research Journey Workflow */}
         <div className="space-y-8">
           {/* Progress Overview */}
@@ -211,12 +301,14 @@ export function ProjectDetails({ user }: ProjectDetailsProps) {
                 <div>
                   <CardTitle className="text-xl text-blue-900">Research Journey</CardTitle>
                   <CardDescription className="text-blue-700">
-                    Track your progress through the complete research workflow
+                    {isTrialFirst
+                      ? 'Track experiments, samples, and analysis in a trial-first workflow'
+                      : 'Track your progress through the complete research workflow'}
                   </CardDescription>
                 </div>
                 <div className="text-right">
                   <div className="text-2xl font-bold text-blue-900">
-                    {Math.round(((samples.length > 0 ? 25 : 0) + (stages.length > 0 ? 25 : 0) + (analyses.length > 0 ? 50 : 0)) * 1)}%
+                    {progressPercent}%
                   </div>
                   <div className="text-xs text-blue-700">Complete</div>
                 </div>
@@ -224,40 +316,53 @@ export function ProjectDetails({ user }: ProjectDetailsProps) {
             </CardHeader>
           </Card>
 
-          {/* Step 1: Project Setup */}
-          <Card className={`transition-all ${stages.length === 0 ? 'ring-2 ring-blue-200 bg-blue-50/30' : 'bg-green-50/30 border-green-200'}`}>
+          {/* Step 1: Workflow Start */}
+          <Card className={`transition-all ${isTrialFirst ? (trials.length === 0 ? 'ring-2 ring-blue-200 bg-blue-50/30' : 'bg-green-50/30 border-green-200') : (stages.length === 0 ? 'ring-2 ring-blue-200 bg-blue-50/30' : 'bg-green-50/30 border-green-200')}`}>
             <CardHeader>
               <div className="flex items-center gap-4">
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                  stages.length > 0 ? 'bg-green-500 text-white' : 'bg-blue-500 text-white'
+                  (isTrialFirst ? trials.length > 0 : stages.length > 0) ? 'bg-green-500 text-white' : 'bg-blue-500 text-white'
                 }`}>
-                  {stages.length > 0 ? (
+                  {(isTrialFirst ? trials.length > 0 : stages.length > 0) ? (
                     <span className="text-lg font-bold">✓</span>
                   ) : (
                     <span className="text-lg font-bold">1</span>
                   )}
                 </div>
                 <div className="flex-1">
-                  <CardTitle className="text-lg">Step 1: Setup & Organization</CardTitle>
+                  <CardTitle className="text-lg">
+                    {isTrialFirst ? 'Step 1: Trial Log' : 'Step 1: Setup & Organization'}
+                  </CardTitle>
                   <CardDescription>
-                    {stages.length === 0 
-                      ? 'Optional: Create stages to organize your research workflow'
-                      : `${stages.length} workflow stages created`}
+                    {isTrialFirst
+                      ? (trials.length === 0 ? 'Create your first experiment trial' : `${trials.length} trials recorded`)
+                      : (stages.length === 0 ? 'Optional: Create stages to organize your research workflow' : `${stages.length} workflow stages created`)}
                   </CardDescription>
                 </div>
                 <div className="flex gap-2">
-                  <Button 
-                    onClick={() => navigate(`/projects/${id}/create-stage`)} 
-                    variant={stages.length === 0 ? 'default' : 'outline'}
-                    className="gap-2"
-                  >
-                    <Plus size={16} />
-                    {stages.length === 0 ? 'Create First Stage' : 'Add Stage'}
-                  </Button>
+                  {isTrialFirst ? (
+                    <Button
+                      onClick={() => navigate(`/projects/${id}/trials`)}
+                      variant={trials.length === 0 ? 'default' : 'outline'}
+                      className="gap-2"
+                    >
+                      <Plus size={16} />
+                      {trials.length === 0 ? 'Create First Trial' : 'Go to Trials'}
+                    </Button>
+                  ) : (
+                    <Button 
+                      onClick={() => navigate(`/projects/${id}/create-stage`)} 
+                      variant={stages.length === 0 ? 'default' : 'outline'}
+                      className="gap-2"
+                    >
+                      <Plus size={16} />
+                      {stages.length === 0 ? 'Create First Stage' : 'Add Stage'}
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardHeader>
-            {stages.length > 0 && (
+            {!isTrialFirst && stages.length > 0 && (
               <CardContent>
                 <div className="grid gap-3">
                   {stages.slice(0, 3).map((stage, index) => (
@@ -279,9 +384,29 @@ export function ProjectDetails({ user }: ProjectDetailsProps) {
                 </div>
               </CardContent>
             )}
+            {isTrialFirst && trials.length > 0 && (
+              <CardContent>
+                <div className="grid gap-3">
+                  {trials.slice(0, 3).map((trial) => (
+                    <div key={trial.id} className="flex items-center gap-3 p-3 bg-white rounded-lg border">
+                      <TestTube size={18} className="text-blue-500" />
+                      <div className="flex-1">
+                        <p className="font-medium">{trial.name}</p>
+                        <p className="text-sm text-muted-foreground">{trial.status}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {trials.length > 3 && (
+                    <p className="text-sm text-muted-foreground text-center py-2">
+                      +{trials.length - 3} more trials...
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            )}
           </Card>
 
-          {/* Step 2: Sample Collection */}
+          {/* Step 2: Samples */}
           <Card className={`transition-all ${samples.length === 0 ? 'ring-2 ring-blue-200 bg-blue-50/30' : 'bg-green-50/30 border-green-200'}`}>
             <CardHeader>
               <div className="flex items-center gap-4">
@@ -295,22 +420,35 @@ export function ProjectDetails({ user }: ProjectDetailsProps) {
                   )}
                 </div>
                 <div className="flex-1">
-                  <CardTitle className="text-lg">Step 2: Sample Collection & Trials</CardTitle>
+                  <CardTitle className="text-lg">Step 2: Samples</CardTitle>
                   <CardDescription>
                     {samples.length === 0 
-                      ? 'Add samples to begin your research work'
-                      : `${samples.length} samples collected with experimental data`}
+                      ? isTrialFirst
+                        ? 'Create samples from your trial outputs'
+                        : 'Add samples to begin your research work'
+                      : `${samples.length} samples collected`}
                   </CardDescription>
                 </div>
                 <div className="flex gap-2">
-                  <Button 
-                    onClick={() => navigate(`/projects/${id}/create-sample`)} 
-                    variant={samples.length === 0 ? 'default' : 'outline'}
-                    className="gap-2"
-                  >
-                    <Plus size={16} />
-                    {samples.length === 0 ? 'Add First Sample' : 'Add Sample'}
-                  </Button>
+                  {isTrialFirst ? (
+                    <Button 
+                      onClick={() => navigate(`/projects/${id}/trials`)} 
+                      variant={samples.length === 0 ? 'default' : 'outline'}
+                      className="gap-2"
+                    >
+                      <Plus size={16} />
+                      {samples.length === 0 ? 'Add Samples from Trials' : 'Go to Trials'}
+                    </Button>
+                  ) : (
+                    <Button 
+                      onClick={() => navigate(`/projects/${id}/create-sample`)} 
+                      variant={samples.length === 0 ? 'default' : 'outline'}
+                      className="gap-2"
+                    >
+                      <Plus size={16} />
+                      {samples.length === 0 ? 'Add First Sample' : 'Add Sample'}
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardHeader>
@@ -318,22 +456,19 @@ export function ProjectDetails({ user }: ProjectDetailsProps) {
               <CardContent>
                 <div className="grid gap-3">
                   {samples.slice(0, 4).map((sample) => {
-                    const trialsCount = sample.trials?.length || 0
-                    const successfulTrials = sample.trials?.filter(t => t.success).length || 0
+                    const linkedTrial = trials.find(trial => trial.id === sample.trial_id)
                     
                     return (
                       <div key={sample.id} className="flex items-center gap-3 p-3 bg-white rounded-lg border">
                         <Flask size={20} className="text-blue-500" />
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
-                            <p className="font-medium">{sample.name}</p>
+                            <p className="font-medium">{sample.sample_id || sample.name}</p>
                             <Badge variant="secondary">{sample.status}</Badge>
                           </div>
                           <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
-                            <span>{sample.sample_id}</span>
-                            {trialsCount > 0 && (
-                              <span>🧪 {successfulTrials}/{trialsCount} trials successful</span>
-                            )}
+                            {sample.description && <span>{sample.description}</span>}
+                            {linkedTrial && <span>🧪 {linkedTrial.name}</span>}
                           </div>
                         </div>
                         <Button
@@ -380,7 +515,9 @@ export function ProjectDetails({ user }: ProjectDetailsProps) {
                   <CardDescription>
                     {analyses.length === 0 
                       ? samples.length > 0
-                        ? 'Ready to analyze your samples - choose analysis methods'
+                        ? isTrialFirst
+                          ? 'Move trial samples into analysis to begin testing'
+                          : 'Ready to analyze your samples - choose analysis methods'
                         : 'Analysis will be available after adding samples'
                       : `${analyses.length} analyses completed or in progress`}
                   </CardDescription>
@@ -402,8 +539,8 @@ export function ProjectDetails({ user }: ProjectDetailsProps) {
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
                           <p className="font-medium">{analysis.description || 'Analysis'}</p>
-                          <Badge variant={analysis.status === 'Completed' ? 'default' : 'secondary'}>
-                            {analysis.status}
+                          <Badge variant={analysis.status === 'completed' ? 'default' : 'secondary'}>
+                            {analysis.status === 'in_progress' ? 'In Progress' : analysis.status}
                           </Badge>
                         </div>
                         <p className="text-sm text-muted-foreground mt-1">
@@ -463,13 +600,13 @@ export function ProjectDetails({ user }: ProjectDetailsProps) {
                     </div>
                     <div>
                       <p className="text-muted-foreground">Analyses Complete</p>
-                      <p className="font-semibold">{analyses.filter(a => a.status === 'Completed').length}/{analyses.length}</p>
+                      <p className="font-semibold">{analyses.filter(a => a.status === 'completed').length}/{analyses.length}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Success Rate</p>
                       <p className="font-semibold">
                         {analyses.length > 0 
-                          ? Math.round((analyses.filter(a => a.status === 'Completed').length / analyses.length) * 100)
+                          ? Math.round((analyses.filter(a => a.status === 'completed').length / analyses.length) * 100)
                           : 0}%
                       </p>
                     </div>
@@ -487,21 +624,32 @@ export function ProjectDetails({ user }: ProjectDetailsProps) {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {isTrialFirst ? (
+                  <Button 
+                    onClick={() => navigate(`/projects/${id}/trials`)} 
+                    variant="ghost" 
+                    className="h-auto flex-col gap-2 p-4"
+                  >
+                    <TestTube size={20} className="text-blue-500" />
+                    <span className="text-sm">Trial Log</span>
+                  </Button>
+                ) : (
+                  <Button 
+                    onClick={() => navigate(`/projects/${id}/create-stage`)} 
+                    variant="ghost" 
+                    className="h-auto flex-col gap-2 p-4"
+                  >
+                    <Folder size={20} className="text-blue-500" />
+                    <span className="text-sm">Add Stage</span>
+                  </Button>
+                )}
                 <Button 
-                  onClick={() => navigate(`/projects/${id}/create-stage`)} 
-                  variant="ghost" 
-                  className="h-auto flex-col gap-2 p-4"
-                >
-                  <Folder size={20} className="text-blue-500" />
-                  <span className="text-sm">Add Stage</span>
-                </Button>
-                <Button 
-                  onClick={() => navigate(`/projects/${id}/create-sample`)} 
+                  onClick={() => navigate(isTrialFirst ? `/projects/${id}/trials` : `/projects/${id}/create-sample`)} 
                   variant="ghost" 
                   className="h-auto flex-col gap-2 p-4"
                 >
                   <Flask size={20} className="text-green-500" />
-                  <span className="text-sm">Add Sample</span>
+                  <span className="text-sm">{isTrialFirst ? 'Add Samples' : 'Add Sample'}</span>
                 </Button>
                 <Button 
                   variant="ghost" 

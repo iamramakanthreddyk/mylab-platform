@@ -6,6 +6,9 @@ import Joi from 'joi';
 
 // ============ Request DTOs ============
 
+export const ANALYSIS_STATUS_VALUES = ['pending', 'in_progress', 'completed', 'failed'] as const;
+export const ANALYSIS_EXECUTION_MODES = ['platform', 'external'] as const;
+
 export interface ListAnalysesRequest {
   batchId?: string;
   executionMode?: string;
@@ -20,8 +23,8 @@ export interface CreateAnalysisRequest {
   filePath: string;
   fileChecksum: string;
   fileSizeBytes: number;
-  status?: string;
-  executionMode?: string;
+  status?: typeof ANALYSIS_STATUS_VALUES[number];
+  executionMode?: typeof ANALYSIS_EXECUTION_MODES[number];
   executedByOrgId: string;
   sourceOrgId: string;
   externalReference?: string;
@@ -29,7 +32,7 @@ export interface CreateAnalysisRequest {
 }
 
 export interface UpdateAnalysisRequest {
-  status?: string;
+  status?: typeof ANALYSIS_STATUS_VALUES[number];
   results?: Record<string, any>;
 }
 
@@ -63,8 +66,8 @@ export const createAnalysisSchema = Joi.object({
   filePath: Joi.string().required(),
   fileChecksum: Joi.string().required(),
   fileSizeBytes: Joi.number().positive().required(),
-  status: Joi.string().optional().default('pending'),
-  executionMode: Joi.string().optional().default('platform'),
+  status: Joi.string().lowercase().valid(...ANALYSIS_STATUS_VALUES).optional().default('pending'),
+  executionMode: Joi.string().lowercase().valid(...ANALYSIS_EXECUTION_MODES).optional().default('platform'),
   executedByOrgId: Joi.string().uuid().required(),
   sourceOrgId: Joi.string().uuid().required(),
   externalReference: Joi.string().optional(),
@@ -72,9 +75,9 @@ export const createAnalysisSchema = Joi.object({
 });
 
 export const updateAnalysisSchema = Joi.object({
-  status: Joi.string().optional(),
+  status: Joi.string().lowercase().valid(...ANALYSIS_STATUS_VALUES).optional(),
   results: Joi.object().optional()
-});
+}).min(1);
 
 // ============ Custom Error Classes ============
 

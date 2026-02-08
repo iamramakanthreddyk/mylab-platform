@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import axiosInstance from '@/lib/axiosConfig'
 import { transformAnalysisForAPI } from '@/lib/analysisTransformer'
+import { transformDerivedSampleForAPI } from '@/lib/endpointTransformers'
 import { Sample, Analysis, AnalysisType, User } from '@/lib/types'
+import { CreateDerivedSampleDialog } from '@/components/CreateDerivedSampleDialog'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -35,12 +37,14 @@ export function CreateAnalysisPage({ user }: CreateAnalysisPageProps) {
   const navigate = useNavigate()
   const { projectId, sampleId } = useParams()
   const [sample, setSample] = useState<Sample | null>(null)
+  const [derivedSamples, setDerivedSamples] = useState<any[]>([])
   const [analysisTypes, setAnalysisTypes] = useState<AnalysisType[]>([])
   const [users, setUsers] = useState<WorkspaceUser[]>([])
   const [organizations, setOrganizations] = useState<any[]>([])
   const [handoffType, setHandoffType] = useState<string>('analysis_only')
   const [isLoading, setIsLoading] = useState(false)
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
+  const [isDerivedDialogOpen, setIsDerivedDialogOpen] = useState(false)
 
   const [analysis, setAnalysis] = useState<Partial<Analysis>>({
     type_id: '',
@@ -49,11 +53,11 @@ export function CreateAnalysisPage({ user }: CreateAnalysisPageProps) {
     parameters: '',
     performed_by: '',
     performed_date: new Date().toISOString().split('T')[0],
-    status: 'Pending',
+    status: 'pending',
     results: '',
     conclusions: '',
     external_lab: '',
-    execution_mode: 'internal',
+    execution_mode: 'platform',
     integrity_check: 'passed',
     notes: ''
   })
@@ -71,10 +75,67 @@ export function CreateAnalysisPage({ user }: CreateAnalysisPageProps) {
     try {
       const response = await axiosInstance.get(`/samples/${sampleId}`)
       setSample(response.data.data)
+      if (response.data.data?.id) {
+        fetchDerivedSamples(response.data.data.id)
+      }
     } catch (error) {
       console.error('Failed to fetch sample:', error)
       toast.error('Failed to load sample')
       navigate(`/projects/${projectId}`)
+    }
+  }
+
+  const fetchDerivedSamples = async (parentSampleId: string) => {
+    try {
+      const response = await axiosInstance.get(
+        `/samples/${user.workspaceId}/${parentSampleId}/derived`
+      )
+      setDerivedSamples(response.data.data || [])
+    } catch (error) {
+      console.error('Failed to fetch derived samples:', error)
+      setDerivedSamples([])
+    }
+  }
+
+  const createDerivedFromRawSample = async () => {
+    if (!sample) {
+      return
+    }
+
+    try {
+      // Generate a unique sequential derived sample ID
+      const existingDerivedNumbers = derivedSamples
+        .map(ds => {
+          const match = ds.name?.match(/-D(\d+)$/) || ds.derived_id?.match(/-D(\d+)$/)
+          return match ? parseInt(match[1], 10) : 0
+        })
+        .filter(n => n > 0)
+      
+      const nextNumber = existingDerivedNumbers.length > 0 
+        ? Math.max(...existingDerivedNumbers) + 1 
+        : 1
+      
+      const derivedId = `${sample.sample_id}-D${nextNumber}`
+      const derivedPayload = transformDerivedSampleForAPI({
+        parentId: sample.id,
+        derivedId,
+        description: `Auto-created for direct analysis (as-received from raw sample)`,
+        derivation_method: 'as_received'
+      })
+
+      await axiosInstance.post(
+        `/samples/${user.workspaceId}/${sample.id}/derived`,
+        derivedPayload
+      )
+
+      await fetchDerivedSamples(sample.id)
+      toast.success(`Derived sample ${derivedId} created - ready for analysis`)
+    } catch (error: any) {
+      console.error('Failed to auto-create derived sample:', error)
+      const errorMessage = error.response?.data?.details 
+        ? Object.values(error.response.data.details).join(', ')
+        : error.response?.data?.error?.message || 'Failed to create derived sample'
+      toast.error(errorMessage)
     }
   }
 
@@ -165,13 +226,38 @@ export function CreateAnalysisPage({ user }: CreateAnalysisPageProps) {
     try {
       // Step 1: Create batch first (if sample exists, add it to batch)
       let batchId: string;
+      const sampleId = sample?.id;
+
+      if (!sampleId) {
+        toast.error('Sample is required to create a batch')
+        setIsLoading(false)
+        return
+      }
+
+      const derivedSampleId = derivedSamples.length > 0 ? derivedSamples[0].id : null
+
+      if (!derivedSampleId) {
+        toast.error(
+          'Analysis batches require derived samples. Create a derived sample first, then start the analysis.'
+        )
+        setIsLoading(false)
+        return
+      }
+
+      const generatedBatchId = `BATCH-${Date.now().toString(36).slice(-6).toUpperCase()}`
+      const batchDescription = analysis.description?.trim()
+        ? analysis.description
+        : 'Batch created for analysis'
       
       try {
         const batchResponse = await axiosInstance.post('/batches', {
-          sampleIds: sample?.id ? [sample.id] : [],
+          batchId: generatedBatchId,
+          description: batchDescription,
+          executionMode: 'platform',
+          sampleIds: [derivedSampleId],
           parameters: {
             analysisType: analysis.type_id,
-            description: analysis.description
+            analysisDescription: analysis.description
           }
         })
         batchId = batchResponse.data.data?.id || batchResponse.data.data?.batchId
@@ -263,6 +349,49 @@ export function CreateAnalysisPage({ user }: CreateAnalysisPageProps) {
                   <CardDescription>Configure the analysis type and methodology</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
+                  {derivedSamples.length === 0 ? (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-5 py-4">
+                      <div className="mb-2 text-sm font-semibold text-amber-900">
+                        Derived sample required for analysis
+                      </div>
+                      <div className="mb-4 text-sm text-amber-900">
+                        Analysis workflows require a derived sample. Choose one option below:
+                      </div>
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <Button
+                          type="button"
+                          onClick={createDerivedFromRawSample}
+                          className="gap-2"
+                        >
+                          <span>⚡</span>
+                          Quick Start: Analyze As-Received
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setIsDerivedDialogOpen(true)}
+                          className="gap-2"
+                        >
+                          <Plus size={16} />
+                          Custom Derived Sample
+                        </Button>
+                      </div>
+                      <div className="mt-3 text-xs text-amber-800 bg-amber-100 rounded px-3 py-2">
+                        <strong>Quick Start:</strong> Creates an "as-received" derived sample automatically for immediate analysis.
+                        <br />
+                        <strong>Custom:</strong> Manually create a derived sample with specific preparation methods.
+                      </div>
+                    </div>
+                  ) : (
+                  <>
+                  <div className="text-sm text-muted-foreground">
+                    Derived sample: <span className="font-medium text-foreground">
+                      {derivedSamples[0]?.name || derivedSamples[0]?.derived_id || derivedSamples[0]?.id}
+                    </span>
+                    {derivedSamples[0]?.description && (
+                      <span className="ml-2">- {derivedSamples[0].description}</span>
+                    )}
+                  </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="type">Analysis Type *</Label>
@@ -300,11 +429,10 @@ export function CreateAnalysisPage({ user }: CreateAnalysisPageProps) {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="Pending">⏳ Pending</SelectItem>
-                          <SelectItem value="In Progress">🔄 In Progress</SelectItem>
-                          <SelectItem value="Completed">✅ Completed</SelectItem>
-                          <SelectItem value="Failed">❌ Failed</SelectItem>
-                          <SelectItem value="Cancelled">🚫 Cancelled</SelectItem>
+                            <SelectItem value="pending">⏳ Pending</SelectItem>
+                            <SelectItem value="in_progress">🔄 In Progress</SelectItem>
+                            <SelectItem value="completed">✅ Completed</SelectItem>
+                            <SelectItem value="failed">❌ Failed</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -396,7 +524,7 @@ export function CreateAnalysisPage({ user }: CreateAnalysisPageProps) {
                   </div>
 
                   {analysis.execution_mode === 'external' && (
-                    <Card className="bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-purple-200">
+                    <Card className="bg-linear-to-r from-purple-50 to-blue-50 border-2 border-purple-200">
                       <CardHeader>
                         <CardTitle className="text-lg text-purple-900 flex items-center gap-2">
                           <Buildings size={20} />
@@ -451,7 +579,7 @@ export function CreateAnalysisPage({ user }: CreateAnalysisPageProps) {
                         {analysis.external_lab && handoffType && (
                           <div className="bg-white rounded-lg border-2 border-dashed border-purple-300 p-4">
                             <div className="flex items-center gap-3 mb-4">
-                              <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-500 to-blue-500 text-white flex items-center justify-center font-bold">
+                              <div className="w-10 h-10 rounded-full bg-linear-to-r from-purple-500 to-blue-500 text-white flex items-center justify-center font-bold">
                                 {handoffType === 'analysis_only' && '🔬'}
                                 {handoffType === 'material_transfer' && '📦'}
                                 {handoffType === 'product_continuation' && '⚡'}
@@ -536,6 +664,8 @@ export function CreateAnalysisPage({ user }: CreateAnalysisPageProps) {
                         )}
                       </CardContent>
                     </Card>
+                  )}
+                  </>
                   )}
                 </CardContent>
               </Card>
@@ -639,7 +769,7 @@ export function CreateAnalysisPage({ user }: CreateAnalysisPageProps) {
                       <div className="grid grid-cols-1 gap-3">
                         {uploadedFiles.map((file) => (
                           <div key={file.id} className="flex items-center gap-3 p-3 border rounded-lg">
-                            <div className="flex-shrink-0">
+                            <div className="shrink-0">
                               {file.preview ? (
                                 <img 
                                   src={file.preview} 
@@ -663,7 +793,7 @@ export function CreateAnalysisPage({ user }: CreateAnalysisPageProps) {
                               variant="ghost"
                               size="sm"
                               onClick={() => removeFile(file.id)}
-                              className="text-red-600 hover:text-red-700 flex-shrink-0"
+                              className="text-red-600 hover:text-red-700 shrink-0"
                             >
                               <X size={16} />
                             </Button>
@@ -693,6 +823,14 @@ export function CreateAnalysisPage({ user }: CreateAnalysisPageProps) {
           </div>
         </form>
       </div>
+      {sample && (
+        <CreateDerivedSampleDialog
+          open={isDerivedDialogOpen}
+          onOpenChange={setIsDerivedDialogOpen}
+          parentSample={sample}
+          onSuccess={() => fetchDerivedSamples(sample.id)}
+        />
+      )}
     </div>
   )
 }

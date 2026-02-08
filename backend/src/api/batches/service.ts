@@ -52,9 +52,16 @@ export class BatchService {
           b.batch_id as "batchId",
           b.workspace_id as "workspaceId",
           b.original_workspace_id as "originalWorkspaceId",
+          COALESCE(b.description, '') as "description",
           b.parameters,
           b.status,
           b.execution_mode as "executionMode",
+          b.executed_by_org_id as "executedByOrgId",
+          b.external_reference as "externalReference",
+          b.performed_at as "performedAt",
+          b.created_by as "createdBy",
+          b.sent_at as "sentAt",
+          b.completed_at as "completedAt",
           b.created_at as "createdAt",
           b.updated_at as "updatedAt",
           COUNT(DISTINCT bi.id) as "sampleCount"
@@ -92,9 +99,16 @@ export class BatchService {
           b.batch_id as "batchId",
           b.workspace_id as "workspaceId",
           b.original_workspace_id as "originalWorkspaceId",
+          COALESCE(b.description, '') as "description",
           b.parameters,
           b.status,
           b.execution_mode as "executionMode",
+          b.executed_by_org_id as "executedByOrgId",
+          b.external_reference as "externalReference",
+          b.performed_at as "performedAt",
+          b.created_by as "createdBy",
+          b.sent_at as "sentAt",
+          b.completed_at as "completedAt",
           b.created_at as "createdAt",
           b.updated_at as "updatedAt",
           COUNT(DISTINCT bi.id) as "sampleCount"
@@ -130,37 +144,87 @@ export class BatchService {
     try {
       logger.info('Creating batch', { workspaceId, userId, sampleCount: data.sampleIds?.length || 0 });
 
+      // If organizationId is the workspace ID (fallback from controller), query for a real organization
+      let finalOrgId = organizationId;
+      if (organizationId === workspaceId) {
+        const orgResult = await pool.query(
+          `SELECT id FROM Organizations WHERE workspace_id = $1 LIMIT 1`,
+          [workspaceId]
+        );
+        
+        if (orgResult.rows.length === 0) {
+          // Auto-create a default internal organization for this workspace
+          logger.info('No organization found, creating default internal organization', { workspaceId });
+          const createOrgResult = await pool.query(
+            `
+            INSERT INTO Organizations (workspace_id, name, type)
+            VALUES ($1, $2, $3::org_type)
+            RETURNING id
+            `,
+            [workspaceId, 'Default Internal Lab', 'analyzer']
+          );
+          
+          if (createOrgResult.rows.length === 0) {
+            throw new Error(`Failed to create default organization for workspace ${workspaceId}`);
+          }
+          
+          finalOrgId = createOrgResult.rows[0].id;
+          logger.info('Default organization created', { finalOrgId, workspaceId });
+        } else {
+          finalOrgId = orgResult.rows[0].id;
+          logger.info('Using existing workspace organization for batch', { finalOrgId, workspaceId });
+        }
+      }
+
       // Generate batch ID (numeric format for compatibility)
-      const numericBatchId = `BATCH-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const generatedBatchId = `BATCH-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const batchId = data.batchId || generatedBatchId;
+      const executionMode = data.executionMode || 'platform';
+      const status = data.status || 'created';
+
+      if (executionMode === 'external' && !data.externalReference) {
+        throw new InvalidBatchDataError('externalReference is required for external execution');
+      }
 
       // Create batch - note: execution_mode and some fields hardcoded for internal batches
       const batchResult = await pool.query(
         `
         INSERT INTO Batches (
-          batch_id, workspace_id, original_workspace_id, parameters, status,
-          execution_mode, created_by, executed_by_org_id, created_at, updated_at
+          batch_id, workspace_id, original_workspace_id, description, parameters, status,
+          execution_mode, executed_by_org_id, external_reference, performed_at,
+          created_by, created_at, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
         RETURNING
           id,
           batch_id as "batchId",
           workspace_id as "workspaceId",
           original_workspace_id as "originalWorkspaceId",
+          description,
           parameters,
           status,
           execution_mode as "executionMode",
+          executed_by_org_id as "executedByOrgId",
+          external_reference as "externalReference",
+          performed_at as "performedAt",
+          created_by as "createdBy",
+          sent_at as "sentAt",
+          completed_at as "completedAt",
           created_at as "createdAt",
           updated_at as "updatedAt"
         `,
         [
-          numericBatchId,
+          batchId,
           workspaceId,
           workspaceId,
+          data.description,
           data.parameters || {},
-          'created',
-          'platform',
-          userId,
-          organizationId
+          status,
+          executionMode,
+          data.executedByOrgId || finalOrgId,
+          data.externalReference || null,
+          data.performedAt || null,
+          userId
         ]
       );
 
@@ -226,9 +290,51 @@ export class BatchService {
         paramIndex++;
       }
 
+      if (data.description) {
+        updates.push(`description = $${paramIndex}`);
+        values.push(data.description);
+        paramIndex++;
+      }
+
       if (data.parameters) {
         updates.push(`parameters = $${paramIndex}`);
-        values.push(JSON.stringify(data.parameters));
+        values.push(data.parameters);
+        paramIndex++;
+      }
+
+      if (data.executionMode) {
+        updates.push(`execution_mode = $${paramIndex}`);
+        values.push(data.executionMode);
+        paramIndex++;
+      }
+
+      if (data.executedByOrgId) {
+        updates.push(`executed_by_org_id = $${paramIndex}`);
+        values.push(data.executedByOrgId);
+        paramIndex++;
+      }
+
+      if (data.externalReference) {
+        updates.push(`external_reference = $${paramIndex}`);
+        values.push(data.externalReference);
+        paramIndex++;
+      }
+
+      if (data.performedAt) {
+        updates.push(`performed_at = $${paramIndex}`);
+        values.push(data.performedAt);
+        paramIndex++;
+      }
+
+      if (data.sentAt) {
+        updates.push(`sent_at = $${paramIndex}`);
+        values.push(data.sentAt);
+        paramIndex++;
+      }
+
+      if (data.completedAt) {
+        updates.push(`completed_at = $${paramIndex}`);
+        values.push(data.completedAt);
         paramIndex++;
       }
 

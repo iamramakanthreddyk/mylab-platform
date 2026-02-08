@@ -45,6 +45,52 @@ CREATE TABLE Projects (
   executing_org_id TEXT NOT NULL,
   name TEXT NOT NULL,
   description TEXT,
+  workflow_mode TEXT DEFAULT 'trial_first',
+  created_by TEXT NOT NULL,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  deleted_at TEXT
+);
+
+CREATE TABLE Trials (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  objective TEXT,
+  parameters TEXT,
+  parameters_json TEXT,
+  equipment TEXT,
+  notes TEXT,
+  status TEXT DEFAULT 'planned',
+  performed_at TEXT,
+  created_by TEXT NOT NULL,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  deleted_at TEXT
+);
+
+CREATE TABLE TrialParameterTemplates (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  columns TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(project_id, workspace_id)
+);
+
+CREATE TABLE Samples (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  trial_id TEXT,
+  workspace_id TEXT NOT NULL,
+  sample_id VARCHAR(100) NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT,
+  metadata TEXT,
+  status TEXT DEFAULT 'created',
   created_by TEXT NOT NULL,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP,

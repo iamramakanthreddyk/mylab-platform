@@ -34,15 +34,22 @@ export function ProjectsView({ user, projects, onProjectsChange }: ProjectsViewP
     clientOrgId: string
     executingOrgId: string
     status: Project['status']
+    workflowMode: NonNullable<Project['workflowMode']>
   }>({
     name: '',
     description: '',
     clientOrgId: '',
     executingOrgId: '',
     status: 'Planning',
+    workflowMode: 'trial_first',
   })
 
   const canManage = canManageProjects(user)
+
+  const normalizeProject = (project: any): Project => ({
+    ...project,
+    workflowMode: project.workflowMode ?? project.workflow_mode
+  })
 
   // Fetch organizations on mount
   useEffect(() => {
@@ -66,7 +73,7 @@ export function ProjectsView({ user, projects, onProjectsChange }: ProjectsViewP
       const response = await axiosInstance.post('/projects', transformedData)
 
       // API returns { success, data }
-      const createdProject = response.data.data || response.data
+      const createdProject = normalizeProject(response.data.data || response.data)
       onProjectsChange([...projects, createdProject])
       setIsDialogOpen(false)
       setNewProject({
@@ -75,6 +82,7 @@ export function ProjectsView({ user, projects, onProjectsChange }: ProjectsViewP
         clientOrgId: organizations[0]?.id || '',
         executingOrgId: organizations[1]?.id || organizations[0]?.id || '',
         status: 'Planning',
+        workflowMode: 'trial_first',
       })
       toast.success('Project created successfully')
     } catch (error: any) {
@@ -236,6 +244,24 @@ export function ProjectsView({ user, projects, onProjectsChange }: ProjectsViewP
                         <SelectItem value="On Hold">On Hold</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="workflow">Project Workflow</Label>
+                    <Select
+                      value={newProject.workflowMode}
+                      onValueChange={(val) => setNewProject({ ...newProject, workflowMode: val as NonNullable<Project['workflowMode']> })}
+                    >
+                      <SelectTrigger id="workflow">
+                        <SelectValue placeholder="Select workflow" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="trial_first">Trial-first (Flow chemistry)</SelectItem>
+                        <SelectItem value="analysis_first">Analysis-first (QC / Routine analysis)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Trial-first starts with experiments and then selects samples for analysis.
+                    </p>
                   </div>
                 </div>
                 <div className="flex justify-end gap-3">

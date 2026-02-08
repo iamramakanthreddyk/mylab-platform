@@ -1,5 +1,3 @@
-import { v4 as uuidv4 } from 'uuid';
-
 /**
  * Transform frontend Project data to API CreateProjectRequest format
  */
@@ -11,7 +9,8 @@ export function transformProjectForAPI(projectData: any): any {
     name: projectData.name,
     description: projectData.description || undefined,
     clientOrgId: projectData.clientOrgId,
-    executingOrgId: projectData.executingOrgId
+    executingOrgId: projectData.executingOrgId,
+    workflowMode: projectData.workflowMode
   };
 }
 
@@ -34,19 +33,22 @@ export function transformStageForAPI(stageData: any): any {
  * Transform frontend Batch data to API CreateBatchRequest format
  */
 export function transformBatchForAPI(batchData: any): any {
-  // Keep only sampleIds and parameters
-  // derivedSampleIds becomes sampleIds
   const sampleIds = batchData.derivedSampleIds || batchData.sampleIds || [];
-  
   const result: any = {
-    sampleIds: sampleIds
+    batchId: batchData.batchId,
+    description: batchData.description,
+    status: batchData.status,
+    executionMode: batchData.executionMode,
+    executedByOrgId: batchData.executedByOrgId,
+    externalReference: batchData.externalReference,
+    performedAt: batchData.performedAt,
+    sampleIds
   };
-  
-  // Only include parameters if provided and non-empty
+
   if (batchData.parameters && Object.keys(batchData.parameters).length > 0) {
     result.parameters = batchData.parameters;
   }
-  
+
   return result;
 }
 
@@ -78,6 +80,7 @@ export function transformSampleForAPI(sampleData: any): any {
     description: sampleData.description || undefined,
     type: sampleData.type || undefined,
     stageId: sampleData.stageId || sampleData.projectStageId || undefined,
+    trialId: sampleData.trialId || undefined,
     metadata: sampleData.metadata || undefined
   };
 }

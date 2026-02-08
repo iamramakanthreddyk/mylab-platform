@@ -16,12 +16,14 @@ export interface CreateProjectRequest {
   description?: string;
   clientOrgId: string;
   executingOrgId: string;
+  workflowMode?: 'analysis_first' | 'trial_first';
 }
 
 export interface UpdateProjectRequest {
   name?: string;
   description?: string;
   status?: 'active' | 'completed' | 'archived';
+  workflowMode?: 'analysis_first' | 'trial_first';
 }
 
 export interface GetProjectRequest {
@@ -41,6 +43,7 @@ export interface ProjectResponse {
   executingOrgId: string;
   executingOrgName: string;
   status: string;
+  workflowMode?: 'analysis_first' | 'trial_first';
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -99,6 +102,12 @@ export const createProjectSchema = Joi.object({
     .required()
     .messages({
       'string.guid': 'Executing organization ID must be a valid UUID'
+    }),
+  workflowMode: Joi.string()
+    .optional()
+    .valid('analysis_first', 'trial_first')
+    .messages({
+      'any.only': 'Workflow mode must be analysis_first or trial_first'
     })
 });
 
@@ -116,6 +125,12 @@ export const updateProjectSchema = Joi.object({
     .valid('active', 'completed', 'archived')
     .messages({
       'any.only': 'Status must be one of: active, completed, or archived'
+    }),
+  workflowMode: Joi.string()
+    .optional()
+    .valid('analysis_first', 'trial_first')
+    .messages({
+      'any.only': 'Workflow mode must be analysis_first or trial_first'
     })
 });
 
@@ -129,6 +144,7 @@ export interface ProjectModel {
   client_org_id: string;
   executing_org_id: string;
   status: string;
+  workflow_mode?: 'analysis_first' | 'trial_first';
   created_by: string;
   created_at: string;
   updated_at: string;

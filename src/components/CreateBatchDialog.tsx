@@ -11,7 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { ChartLine, TestTube } from '@phosphor-icons/react'
 import axiosInstance from '@/lib/axiosConfig'
 import { transformBatchForAPI } from '@/lib/endpointTransformers'
-import { DerivedSample, Organization, AnalysisType } from '@/lib/types'
+import { DerivedSample, Organization } from '@/lib/types'
 import { toast } from 'sonner'
 
 interface CreateBatchDialogProps {
@@ -28,7 +28,6 @@ export function CreateBatchDialog({
   onSuccess 
 }: CreateBatchDialogProps) {
   const [organizations, setOrganizations] = useState<Organization[]>([])
-  const [analysisTypes, setAnalysisTypes] = useState<AnalysisType[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [selectedSamples, setSelectedSamples] = useState<string[]>([])
   const [formData, setFormData] = useState({
@@ -38,14 +37,12 @@ export function CreateBatchDialog({
     executionMode: 'platform' as 'platform' | 'external',
     executedByOrgId: '',
     externalReference: '',
-    analysisTypeId: '',
     performedAt: new Date().toISOString().split('T')[0]
   })
 
   useEffect(() => {
     if (open) {
       fetchOrganizations()
-      fetchAnalysisTypes()
       setFormData(prev => ({
         ...prev,
         batchId: generateBatchId()
@@ -68,27 +65,6 @@ export function CreateBatchDialog({
       }
     } catch (error) {
       console.error('Failed to fetch organizations:', error)
-    }
-  }
-
-  const fetchAnalysisTypes = async () => {
-    try {
-      const response = await axiosInstance.get('/analysis-types')
-      const typesData = response.data.data || []
-      setAnalysisTypes(typesData)
-      if (typesData.length > 0) {
-        setFormData(prev => ({ ...prev, analysisTypeId: typesData[0].id }))
-      }
-    } catch (error) {
-      console.error('Failed to fetch analysis types:', error)
-      // Mock data if endpoint not available
-      const mockTypes = [
-        { id: '1', name: 'NMR', category: 'Spectroscopy', isActive: true, createdAt: '', updatedAt: '' },
-        { id: '2', name: 'HPLC', category: 'Chromatography', isActive: true, createdAt: '', updatedAt: '' },
-        { id: '3', name: 'GC-MS', category: 'Mass Spectrometry', isActive: true, createdAt: '', updatedAt: '' }
-      ]
-      setAnalysisTypes(mockTypes)
-      setFormData(prev => ({ ...prev, analysisTypeId: mockTypes[0].id }))
     }
   }
 
@@ -166,13 +142,10 @@ export function CreateBatchDialog({
       executionMode: 'platform',
       executedByOrgId: organizations[0]?.id || '',
       externalReference: '',
-      analysisTypeId: analysisTypes[0]?.id || '',
       performedAt: new Date().toISOString().split('T')[0]
     })
     setSelectedSamples([])
   }
-
-  const selectedAnalysisType = analysisTypes.find(t => t.id === formData.analysisTypeId)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -185,36 +158,15 @@ export function CreateBatchDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="batchId">Batch ID *</Label>
-              <Input
-                id="batchId"
-                value={formData.batchId}
-                onChange={(e) => setFormData({...formData, batchId: e.target.value})}
-                placeholder="e.g., BATCH-42"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="analysisType">Analysis Type *</Label>
-              <Select
-                value={formData.analysisTypeId}
-                onValueChange={(value) => setFormData({...formData, analysisTypeId: value})}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select analysis type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {analysisTypes.map((type) => (
-                    <SelectItem key={type.id} value={type.id}>
-                      {type.name} ({type.category})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="batchId">Batch ID *</Label>
+            <Input
+              id="batchId"
+              value={formData.batchId}
+              onChange={(e) => setFormData({...formData, batchId: e.target.value})}
+              placeholder="e.g., BATCH-42"
+              required
+            />
           </div>
 
           <div className="space-y-2">
@@ -223,7 +175,7 @@ export function CreateBatchDialog({
               id="description"
               value={formData.description}
               onChange={(e) => setFormData({...formData, description: e.target.value})}
-              placeholder={`Describe the ${selectedAnalysisType?.name} analysis purpose and goals...`}
+              placeholder="Describe the analysis purpose and goals..."
               required
               rows={3}
             />

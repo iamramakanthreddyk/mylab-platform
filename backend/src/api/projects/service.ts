@@ -33,6 +33,7 @@ export class ProjectService {
           p.client_org_id as "clientOrgId",
           p.executing_org_id as "executingOrgId",
           p.status,
+          p.workflow_mode as "workflowMode",
           p.created_by as "createdBy",
           p.created_at as "createdAt",
           p.updated_at as "updatedAt",
@@ -71,6 +72,7 @@ export class ProjectService {
           p.client_org_id as "clientOrgId",
           p.executing_org_id as "executingOrgId",
           p.status,
+          p.workflow_mode as "workflowMode",
           p.created_by as "createdBy",
           p.created_at as "createdAt",
           p.updated_at as "updatedAt",
@@ -129,12 +131,20 @@ export class ProjectService {
         `
         INSERT INTO projects (
           workspace_id, name, description, 
-          client_org_id, executing_org_id, created_by
+          client_org_id, executing_org_id, workflow_mode, created_by
         )
-        VALUES ($1, $2, $3, $4, $5, $6)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING *
         `,
-        [workspaceId, data.name, data.description || null, data.clientOrgId, data.executingOrgId, userId]
+        [
+          workspaceId,
+          data.name,
+          data.description || null,
+          data.clientOrgId,
+          data.executingOrgId,
+          data.workflowMode || 'trial_first',
+          userId
+        ]
       );
 
       const newProject = result.rows[0] as ProjectModel;
@@ -150,6 +160,7 @@ export class ProjectService {
           p.client_org_id as "clientOrgId",
           p.executing_org_id as "executingOrgId",
           p.status,
+          p.workflow_mode as "workflowMode",
           p.created_by as "createdBy",
           p.created_at as "createdAt",
           p.updated_at as "updatedAt",
@@ -211,6 +222,11 @@ export class ProjectService {
         values.push(data.status);
       }
 
+      if (data.workflowMode !== undefined) {
+        updates.push(`workflow_mode = $${paramIndex++}`);
+        values.push(data.workflowMode);
+      }
+
       if (updates.length === 0) {
         throw new InvalidProjectDataError('No fields to update');
       }
@@ -245,6 +261,7 @@ export class ProjectService {
           p.client_org_id as "clientOrgId",
           p.executing_org_id as "executingOrgId",
           p.status,
+          p.workflow_mode as "workflowMode",
           p.created_by as "createdBy",
           p.created_at as "createdAt",
           p.updated_at as "updatedAt",

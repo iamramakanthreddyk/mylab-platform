@@ -21,9 +21,11 @@ interface NavigationProps {
 
 export function Navigation({ user, onLogout }: NavigationProps) {
   const location = useLocation()
-  const currentView = location.pathname.slice(1) || 'dashboard'
+  const currentView = location.pathname.split('/')[1] || 'dashboard'
   const showSchema = canAccessSchema(user)
   const availableModules = getAvailableModules(user.role)
+    .filter(module => module.id !== 'login' && module.id !== 'notifications')
+  const showSupplyChain = user.role === 'Admin' || user.role === 'Manager'
 
   return (
     <div className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-50 shadow-sm">
@@ -54,16 +56,18 @@ export function Navigation({ user, onLogout }: NavigationProps) {
                 ))}
               
               {/* Supply Chain Collaboration - for inter-organizational workflows */}
-              <Link to="/supply-chain/collaboration">
-                <Button
-                  variant={currentView.startsWith('supply-chain') ? 'default' : 'ghost'}
-                  className="px-4 gap-2"
-                  title="Supply Chain Collaboration - Manage inter-organizational workflows and partnerships"
-                >
-                  <Buildings size={16} />
-                  Supply Chain
-                </Button>
-              </Link>
+              {showSupplyChain && (
+                <Link to="/supply-chain/collaboration">
+                  <Button
+                    variant={currentView.startsWith('supply-chain') ? 'default' : 'ghost'}
+                    className="px-4 gap-2"
+                    title="Supply Chain Collaboration - Manage inter-organizational workflows and partnerships"
+                  >
+                    <Buildings size={16} />
+                    Supply Chain
+                  </Button>
+                </Link>
+              )}
               
               {/* Users Management */}
               {(user.role === 'Admin' || user.role === 'Manager') && (

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import axiosInstance from '@/lib/axiosConfig'
-import { transformSampleForAPI } from '@/lib/endpointTransformers'
+import { transformDerivedSampleForAPI, transformSampleForAPI } from '@/lib/endpointTransformers'
 import { Project, ProjectStage, Sample, TrialData, User } from '@/lib/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -45,6 +45,7 @@ export function CreateSamplePage({ user }: CreateSamplePageProps) {
 
   const [trials, setTrials] = useState<TrialData[]>([])
   const [selectedTrialIds, setSelectedTrialIds] = useState<string[]>([])
+  const [derivedTrialIds, setDerivedTrialIds] = useState<string[]>([])
 
   useEffect(() => {
     if (projectId) {
@@ -109,13 +110,57 @@ export function CreateSamplePage({ user }: CreateSamplePageProps) {
   const removeTrial = (id: string) => {
     setTrials(trials.filter(trial => trial.id !== id))
     setSelectedTrialIds(selectedTrialIds.filter(tid => tid !== id))
+    setDerivedTrialIds(derivedTrialIds.filter(tid => tid !== id))
   }
 
-  const toggleTrialSelection = (trialId: string) => {
-    if (selectedTrialIds.includes(trialId)) {
-      setSelectedTrialIds(selectedTrialIds.filter(id => id !== trialId))
-    } else {
-      setSelectedTrialIds([...selectedTrialIds, trialId])
+  const createDerivedFromTrial = async (trial: TrialData) => {
+    if (!sample?.id || !sample.sample_id) {
+      return
+    }
+
+    if (derivedTrialIds.includes(trial.id)) {
+      return
+    }
+
+    const derivedId = `${sample.sample_id}-D${trial.id.slice(-4)}`
+    const description = trial.description || trial.results || 'Derived from selected trial'
+
+    const derivedPayload = transformDerivedSampleForAPI({
+      parentId: sample.id,
+      derivedId,
+      description,
+      derivation_method: trial.name || 'trial_output'
+    })
+
+    await axiosInstance.post(
+      `/samples/${user.workspaceId}/${sample.id}/derived`,
+      derivedPayload
+    )
+
+    setDerivedTrialIds(prev => [...prev, trial.id])
+  }
+
+  const toggleTrialSelection = async (trial: TrialData) => {
+    if (selectedTrialIds.includes(trial.id)) {
+      setSelectedTrialIds(selectedTrialIds.filter(id => id !== trial.id))
+      return
+    }
+
+    setSelectedTrialIds([...selectedTrialIds, trial.id])
+
+    if (!sample?.id) {
+      toast.info('Derived sample will be created after you save this sample')
+      return
+    }
+
+    if (sample?.id) {
+      try {
+        await createDerivedFromTrial(trial)
+        toast.success(`Derived sample created for ${trial.name}`)
+      } catch (error) {
+        console.error('Failed to create derived sample from trial:', error)
+        toast.error('Failed to create derived sample from trial')
+      }
     }
   }
 
@@ -143,7 +188,35 @@ export function CreateSamplePage({ user }: CreateSamplePageProps) {
         metadata: Object.keys(metadata).length > 0 ? metadata : undefined
       })
 
-      await axiosInstance.post('/samples', transformedData)
+      const sampleResponse = await axiosInstance.post('/samples', transformedData)
+      const createdSample = sampleResponse.data?.data
+
+      if (createdSample && selectedTrialIds.length > 0) {
+        const workspaceId = createdSample.workspace_id || user.workspaceId
+        const selectedTrials = selectedTrialIds
+          .map(id => trials.find(t => t.id === id))
+          .filter(Boolean) as TrialData[]
+
+        await Promise.all(
+          selectedTrials.map((trial, index) => {
+            const derivedId = `${createdSample.sample_id}-D${index + 1}`
+            const description = trial.description || trial.results || 'Derived from selected trial'
+
+            const derivedPayload = transformDerivedSampleForAPI({
+              parentId: createdSample.id,
+              derivedId,
+              description,
+              derivation_method: trial.name || 'trial_output'
+            })
+
+            return axiosInstance.post(
+              `/samples/${workspaceId}/${createdSample.id}/derived`,
+              derivedPayload
+            )
+          })
+        )
+      }
+
       toast.success('Sample created successfully')
       navigate(`/projects/${projectId}`)
     } catch (error: any) {
@@ -316,6 +389,9 @@ export function CreateSamplePage({ user }: CreateSamplePageProps) {
                   </div>
                 </CardHeader>
                 <CardContent>
+                  <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                    Selecting a trial marks it as analysis-ready. A derived sample will be created after you save the sample.
+                  </div>
                   {trials.length === 0 ? (
                     <div className="text-center py-8">
                       <TestTube size={64} className="mx-auto text-muted-foreground/50 mb-4" />
@@ -340,7 +416,7 @@ export function CreateSamplePage({ user }: CreateSamplePageProps) {
                                 <input
                                   type="checkbox"
                                   checked={selectedTrialIds.includes(trial.id)}
-                                  onChange={() => toggleTrialSelection(trial.id)}
+                                  onChange={() => toggleTrialSelection(trial)}
                                   className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                                 />
                                 <div>

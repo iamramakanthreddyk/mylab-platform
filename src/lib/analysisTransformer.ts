@@ -32,12 +32,15 @@ export function transformAnalysisForAPI(
     throw new Error('Batch ID is required. Please ensure batch was created successfully.');
   }
 
+  const normalizedStatus = normalizeAnalysisStatus(oldData.status || 'pending');
+  const normalizedExecutionMode = normalizeExecutionMode(oldData.execution_mode || 'platform');
+
   // Build results object from the form data
   const results: Record<string, any> = {
     description: oldData.description || '',
     method: oldData.method || '',
     parameters: oldData.parameters || '',
-    status: oldData.status || 'Pending',
+    status: normalizedStatus,
     integrity_check: oldData.integrity_check || 'passed',
     notes: oldData.notes || ''
   };
@@ -80,13 +83,34 @@ export function transformAnalysisForAPI(
     filePath,
     fileChecksum,
     fileSizeBytes,
-    status: oldData.status || 'Pending',
-    executionMode: oldData.execution_mode || 'internal', // Map and camelCase
+    status: normalizedStatus,
+    executionMode: normalizedExecutionMode,
     executedByOrgId: orgId, // Use organization (from org ID or workspace ID for internal)
     sourceOrgId: orgId, // Source is same as execution org for internal labs
     externalReference: oldData.external_lab || undefined, // Map external_lab if present
     performedAt: oldData.performed_date || new Date().toISOString()
   };
+}
+
+function normalizeAnalysisStatus(status: string): 'pending' | 'in_progress' | 'completed' | 'failed' {
+  const normalized = status.trim().toLowerCase().replace(/\s+/g, '_').replace(/-+/g, '_');
+  switch (normalized) {
+    case 'pending':
+    case 'in_progress':
+    case 'completed':
+    case 'failed':
+      return normalized;
+    case 'cancelled':
+    case 'canceled':
+      return 'failed';
+    default:
+      return 'pending';
+  }
+}
+
+function normalizeExecutionMode(mode: string): 'platform' | 'external' {
+  const normalized = mode.trim().toLowerCase();
+  return normalized === 'external' ? 'external' : 'platform';
 }
 
 /**

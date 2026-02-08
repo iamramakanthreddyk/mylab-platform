@@ -108,10 +108,47 @@ export async function createTestSchema(db: TestDatabase): Promise<void> {
       name TEXT NOT NULL,
       description TEXT,
       status TEXT DEFAULT 'Planning',
+      workflow_mode TEXT DEFAULT 'trial_first',
       created_by TEXT NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       deleted_at DATETIME,
+      FOREIGN KEY (workspace_id) REFERENCES Workspace(id),
+      FOREIGN KEY (created_by) REFERENCES Users(id)
+    );
+
+    -- Trials
+    CREATE TABLE IF NOT EXISTS Trials (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      workspace_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      objective TEXT,
+      parameters TEXT,
+      parameters_json JSONB,
+      equipment TEXT,
+      notes TEXT,
+      status TEXT DEFAULT 'planned',
+      performed_at DATETIME,
+      created_by TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      deleted_at DATETIME,
+      FOREIGN KEY (project_id) REFERENCES Projects(id),
+      FOREIGN KEY (workspace_id) REFERENCES Workspace(id),
+      FOREIGN KEY (created_by) REFERENCES Users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS TrialParameterTemplates (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      workspace_id TEXT NOT NULL,
+      columns JSONB NOT NULL,
+      created_by TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(project_id, workspace_id),
+      FOREIGN KEY (project_id) REFERENCES Projects(id),
       FOREIGN KEY (workspace_id) REFERENCES Workspace(id),
       FOREIGN KEY (created_by) REFERENCES Users(id)
     );
@@ -121,6 +158,7 @@ export async function createTestSchema(db: TestDatabase): Promise<void> {
       id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL,
       workspace_id TEXT NOT NULL,
+      trial_id TEXT,
       sample_id VARCHAR(100) NOT NULL,
       name TEXT NOT NULL,
       description TEXT,
@@ -133,6 +171,7 @@ export async function createTestSchema(db: TestDatabase): Promise<void> {
       UNIQUE(project_id, sample_id),
       FOREIGN KEY (project_id) REFERENCES Projects(id),
       FOREIGN KEY (workspace_id) REFERENCES Workspace(id),
+      FOREIGN KEY (trial_id) REFERENCES Trials(id),
       FOREIGN KEY (created_by) REFERENCES Users(id)
     );
 

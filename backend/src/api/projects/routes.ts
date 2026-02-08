@@ -5,6 +5,7 @@ import { requireObjectAccess, auditLog } from '../../middleware/auth';
 import { projectController } from './controller';
 import { createProjectSchema, updateProjectSchema } from './types';
 import stageRoutes from '../stages/routes';
+import trialRoutes from '../trials/routes';
 
 const router = Router();
 
@@ -58,5 +59,8 @@ router.delete(
 
 // Nested routes for project stages
 router.use('/:projectId/stages', stageRoutes);
+
+// Nested routes for project trials
+router.use('/:projectId/trials', trialRoutes);
 
 export default router;
