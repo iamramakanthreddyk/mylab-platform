@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axiosInstance from '@/lib/axiosConfig'
+import { transformProjectForAPI } from '@/lib/endpointTransformers'
 import { User, Project, Organization } from '@/lib/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -10,7 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { FolderOpen, Plus, MagnifyingGlass, Calendar, Trash, Pencil } from '@phosphor-icons/react'
+import { FolderOpen, Plus, MagnifyingGlass, Calendar, Trash, Pencil, ArrowLeft } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { canManageProjects } from '@/lib/auth'
 
@@ -61,13 +62,8 @@ export function ProjectsView({ user, projects, onProjectsChange }: ProjectsViewP
 
     setIsLoading(true)
     try {
-      const response = await axiosInstance.post('/projects', {
-        name: newProject.name,
-        description: newProject.description,
-        clientOrgId: newProject.clientOrgId,
-        executingOrgId: newProject.executingOrgId,
-        status: newProject.status
-      })
+      const transformedData = transformProjectForAPI(newProject)
+      const response = await axiosInstance.post('/projects', transformedData)
 
       // API returns { success, data }
       const createdProject = response.data.data || response.data
@@ -83,7 +79,10 @@ export function ProjectsView({ user, projects, onProjectsChange }: ProjectsViewP
       toast.success('Project created successfully')
     } catch (error: any) {
       console.error('Failed to create project:', error)
-      toast.error(error.response?.data?.error || 'Failed to create project')
+      const errorMessage = error.response?.data?.details 
+        ? Object.values(error.response.data.details).join(', ')
+        : error.response?.data?.error || 'Failed to create project'
+      toast.error(errorMessage)
     } finally {
       setIsLoading(false)
     }
@@ -151,11 +150,22 @@ export function ProjectsView({ user, projects, onProjectsChange }: ProjectsViewP
     <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-6 py-8">
         <div className="flex items-center justify-between mb-8">
-          <div>
-            <h2 className="text-3xl font-bold mb-2">Projects</h2>
-            <p className="text-muted-foreground">
-              Manage laboratory research and testing initiatives
-            </p>
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate('/dashboard')}
+              className="gap-2"
+            >
+              <ArrowLeft size={16} />
+              Back to Dashboard
+            </Button>
+            <div>
+              <h2 className="text-3xl font-bold mb-2">Projects</h2>
+              <p className="text-muted-foreground">
+                Manage laboratory research and testing initiatives
+              </p>
+            </div>
           </div>
           {canManage && (
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -263,14 +273,14 @@ export function ProjectsView({ user, projects, onProjectsChange }: ProjectsViewP
             <h3 className="text-xl font-semibold mb-2">
               {projects.length === 0 ? 'No projects yet' : 'No projects found'}
             </h3>
-            <p className="text-muted-foreground mb-4">
+            <p className="text-muted-foreground mb-6">
               {projects.length === 0 
-                ? 'Create your first project to get started' 
+                ? 'Create your first project to get started with managing laboratory research and testing initiatives' 
                 : 'Try adjusting your search query'}
             </p>
             {canManage && projects.length === 0 && (
-              <Button onClick={() => setIsDialogOpen(true)} className="gap-2">
-                <Plus size={18} />
+              <Button onClick={() => setIsDialogOpen(true)} size="lg" className="gap-2">
+                <Plus size={20} />
                 Create First Project
               </Button>
             )}

@@ -387,12 +387,12 @@ const migrations: Migration[] = [
   {
     id: '007',
     name: 'create_supply_chain_collaboration_tables',
-    description: 'Create Organizations, SupplyChainRequests, MaterialHandoffs, and AnalysisTypes tables for supply chain collaboration',
+    description: 'Create SupplyChainOrganizations, SupplyChainRequests, MaterialHandoffs, and AnalysisTypes tables for supply chain collaboration',
     up: async (pool: Pool) => {
       try {
-        // Create Organizations table
+        // Create SupplyChainOrganizations table
         await pool.query(`
-          CREATE TABLE IF NOT EXISTS Organizations (
+          CREATE TABLE IF NOT EXISTS SupplyChainOrganizations (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             name VARCHAR(255) NOT NULL,
             type VARCHAR(50) NOT NULL CHECK (type IN ('manufacturer', 'laboratory', 'research_institute', 'testing_facility')),
@@ -408,31 +408,23 @@ const migrations: Migration[] = [
             deleted_at TIMESTAMP
           );
         `);
-        logger.info('✅ Created Organizations table');
+        logger.info('✅ Created SupplyChainOrganizations table');
 
-        // Create AnalysisTypes table
+        // Alter AnalysisTypes table to add supply chain collaboration columns
         await pool.query(`
-          CREATE TABLE IF NOT EXISTS AnalysisTypes (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            name VARCHAR(255) NOT NULL,
-            description TEXT,
-            category VARCHAR(100),
-            methods TEXT[],
-            typical_duration VARCHAR(50),
-            equipment_required TEXT[],
-            is_active BOOLEAN DEFAULT true,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-          );
+          ALTER TABLE AnalysisTypes
+          ADD COLUMN IF NOT EXISTS methods TEXT[],
+          ADD COLUMN IF NOT EXISTS typical_duration VARCHAR(50),
+          ADD COLUMN IF NOT EXISTS equipment_required TEXT[];
         `);
-        logger.info('✅ Created AnalysisTypes table');
+        logger.info('✅ Altered AnalysisTypes table for supply chain collaboration');
 
         // Create SupplyChainRequests table
         await pool.query(`
           CREATE TABLE IF NOT EXISTS SupplyChainRequests (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            from_organization_id UUID NOT NULL REFERENCES Organizations(id),
-            to_organization_id UUID NOT NULL REFERENCES Organizations(id),
+            from_organization_id UUID NOT NULL REFERENCES SupplyChainOrganizations(id),
+            to_organization_id UUID NOT NULL REFERENCES SupplyChainOrganizations(id),
             from_project_id UUID NOT NULL REFERENCES Projects(id),
             workflow_type VARCHAR(50) NOT NULL CHECK (workflow_type IN ('analysis_only', 'material_transfer', 'product_continuation', 'supply_chain')),
             material_data JSONB NOT NULL,
@@ -455,8 +447,8 @@ const migrations: Migration[] = [
           CREATE TABLE IF NOT EXISTS MaterialHandoffs (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             supply_chain_request_id UUID NOT NULL REFERENCES SupplyChainRequests(id),
-            from_organization_id UUID NOT NULL REFERENCES Organizations(id),
-            to_organization_id UUID NOT NULL REFERENCES Organizations(id),
+            from_organization_id UUID NOT NULL REFERENCES SupplyChainOrganizations(id),
+            to_organization_id UUID NOT NULL REFERENCES SupplyChainOrganizations(id),
             material_id UUID,
             quantity DECIMAL(10,3),
             unit VARCHAR(50),
@@ -472,11 +464,11 @@ const migrations: Migration[] = [
 
         // Create indexes for performance
         await pool.query(`
-          CREATE INDEX IF NOT EXISTS idx_organizations_type ON Organizations(type);
-          CREATE INDEX IF NOT EXISTS idx_organizations_status ON Organizations(partnership_status);
-          CREATE INDEX IF NOT EXISTS idx_organizations_capabilities ON Organizations USING GIN(capabilities);
+          CREATE INDEX IF NOT EXISTS idx_supply_chain_organizations_type ON SupplyChainOrganizations(type);
+          CREATE INDEX IF NOT EXISTS idx_supply_chain_organizations_status ON SupplyChainOrganizations(partnership_status);
+          CREATE INDEX IF NOT EXISTS idx_supply_chain_organizations_capabilities ON SupplyChainOrganizations USING GIN(capabilities);
         `);
-        logger.info('✅ Created indexes on Organizations table');
+        logger.info('✅ Created indexes on SupplyChainOrganizations table');
 
         await pool.query(`
           CREATE INDEX IF NOT EXISTS idx_analysis_types_category ON AnalysisTypes(category);
@@ -524,7 +516,7 @@ const migrations: Migration[] = [
 
         // Insert some default partner organizations (for demo purposes)
         await pool.query(`
-          INSERT INTO Organizations (name, type, capabilities, certifications, location, contact_email, partnership_status) VALUES
+          INSERT INTO SupplyChainOrganizations (name, type, capabilities, certifications, location, contact_email, partnership_status) VALUES
           ('ChemTech Solutions', 'laboratory', ARRAY['HPLC Analysis', 'GC-MS Analysis', 'FTIR Spectroscopy'], ARRAY['ISO 17025', 'GLP'], 'Boston, MA', 'contact@chemtechsolutions.com', 'active'),
           ('Materials Research Institute', 'research_institute', ARRAY['XRD Analysis', 'Thermal Analysis', 'ICP-MS Analysis'], ARRAY['ISO 9001', 'NIST Certified'], 'San Francisco, CA', 'info@mri.org', 'active'),
           ('Precision Analytics Lab', 'testing_facility', ARRAY['UV-Vis Spectroscopy', 'NMR Analysis', 'Particle Size Analysis'], ARRAY['ISO 17025', 'FDA Registered'], 'New York, NY', 'lab@precisionanalytics.com', 'active'),
@@ -532,7 +524,7 @@ const migrations: Migration[] = [
           ('Advanced Testing Corp', 'laboratory', ARRAY['Moisture Content', 'Thermal Analysis', 'Physical Properties'], ARRAY['A2LA Accredited'], 'Austin, TX', 'support@advancedtesting.com', 'active')
           ON CONFLICT DO NOTHING;
         `);
-        logger.info('✅ Pre-populated Organizations with demo partner organizations');
+        logger.info('✅ Pre-populated SupplyChainOrganizations with demo partner organizations');
 
       } catch (err) {
         logger.error('Error creating supply chain collaboration tables', { error: (err as Error).message });

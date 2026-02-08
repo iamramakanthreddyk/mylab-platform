@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import axiosInstance from '@/lib/axiosConfig'
+import { transformStageForAPI } from '@/lib/endpointTransformers'
 import { Project, ProjectStage, User } from '@/lib/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -64,19 +65,20 @@ export function CreateStagePage({ user }: CreateStagePageProps) {
     setIsLoading(true)
 
     try {
-      const stageData = {
+      const transformedData = transformStageForAPI({
         ...stage,
-        project_id: projectId,
-        created_by: user.id,
         order_index: existingStages.length + 1
-      }
+      })
 
-      await axiosInstance.post('/stages', stageData)
+      await axiosInstance.post(`/projects/${projectId}/stages`, transformedData)
       toast.success('Stage created successfully')
       navigate(`/projects/${projectId}`)
     } catch (error: any) {
       console.error('Failed to create stage:', error)
-      toast.error(error.response?.data?.error || 'Failed to create stage')
+      const errorMessage = error.response?.data?.details 
+        ? Object.values(error.response.data.details).join(', ')
+        : error.response?.data?.error || 'Failed to create stage'
+      toast.error(errorMessage)
     } finally {
       setIsLoading(false)
     }

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import axiosInstance from '@/lib/axiosConfig'
+import { transformAnalysisForAPI } from '@/lib/analysisTransformer'
 import { Sample, Analysis, AnalysisType, User } from '@/lib/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -162,23 +163,57 @@ export function CreateAnalysisPage({ user }: CreateAnalysisPageProps) {
     setIsLoading(true)
 
     try {
-      const analysisData = {
-        ...analysis,
-        sample_id: sampleId,
-        created_by: user.id,
-        result_files: uploadedFiles.map(f => ({
-          name: f.name,
-          size: f.size,
-          type: f.type
-        }))
+      // Step 1: Create batch first (if sample exists, add it to batch)
+      let batchId: string;
+      
+      try {
+        const batchResponse = await axiosInstance.post('/batches', {
+          sampleIds: sample?.id ? [sample.id] : [],
+          parameters: {
+            analysisType: analysis.type_id,
+            description: analysis.description
+          }
+        })
+        batchId = batchResponse.data.data?.id || batchResponse.data.data?.batchId
+        
+        if (!batchId) {
+          throw new Error('Failed to create batch: No batch ID returned');
+        }
+      } catch (batchError: any) {
+        console.error('Failed to create batch:', batchError);
+        toast.error('Failed to create batch for analysis');
+        setIsLoading(false);
+        return;
       }
 
-      await axiosInstance.post('/analyses', analysisData)
+      // Step 2: Transform and create analysis with the batch ID
+      let transformedData;
+      try {
+        transformedData = transformAnalysisForAPI(
+          {
+            ...analysis,
+            result_files: uploadedFiles
+          },
+          user.organizationId,
+          user.workspaceId,
+          batchId // Pass the created batch ID
+        )
+      } catch (transformError: any) {
+        toast.error(transformError.message)
+        setIsLoading(false)
+        return
+      }
+
+      // Step 3: Create analysis
+      await axiosInstance.post('/analyses', transformedData)
       toast.success('Analysis created successfully')
       navigate(`/projects/${projectId}`)
     } catch (error: any) {
       console.error('Failed to create analysis:', error)
-      toast.error(error.response?.data?.error || 'Failed to create analysis')
+      const errorMessage = error.response?.data?.details 
+        ? Object.values(error.response.data.details).join(', ')
+        : error.response?.data?.error || 'Failed to create analysis'
+      toast.error(errorMessage)
     } finally {
       setIsLoading(false)
     }

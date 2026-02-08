@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom'
 import axiosInstance from '@/lib/axiosConfig'
-import { User, UserRole, Project, Sample } from '@/lib/types'
-import { FRONTEND_CONFIG, getAvailableModules, checkRouteAccess } from '@/lib/config/frontend'
+import { User, Project, Sample } from '@/lib/types'
 import { AuthContextProvider } from '@/lib/AuthContext'
 import { Login } from '@/components/Login'
 import { SetPassword } from '@/components/SetPassword'
@@ -41,25 +40,45 @@ function AppContent() {
 
   // Check for saved sessions on app load
   useEffect(() => {
-    // Check for regular user session
-    const savedToken = localStorage.getItem('authToken')
-    const savedUser = localStorage.getItem('user')
-    if (savedToken && savedUser) {
-      setCurrentUser(JSON.parse(savedUser))
-      setLoginMode('user')
-      // Token is automatically sent by axios interceptor
+    const validateAndRestoreSession = async () => {
+      // Check for admin session first (higher priority)
+      const adminToken = localStorage.getItem('adminToken')
+      const adminUser = localStorage.getItem('adminUser')
+      if (adminToken && adminUser) {
+        try {
+          // TODO: Add token validation API call here if needed
+          setAdminToken(adminToken)
+          setAdminUser(JSON.parse(adminUser))
+          setLoginMode('admin')
+          setIsInitialized(true)
+          return
+        } catch (error) {
+          // Invalid admin session, clear it
+          localStorage.removeItem('adminToken')
+          localStorage.removeItem('adminUser')
+        }
+      }
+
+      // Check for regular user session
+      const savedToken = localStorage.getItem('authToken')
+      const savedUser = localStorage.getItem('user')
+      if (savedToken && savedUser) {
+        try {
+          // TODO: Add token validation API call here if needed
+          setCurrentUser(JSON.parse(savedUser))
+          setLoginMode('user')
+          // Token is automatically sent by axios interceptor
+        } catch (error) {
+          // Invalid user session, clear it
+          localStorage.removeItem('authToken')
+          localStorage.removeItem('user')
+        }
+      }
+
+      setIsInitialized(true)
     }
 
-    // Check for admin session
-    const adminToken = localStorage.getItem('adminToken')
-    const adminUser = localStorage.getItem('adminUser')
-    if (adminToken && adminUser) {
-      setAdminToken(adminToken)
-      setAdminUser(JSON.parse(adminUser))
-      setLoginMode('admin')
-    }
-
-    setIsInitialized(true)
+    validateAndRestoreSession()
   }, [])
 
   useEffect(() => {
@@ -211,7 +230,8 @@ function AppContent() {
         <div className="max-w-md w-full space-y-6">
           <div className="text-center space-y-3">
             <h1 className="text-4xl font-bold text-white">MyLab Platform</h1>
-            <p className="text-slate-400">Choose your login method</p>
+            <p className="text-slate-400">Laboratory Information Management System</p>
+            <p className="text-sm text-slate-500">Please select how you'd like to access the platform</p>
           </div>
 
           <div className="space-y-3">
@@ -219,20 +239,21 @@ function AppContent() {
               onClick={() => setLoginMode('user')}
               className="w-full h-12 text-base bg-blue-600 hover:bg-blue-700"
             >
-              User Login
+              Regular User Login
             </Button>
             <Button
               onClick={() => setLoginMode('admin')}
               variant="outline"
               className="w-full h-12 text-base border-slate-600 text-slate-200 hover:bg-slate-700"
             >
-              Admin Console
+              System Administrator
             </Button>
           </div>
 
-          <p className="text-xs text-center text-slate-500">
-            Select your role to access the appropriate dashboard
-          </p>
+          <div className="text-center text-xs text-slate-500 space-y-2">
+            <p>Select your access level to continue to the login screen</p>
+            <p>If you're already logged in, try refreshing the page</p>
+          </div>
         </div>
         <Toaster />
       </div>

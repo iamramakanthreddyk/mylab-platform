@@ -58,6 +58,7 @@ export function Navigation({ user, onLogout }: NavigationProps) {
                 <Button
                   variant={currentView.startsWith('supply-chain') ? 'default' : 'ghost'}
                   className="px-4 gap-2"
+                  title="Supply Chain Collaboration - Manage inter-organizational workflows and partnerships"
                 >
                   <Buildings size={16} />
                   Supply Chain
@@ -104,7 +105,7 @@ export function Navigation({ user, onLogout }: NavigationProps) {
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="gap-2 rounded-full px-3 h-10 hover:bg-primary/10">
+                <Button variant="ghost" className="gap-2 rounded-full px-3 h-10 hover:bg-primary/10" title="Account menu">
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
                       <UserIcon size={16} weight="fill" className="text-primary" />

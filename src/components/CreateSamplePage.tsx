@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import axiosInstance from '@/lib/axiosConfig'
+import { transformSampleForAPI } from '@/lib/endpointTransformers'
 import { Project, ProjectStage, Sample, TrialData, User } from '@/lib/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -123,20 +124,34 @@ export function CreateSamplePage({ user }: CreateSamplePageProps) {
     setIsLoading(true)
 
     try {
-      // Include selected trials in the sample
-      const sampleWithTrials = {
-        ...sample,
-        project_id: projectId,
-        trials: selectedTrialIds.map(id => trials.find(t => t.id === id)).filter(Boolean),
-        created_by: user.id
+      // Prepare metadata from additional fields
+      const metadata: Record<string, any> = {}
+      if (sample.source) metadata.source = sample.source
+      if (sample.storage_conditions) metadata.storage_conditions = sample.storage_conditions
+      if (sample.notes) metadata.notes = sample.notes
+      if (selectedTrialIds.length > 0) {
+        metadata.trials = selectedTrialIds.map(id => trials.find(t => t.id === id)).filter(Boolean)
       }
 
-      await axiosInstance.post('/samples', sampleWithTrials)
+      // Transform data to match API schema
+      const transformedData = transformSampleForAPI({
+        projectId: projectId,
+        sampleId: sample.name,
+        description: sample.description,
+        type: sample.type || undefined,
+        projectStageId: sample.projectStageId || undefined,
+        metadata: Object.keys(metadata).length > 0 ? metadata : undefined
+      })
+
+      await axiosInstance.post('/samples', transformedData)
       toast.success('Sample created successfully')
       navigate(`/projects/${projectId}`)
     } catch (error: any) {
       console.error('Failed to create sample:', error)
-      toast.error(error.response?.data?.error || 'Failed to create sample')
+      const errorMessage = error.response?.data?.details 
+        ? Object.values(error.response.data.details).join(', ')
+        : error.response?.data?.error || 'Failed to create sample'
+      toast.error(errorMessage)
     } finally {
       setIsLoading(false)
     }
@@ -187,35 +202,35 @@ export function CreateSamplePage({ user }: CreateSamplePageProps) {
                 <CardContent className="space-y-6">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="name">Sample Name *</Label>
+                      <Label htmlFor="name">Sample ID *</Label>
                       <Input
                         id="name"
                         value={sample.name}
                         onChange={(e) => setSample(prev => ({ ...prev, name: e.target.value }))}
-                        placeholder="Enter sample name"
+                        placeholder="Enter unique sample identifier"
                         required
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="type">Sample Type *</Label>
+                      <Label htmlFor="type">Sample Type</Label>
                       <Input
                         id="type"
                         value={sample.type || ''}
                         onChange={(e) => setSample(prev => ({ ...prev, type: e.target.value }))}
                         placeholder="e.g., Blood, Tissue, Solution"
-                        required
                       />
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="description">Description</Label>
+                    <Label htmlFor="description">Description *</Label>
                     <Textarea
                       id="description"
                       value={sample.description}
                       onChange={(e) => setSample(prev => ({ ...prev, description: e.target.value }))}
                       placeholder="Describe the sample purpose and background"
                       rows={3}
+                      required
                     />
                   </div>
 

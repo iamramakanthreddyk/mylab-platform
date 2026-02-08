@@ -1,0 +1,95 @@
+import { v4 as uuidv4 } from 'uuid';
+
+/**
+ * Transform frontend Project data to API CreateProjectRequest format
+ */
+export function transformProjectForAPI(projectData: any): any {
+  // Remove status from create request - it's only for updates
+  const { status, ...rest } = projectData;
+  
+  return {
+    name: projectData.name,
+    description: projectData.description || undefined,
+    clientOrgId: projectData.clientOrgId,
+    executingOrgId: projectData.executingOrgId
+  };
+}
+
+/**
+ * Transform frontend Stage data to API CreateStageRequest format
+ */
+export function transformStageForAPI(stageData: any): any {
+  // Remove project_id and created_by - they come from route and auth
+  // Convert order_index to orderIndex
+  const { project_id, created_by, order_index, ...rest } = stageData;
+  
+  return {
+    name: stageData.name,
+    description: stageData.description || undefined,
+    orderIndex: stageData.order_index || stageData.orderIndex
+  };
+}
+
+/**
+ * Transform frontend Batch data to API CreateBatchRequest format
+ */
+export function transformBatchForAPI(batchData: any): any {
+  // Keep only sampleIds and parameters
+  // derivedSampleIds becomes sampleIds
+  const sampleIds = batchData.derivedSampleIds || batchData.sampleIds || [];
+  
+  const result: any = {
+    sampleIds: sampleIds
+  };
+  
+  // Only include parameters if provided and non-empty
+  if (batchData.parameters && Object.keys(batchData.parameters).length > 0) {
+    result.parameters = batchData.parameters;
+  }
+  
+  return result;
+}
+
+/**
+ * Transform frontend DerivedSample data to API CreateDerivedSampleRequest format
+ */
+export function transformDerivedSampleForAPI(sampleData: any): any {
+  // Map frontend field names to API field names
+  // parentId -> parent_sample_id
+  // derivedId -> name
+  // Add derivation_method if missing
+  
+  return {
+    parent_sample_id: sampleData.parentId || sampleData.parent_sample_id,
+    name: sampleData.derivedId || sampleData.name,
+    description: sampleData.description || undefined,
+    derivation_method: sampleData.derivation_method || sampleData.derivedId || 'unknown'
+  };
+}
+
+/**
+ * Transform frontend Sample data to API CreateSampleRequest format
+ * Note: Sample schema looks correct, but adding for consistency
+ */
+export function transformSampleForAPI(sampleData: any): any {
+  return {
+    projectId: sampleData.projectId,
+    sampleId: sampleData.sampleId || sampleData.name,
+    description: sampleData.description || undefined,
+    type: sampleData.type || undefined,
+    stageId: sampleData.stageId || sampleData.projectStageId || undefined,
+    metadata: sampleData.metadata || undefined
+  };
+}
+
+/**
+ * Reverse transformation: convert API response back to old format
+ */
+export function transformProjectFromAPI(apiData: any): any {
+  return {
+    ...apiData,
+    clientOrgId: apiData.clientOrgId,
+    executingOrgId: apiData.executingOrgId,
+    status: apiData.status
+  };
+}

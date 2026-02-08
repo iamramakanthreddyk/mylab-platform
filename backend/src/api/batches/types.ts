@@ -32,7 +32,7 @@ export interface BatchResponse {
 // ============ Validation Schemas ============
 
 export const createBatchSchema = Joi.object({
-  sampleIds: Joi.array().items(Joi.string().uuid()).min(1).required(),
+  sampleIds: Joi.array().items(Joi.string().uuid()).optional(),
   parameters: Joi.object().optional()
 });
 

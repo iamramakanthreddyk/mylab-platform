@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { TestTube, ArrowRight } from '@phosphor-icons/react'
 import axiosInstance from '@/lib/axiosConfig'
+import { transformDerivedSampleForAPI } from '@/lib/endpointTransformers'
 import { Sample, Organization } from '@/lib/types'
 import { toast } from 'sonner'
 
@@ -96,16 +97,14 @@ export function CreateDerivedSampleDialog({
 
     setIsLoading(true)
     try {
-      await axiosInstance.post('/derived-samples', {
+      const transformedData = transformDerivedSampleForAPI({
         parentId: parentSample.id,
-        derivedId: formData.derivedId.trim(),
-        description: formData.description.trim(),
-        metadata: parsedMetadata,
-        executionMode: formData.executionMode,
-        executedByOrgId: formData.executedByOrgId,
-        externalReference: formData.executionMode === 'external' ? formData.externalReference : null,
-        performedAt: formData.performedAt + 'T00:00:00.000Z'
+        derivedId: formData.derivedId,
+        description: formData.description,
+        derivation_method: formData.derivedId || 'unknown'
       })
+
+      await axiosInstance.post('/derived-samples', transformedData)
 
       toast.success('Derived sample created successfully')
       resetForm()
@@ -113,7 +112,10 @@ export function CreateDerivedSampleDialog({
       onOpenChange(false)
     } catch (error: any) {
       console.error('Failed to create derived sample:', error)
-      toast.error(error.response?.data?.error?.message || 'Failed to create derived sample')
+      const errorMessage = error.response?.data?.details 
+        ? Object.values(error.response.data.details).join(', ')
+        : error.response?.data?.error?.message || 'Failed to create derived sample'
+      toast.error(errorMessage)
     } finally {
       setIsLoading(false)
     }

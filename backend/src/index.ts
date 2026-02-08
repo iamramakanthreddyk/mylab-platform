@@ -21,6 +21,7 @@ import {
   projectRoutes,
   sampleRoutes,
   derivedSampleRoutes,
+  batchRoutes,
   analysisRoutes,
   apiKeyRoutes,
   companyRoutes,
@@ -111,6 +112,7 @@ app.use('/api/analysis-requests', analysisRequestsRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/samples', sampleRoutes);
 app.use('/api/derived-samples', derivedSampleRoutes);
+app.use('/api/batches', batchRoutes);
 app.use('/api/analyses', analysisRoutes);
 app.use('/api/api-keys', apiKeyRoutes);
 app.use('/api/company', companyRoutes);

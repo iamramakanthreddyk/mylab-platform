@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ChartLine, TestTube } from '@phosphor-icons/react'
 import axiosInstance from '@/lib/axiosConfig'
+import { transformBatchForAPI } from '@/lib/endpointTransformers'
 import { DerivedSample, Organization, AnalysisType } from '@/lib/types'
 import { toast } from 'sonner'
 
@@ -134,17 +135,13 @@ export function CreateBatchDialog({
 
     setIsLoading(true)
     try {
-      await axiosInstance.post('/batches', {
-        batchId: formData.batchId.trim(),
-        description: formData.description.trim(),
-        parameters: parsedParameters,
-        executionMode: formData.executionMode,
-        executedByOrgId: formData.executedByOrgId,
-        externalReference: formData.executionMode === 'external' ? formData.externalReference : null,
-        analysisTypeId: formData.analysisTypeId,
-        performedAt: formData.performedAt + 'T00:00:00.000Z',
-        derivedSampleIds: selectedSamples
+      const transformedData = transformBatchForAPI({
+        ...formData,
+        derivedSampleIds: selectedSamples,
+        parameters: parsedParameters
       })
+
+      await axiosInstance.post('/batches', transformedData)
 
       toast.success(`Batch created with ${selectedSamples.length} samples`)
       resetForm()
@@ -152,7 +149,10 @@ export function CreateBatchDialog({
       onOpenChange(false)
     } catch (error: any) {
       console.error('Failed to create batch:', error)
-      toast.error(error.response?.data?.error?.message || 'Failed to create batch')
+      const errorMessage = error.response?.data?.details 
+        ? Object.values(error.response.data.details).join(', ')
+        : error.response?.data?.error?.message || 'Failed to create batch'
+      toast.error(errorMessage)
     } finally {
       setIsLoading(false)
     }
