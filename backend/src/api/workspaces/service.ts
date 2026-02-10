@@ -22,16 +22,16 @@ export class WorkspaceService {
       const result = await pool.query(
         `
         SELECT
-          w.id,
-          w.name,
-          w.description,
-          w.is_active,
-          w.created_at,
-          (SELECT COUNT(DISTINCT user_id) FROM WorkspaceUsers WHERE workspace_id = w.id) as user_count,
-          (SELECT COUNT(*) FROM Projects WHERE workspace_id = w.id AND deleted_at IS NULL) as project_count,
-          (SELECT COUNT(*) FROM Samples WHERE workspace_id = w.id AND deleted_at IS NULL) as sample_count
-        FROM Workspaces w
-        WHERE w.id = $1
+          o.id,
+          o.name,
+          o.notes as description,
+          o.is_active,
+          o.created_at,
+          (SELECT COUNT(*) FROM Users WHERE workspace_id = o.id AND deleted_at IS NULL) as user_count,
+          (SELECT COUNT(*) FROM Projects WHERE workspace_id = o.id AND deleted_at IS NULL) as project_count,
+          (SELECT COUNT(*) FROM Samples WHERE workspace_id = o.id AND deleted_at IS NULL) as sample_count
+        FROM Organizations o
+        WHERE o.id = $1
         `,
         [workspaceId]
       );
@@ -66,8 +66,8 @@ export class WorkspaceService {
 
       const result = await pool.query(
         `
-        SELECT id, name, description, is_active, created_at, updated_at
-        FROM Workspaces
+        SELECT id, name, notes as description, is_active, created_at, updated_at
+        FROM Organizations
         WHERE id = $1
         `,
         [workspaceId]
@@ -94,18 +94,18 @@ export class WorkspaceService {
       const result = await pool.query(
         `
         SELECT
-          w.id,
-          w.name,
-          w.description,
-          w.is_active,
-          w.created_at,
-          (SELECT COUNT(DISTINCT user_id) FROM WorkspaceUsers WHERE workspace_id = w.id) as user_count,
-          (SELECT COUNT(*) FROM Projects WHERE workspace_id = w.id AND deleted_at IS NULL) as project_count,
-          (SELECT COUNT(*) FROM Samples WHERE workspace_id = w.id AND deleted_at IS NULL) as sample_count
-        FROM Workspaces w
-        INNER JOIN WorkspaceUsers wu ON w.id = wu.workspace_id
-        WHERE wu.user_id = $1
-        ORDER BY w.name
+          o.id,
+          o.name,
+          o.notes as description,
+          o.is_active,
+          o.created_at,
+          (SELECT COUNT(*) FROM Users WHERE workspace_id = o.id AND deleted_at IS NULL) as user_count,
+          (SELECT COUNT(*) FROM Projects WHERE workspace_id = o.id AND deleted_at IS NULL) as project_count,
+          (SELECT COUNT(*) FROM Samples WHERE workspace_id = o.id AND deleted_at IS NULL) as sample_count
+        FROM Organizations o
+        JOIN Users u ON u.workspace_id = o.id
+        WHERE u.id = $1 AND u.deleted_at IS NULL
+        ORDER BY o.name
         `,
         [userId]
       );
@@ -133,8 +133,8 @@ export class WorkspaceService {
     try {
       const result = await pool.query(
         `
-        SELECT 1 FROM WorkspaceUsers
-        WHERE user_id = $1 AND workspace_id = $2
+        SELECT 1 FROM Users
+        WHERE id = $1 AND workspace_id = $2 AND deleted_at IS NULL
         LIMIT 1
         `,
         [userId, workspaceId]

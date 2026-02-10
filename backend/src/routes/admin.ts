@@ -1,15 +1,14 @@
 import { Router, Request, Response } from 'express';
+import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { pool } from '../db';
+import {
+  ORG_TYPES,
+  isValidOrgType
+} from '../database/types';
 
 const router = Router();
 
-// Superadmin credentials (in production, use database with hashed passwords)
-const SUPERADMIN_CREDENTIALS = {
-  email: process.env.SUPERADMIN_EMAIL || 'superadmin@mylab.io',
-  password: process.env.SUPERADMIN_PASSWORD || 'SuperAdmin123!', // TODO: Use hashed password in production
-  role: 'PlatformAdmin' as const
-};
 
 // JWT secret (should always come from env)
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-jwt-secret-change-in-production';
@@ -29,7 +28,7 @@ interface SuperAdminRequest extends Request {
 const verifySuperAdminToken = (req: SuperAdminRequest, res: Response, next: any) => {
   const authHeader = req.headers.authorization;
   
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (!authHeader?.startsWith('Bearer ')) {
     console.warn('[AUTH] Missing or invalid authorization header:', authHeader ? 'Missing Bearer prefix' : 'No auth header');
     return res.status(401).json({ error: 'Missing or invalid authorization header' });
   }
@@ -39,8 +38,8 @@ const verifySuperAdminToken = (req: SuperAdminRequest, res: Response, next: any)
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as any;
     console.log('[AUTH] Token verified for user:', decoded.email, 'with role:', decoded.role);
-    if (decoded.role !== 'PlatformAdmin') {
-      console.warn('[AUTH] Invalid role:', decoded.role, '(expected PlatformAdmin)');
+    if (decoded.role !== 'platform_admin') {
+      console.warn('[AUTH] Invalid role:', decoded.role, '(expected platform_admin)');
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
     req.admin = decoded;
@@ -51,24 +50,36 @@ const verifySuperAdminToken = (req: SuperAdminRequest, res: Response, next: any)
   }
 };
 
-// POST /api/admin/auth/login - Superadmin login
+// POST /api/admin/auth/login - Platform admin login
 router.post('/auth/login', async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
 
-    // Validate credentials
-    if (email !== SUPERADMIN_CREDENTIALS.email || password !== SUPERADMIN_CREDENTIALS.password) {
-      // Log failed attempt
-      console.warn(`[SECURITY] Failed superadmin login attempt for email: ${email}`);
+    const adminResult = await pool.query(
+      `SELECT id, email, password_hash, role
+       FROM Users
+       WHERE email = $1 AND role = 'platform_admin'::user_role AND deleted_at IS NULL`,
+      [email]
+    );
+
+    if (adminResult.rows.length === 0) {
+      console.warn(`[SECURITY] Failed platform admin login attempt for email: ${email}`);
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const admin = adminResult.rows[0];
+    const isPasswordValid = await bcrypt.compare(password, admin.password_hash);
+    if (!isPasswordValid) {
+      console.warn(`[SECURITY] Failed platform admin login attempt for email: ${email}`);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     // Generate JWT token
     const token = jwt.sign(
       {
-        id: 'superadmin-1',
-        email: SUPERADMIN_CREDENTIALS.email,
-        role: 'PlatformAdmin'
+        id: admin.id,
+        email: admin.email,
+        role: 'platform_admin'
       },
       JWT_SECRET,
       { expiresIn: '24h' }
@@ -77,14 +88,14 @@ router.post('/auth/login', async (req: Request, res: Response) => {
     res.json({
       token,
       admin: {
-        id: 'superadmin-1',
-        email: SUPERADMIN_CREDENTIALS.email,
-        role: 'PlatformAdmin',
+        id: admin.id,
+        email: admin.email,
+        role: 'platform_admin',
         name: 'Platform Administrator'
       }
     });
   } catch (error) {
-    console.error('Superadmin login error:', error);
+    console.error('Platform admin login error:', error);
     res.status(500).json({ error: 'Login failed' });
   }
 });
@@ -94,14 +105,15 @@ router.get('/analytics/overview', verifySuperAdminToken, async (req: SuperAdminR
   try {
     const result = await pool.query(`
       SELECT
-        (SELECT COUNT(*) FROM Workspace) as total_workspaces,
-        (SELECT COUNT(*) FROM Users) as total_users,
         (SELECT COUNT(*) FROM Organizations) as total_organizations,
+        (SELECT COUNT(*) FROM Organizations) as total_workspaces,
+        (SELECT COUNT(*) FROM Users) as total_users,
         (SELECT COUNT(*) FROM Subscriptions WHERE status = 'active') as active_subscriptions,
         (SELECT COUNT(*) FROM Subscriptions WHERE status = 'trial') as trial_subscriptions,
         (SELECT COUNT(*) FROM Projects) as total_projects,
         (SELECT COUNT(*) FROM Analyses) as total_analyses,
         (SELECT COALESCE(SUM(active_users), 0)::bigint FROM UsageMetrics) as total_active_users_all_time,
+        (SELECT COUNT(DISTINCT workspace_id) FROM LastLogin WHERE last_login_at > NOW() - INTERVAL '30 days') as active_organizations_30d,
         (SELECT COUNT(DISTINCT workspace_id) FROM LastLogin WHERE last_login_at > NOW() - INTERVAL '30 days') as active_workspaces_30d
     `);
 
@@ -112,21 +124,24 @@ router.get('/analytics/overview', verifySuperAdminToken, async (req: SuperAdminR
   }
 });
 
-// GET /api/admin/workspaces - List all workspaces with subscription data
+// GET /api/admin/workspaces - List all organizations with subscription data
 router.get('/workspaces', verifySuperAdminToken, async (req: SuperAdminRequest, res: Response) => {
   try {
-    const limit = parseInt(req.query.limit as string) || 50;
-    const offset = parseInt(req.query.offset as string) || 0;
+    const limit = Number.parseInt(req.query.limit as string, 10) || 50;
+    const offset = Number.parseInt(req.query.offset as string, 10) || 0;
     const searchTerm = req.query.search as string;
 
     let query = `
       SELECT
         w.id,
         w.name,
-        w.workspace_type,
+        w.type,
+        w.id as organization_id,
+        w.name as organization_name,
+        w.type as organization_type,
         w.created_at,
-        o.gst_number,
-        o.gst_percentage,
+        w.gst_number,
+        w.gst_percentage,
         COUNT(DISTINCT u.id) as user_count,
         COUNT(DISTINCT pr.id) as project_count,
         COUNT(DISTINCT a.id) as analysis_count,
@@ -137,8 +152,7 @@ router.get('/workspaces', verifySuperAdminToken, async (req: SuperAdminRequest, 
         ll.last_login_at,
         um.active_users,
         um.api_calls
-      FROM Workspace w
-      LEFT JOIN Organizations o ON w.id = o.workspace_id
+      FROM Organizations w
       LEFT JOIN Users u ON w.id = u.workspace_id AND u.deleted_at IS NULL
       LEFT JOIN Projects pr ON w.id = pr.workspace_id AND pr.deleted_at IS NULL
       LEFT JOIN Analyses a ON w.id = a.workspace_id AND a.deleted_at IS NULL
@@ -153,39 +167,39 @@ router.get('/workspaces', verifySuperAdminToken, async (req: SuperAdminRequest, 
       query += ` AND (w.name ILIKE $1 OR w.id ILIKE $1)`;
     }
 
-    query += ` GROUP BY w.id, o.gst_number, o.gst_percentage, s.plan_id, pl.name, pl.tier, s.status, ll.last_login_at, um.active_users, um.api_calls`;
+    query += ` GROUP BY w.id, w.gst_number, w.gst_percentage, s.plan_id, pl.name, pl.tier, s.status, ll.last_login_at, um.active_users, um.api_calls`;
     query += ` ORDER BY w.created_at DESC LIMIT $${searchTerm ? 2 : 1} OFFSET $${searchTerm ? 3 : 2}`;
 
     const params = searchTerm ? [`%${searchTerm}%`, limit, offset] : [limit, offset];
     const result = await pool.query(query, params);
 
     // Get total count
-    let countQuery = `SELECT COUNT(*) FROM Workspace WHERE deleted_at IS NULL`;
+    let countQuery = `SELECT COUNT(*) FROM Organizations WHERE deleted_at IS NULL`;
     if (searchTerm) {
       countQuery += ` AND (name ILIKE $1 OR id ILIKE $1)`;
     }
     const countResult = await pool.query(countQuery, searchTerm ? [`%${searchTerm}%`] : []);
 
     res.json({
+      organizations: result.rows,
       workspaces: result.rows,
-      total: parseInt(countResult.rows[0].count),
+      total: Number.parseInt(countResult.rows[0].count, 10),
       limit,
       offset
     });
   } catch (error) {
-    console.error('Workspaces list error:', error);
-    res.status(500).json({ error: 'Failed to fetch workspaces' });
+    console.error('Organizations list error:', error);
+    res.status(500).json({ error: 'Failed to fetch organizations' });
   }
 });
 
 // GET /api/admin/users - List all users with login tracking
 router.get('/users', verifySuperAdminToken, async (req: SuperAdminRequest, res: Response) => {
   try {
-    const limit = parseInt(req.query.limit as string) || 50;
-    const offset = parseInt(req.query.offset as string) || 0;
+    const limit = Number.parseInt(req.query.limit as string, 10) || 50;
+    const offset = Number.parseInt(req.query.offset as string, 10) || 0;
     const searchTerm = req.query.search as string;
     const workspaceId = req.query.workspace_id as string;
-    const lastLoginDays = parseInt(req.query.last_login_days as string) || 30;
 
     let query = `
       SELECT
@@ -194,14 +208,16 @@ router.get('/users', verifySuperAdminToken, async (req: SuperAdminRequest, res: 
         u.name,
         u.role,
         u.workspace_id,
+        u.workspace_id as organization_id,
         w.name as workspace_name,
+        w.name as organization_name,
         u.created_at as user_created_at,
         ll.last_login_at,
         ll.last_login_ip,
         ll.last_user_agent,
         (CURRENT_DATE - ll.last_login_at::date) as days_since_login
       FROM Users u
-      LEFT JOIN Workspace w ON u.workspace_id = w.id
+      LEFT JOIN Organizations w ON u.workspace_id = w.id
       LEFT JOIN LastLogin ll ON u.id = ll.user_id
       WHERE u.deleted_at IS NULL
     `;
@@ -242,7 +258,7 @@ router.get('/users', verifySuperAdminToken, async (req: SuperAdminRequest, res: 
 
     res.json({
       users: result.rows,
-      total: parseInt(countResult.rows[0].count),
+      total: Number.parseInt(countResult.rows[0].count, 10),
       limit,
       offset
     });
@@ -261,7 +277,9 @@ router.get('/subscriptions', verifySuperAdminToken, async (req: SuperAdminReques
       SELECT
         s.id,
         s.workspace_id,
+        s.workspace_id as organization_id,
         w.name as workspace_name,
+        w.name as organization_name,
         p.id as plan_id,
         p.name as plan_name,
         p.tier as plan_tier,
@@ -275,7 +293,7 @@ router.get('/subscriptions', verifySuperAdminToken, async (req: SuperAdminReques
         COUNT(DISTINCT u.id) as current_users,
         COUNT(DISTINCT pr.id) as current_projects
       FROM subscriptions s
-      LEFT JOIN workspace w ON s.workspace_id = w.id
+      LEFT JOIN Organizations w ON s.workspace_id = w.id
       LEFT JOIN plans p ON s.plan_id = p.id
       LEFT JOIN users u ON w.id = u.workspace_id
       LEFT JOIN projects pr ON w.id = pr.workspace_id
@@ -327,11 +345,28 @@ router.get('/plans', verifySuperAdminToken, async (req: SuperAdminRequest, res: 
   }
 });
 
-// POST /api/admin/subscriptions/:workspaceId/upgrade - Change workspace plan
+// POST /api/admin/subscriptions/:workspaceId/upgrade - Change organization plan
 router.post('/subscriptions/:workspaceId/upgrade', verifySuperAdminToken, async (req: SuperAdminRequest, res: Response) => {
   try {
     const { workspaceId } = req.params;
     const { planId } = req.body;
+
+    if (!planId) {
+      return res.status(400).json({ error: 'planId is required' });
+    }
+
+    const planCheck = await pool.query(
+      `SELECT id, is_active FROM Plans WHERE id = $1`,
+      [planId]
+    );
+
+    if (planCheck.rows.length === 0) {
+      return res.status(400).json({ error: 'Invalid planId' });
+    }
+
+    if (planCheck.rows[0].is_active === false) {
+      return res.status(400).json({ error: 'Selected plan is inactive' });
+    }
 
     // Get current subscription
     const subResult = await pool.query(
@@ -340,7 +375,19 @@ router.post('/subscriptions/:workspaceId/upgrade', verifySuperAdminToken, async 
     );
 
     if (subResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Subscription not found' });
+      const createResult = await pool.query(
+        `INSERT INTO subscriptions (workspace_id, organization_id, plan_id, status)
+         VALUES ($1, $1, $2, 'active'::subscription_status)
+         RETURNING *`,
+        [workspaceId, planId]
+      );
+
+      return res.json({
+        message: 'Organization plan activated successfully',
+        subscription: createResult.rows[0],
+        organization_id: workspaceId,
+        workspace_id: workspaceId
+      });
     }
 
     const subscription = subResult.rows[0];
@@ -361,8 +408,10 @@ router.post('/subscriptions/:workspaceId/upgrade', verifySuperAdminToken, async 
     );
 
     res.json({
-      message: 'Plan upgraded successfully',
-      subscription: updateResult.rows[0]
+      message: 'Organization plan upgraded successfully',
+      subscription: updateResult.rows[0],
+      organization_id: workspaceId,
+      workspace_id: workspaceId
     });
   } catch (error) {
     console.error('Plan upgrade error:', error);
@@ -399,22 +448,22 @@ router.get('/features', verifySuperAdminToken, async (req: SuperAdminRequest, re
   }
 });
 
-// GET /api/admin/analytics/workspace/:workspaceId - Detailed analytics for specific workspace
-router.get('/analytics/workspace/:workspaceId', verifySuperAdminToken, async (req: SuperAdminRequest, res: Response) => {
+// GET /api/admin/analytics/organizations/:organizationId - Detailed analytics for specific organization
+router.get('/analytics/organizations/:organizationId', verifySuperAdminToken, async (req: SuperAdminRequest, res: Response) => {
   try {
-    const { workspaceId } = req.params;
+    const { organizationId } = req.params;
 
-    // Get basic workspace info
+    // Get basic organization info
     const wsResult = await pool.query(
-      `SELECT * FROM workspace WHERE id = $1`,
-      [workspaceId]
+      `SELECT * FROM Organizations WHERE id = $1`,
+      [organizationId]
     );
 
     if (wsResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Workspace not found' });
+      return res.status(404).json({ error: 'Organization not found' });
     }
 
-    const workspace = wsResult.rows[0];
+    const organization = wsResult.rows[0];
 
     // Get metrics for last 30 days
     const metricsResult = await pool.query(`
@@ -429,7 +478,7 @@ router.get('/analytics/workspace/:workspaceId', verifySuperAdminToken, async (re
       FROM usagemetrics
       WHERE workspace_id = $1 AND date >= CURRENT_DATE - INTERVAL '30 days'
       ORDER BY date DESC
-    `, [workspaceId]);
+    `, [organizationId]);
 
     // Get subscription info
     const subResult = await pool.query(`
@@ -437,7 +486,7 @@ router.get('/analytics/workspace/:workspaceId', verifySuperAdminToken, async (re
       FROM subscriptions s
       LEFT JOIN plans p ON s.plan_id = p.id
       WHERE s.workspace_id = $1
-    `, [workspaceId]);
+    `, [organizationId]);
 
     // Get last login activity
     const activityResult = await pool.query(`
@@ -452,43 +501,63 @@ router.get('/analytics/workspace/:workspaceId', verifySuperAdminToken, async (re
       WHERE u.workspace_id = $1
       ORDER BY ll.last_login_at DESC NULLS LAST
       LIMIT 10
-    `, [workspaceId]);
+    `, [organizationId]);
 
     res.json({
-      workspace,
+      organization,
       metrics: metricsResult.rows,
-      subscription: subResult.rows[0],
+      subscription: subResult.rows[0] || null,
       recent_activity: activityResult.rows
     });
   } catch (error) {
-    console.error('Workspace analytics error:', error);
-    res.status(500).json({ error: 'Failed to fetch workspace analytics' });
+    console.error('Organization analytics error:', error);
+    res.status(500).json({ error: 'Failed to fetch organization analytics' });
   }
 });
 
 // GET /api/admin/organizations - List all organizations with company details
 router.get('/organizations', verifySuperAdminToken, async (req: SuperAdminRequest, res: Response) => {
   try {
-    const limit = parseInt(req.query.limit as string) || 50;
-    const offset = parseInt(req.query.offset as string) || 0;
+    const limit = Number.parseInt(req.query.limit as string, 10) || 50;
+    const offset = Number.parseInt(req.query.offset as string, 10) || 0;
     const searchTerm = req.query.search as string;
 
     let query = `
       SELECT
         o.id,
         o.name,
-        o.workspace_id,
+        o.id as organization_id,
+        o.name as organization_name,
         o.type,
+        o.type as organization_type,
         o.gst_number,
         o.gst_percentage,
-        NULL::VARCHAR as industry,
-        NULL::VARCHAR as country,
+        o.industry,
+        o.country,
+        o.company_size,
+        o.website,
+        o.primary_contact_name,
+        o.primary_contact_email,
+        o.primary_contact_phone,
+        s.plan_id,
         p.name as plan_name,
         s.status as subscription_status,
-        CURRENT_TIMESTAMP as created_at
+        admin_user.id as admin_user_id,
+        admin_user.email as admin_user_email,
+        admin_user.name as admin_user_name,
+        o.created_at
       FROM Organizations o
-      LEFT JOIN Subscriptions s ON o.workspace_id = s.workspace_id AND s.deleted_at IS NULL
+      LEFT JOIN Subscriptions s ON o.id = s.workspace_id AND s.deleted_at IS NULL
       LEFT JOIN Plans p ON s.plan_id = p.id
+      LEFT JOIN LATERAL (
+        SELECT u.id, u.email, u.name
+        FROM Users u
+        WHERE u.workspace_id = o.id
+          AND u.role = 'admin'::user_role
+          AND u.deleted_at IS NULL
+        ORDER BY u.created_at ASC
+        LIMIT 1
+      ) admin_user ON true
       WHERE o.deleted_at IS NULL
     `;
 
@@ -514,7 +583,7 @@ router.get('/organizations', verifySuperAdminToken, async (req: SuperAdminReques
 
     res.json({
       organizations: result.rows,
-      total: parseInt(countResult.rows[0].count),
+      total: Number.parseInt(countResult.rows[0].count, 10),
       limit,
       offset
     });
@@ -578,7 +647,7 @@ router.get('/organizations/:organizationId', verifySuperAdminToken, async (req: 
        FROM Subscriptions s
        LEFT JOIN Plans p ON s.plan_id = p.id
        WHERE s.workspace_id = $1 AND s.deleted_at IS NULL`,
-      [organization.workspace_id]
+      [organization.id]
     );
 
     res.json({
@@ -633,6 +702,10 @@ router.post('/organizations', verifySuperAdminToken, async (req: SuperAdminReque
       type,
       email,
       password,
+      admin_email,
+      admin_password,
+      admin_name,
+      plan_id,
       gst_number,
       gst_percentage,
       country,
@@ -645,21 +718,24 @@ router.post('/organizations', verifySuperAdminToken, async (req: SuperAdminReque
     } = req.body;
 
     // Validate required fields
-    if (!name || !type || !email || !password) {
+    const effectiveAdminEmail = admin_email || email;
+    const effectiveAdminPassword = admin_password || password;
+    const effectiveAdminName = admin_name || primary_contact_name || name + ' Admin';
+
+    if (!name || !type || !effectiveAdminEmail || !effectiveAdminPassword) {
       return res.status(400).json({
-        error: 'Missing required fields: name, type, email, password'
+        error: 'Missing required fields: name, type, admin_email, admin_password'
       });
     }
 
     // Validate organization type
-    const validTypes = ['client', 'cro', 'analyzer', 'vendor', 'pharma'];
-    if (!validTypes.includes(type)) {
+    if (!isValidOrgType(type)) {
       return res.status(400).json({
-        error: `Invalid organization type. Must be one of: ${validTypes.join(', ')}`
+        error: `Invalid organization type. Must be one of: ${ORG_TYPES.join(', ')}`
       });
     }
 
-    console.log('Creating organization with admin user:', { name, type, email });
+    console.log('Creating organization with admin user:', { name, type, email: effectiveAdminEmail });
 
     // Start transaction
     const client = await pool.connect();
@@ -667,44 +743,62 @@ router.post('/organizations', verifySuperAdminToken, async (req: SuperAdminReque
     try {
       await client.query('BEGIN');
 
-      // Create workspace first
-      const workspaceSlug = name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-      const workspaceResult = await client.query(`
-        INSERT INTO Workspace (name, slug, type)
-        VALUES ($1, $2, 'research'::workspace_type)
-        RETURNING id
-      `, [name, workspaceSlug]);
+      // Generate slug from name
+      const slug = name.toLowerCase().replaceAll(/[^a-z0-9]/g, '-').replaceAll(/-+/g, '-').replaceAll(/^-|-$/g, '');
 
-      const workspaceId = workspaceResult.rows[0].id;
-
-      // Create organization
       const orgResult = await client.query(`
         INSERT INTO Organizations (
-          workspace_id, name, type, gst_number, gst_percentage, country,
+          name, slug, type, gst_number, gst_percentage, country,
           industry, company_size, website, primary_contact_name,
-          primary_contact_email, primary_contact_phone
+          primary_contact_email, primary_contact_phone, is_platform_workspace
         )
-        VALUES ($1, $2, $3::org_type, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        VALUES ($1, $2, $3::org_type, $4, $5, $6, $7, $8, $9, $10, $11, $12, true)
         RETURNING id
       `, [
-        workspaceId, name, type, gst_number, gst_percentage || 18.0, country,
+        name, slug, type, gst_number, gst_percentage ?? 18, country,
         industry, company_size, website, primary_contact_name,
         primary_contact_email, primary_contact_phone
       ]);
 
       const organizationId = orgResult.rows[0].id;
+      const workspaceId = organizationId;
+
+      if (plan_id) {
+        const planResult = await client.query(
+          `SELECT id, is_active FROM Plans WHERE id = $1`,
+          [plan_id]
+        );
+
+        if (planResult.rows.length === 0) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: 'Invalid plan_id' });
+        }
+
+        if (planResult.rows[0].is_active === false) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: 'Selected plan is inactive' });
+        }
+      }
 
       // Hash password and create admin user
-      const bcrypt = require('bcrypt');
-      const passwordHash = await bcrypt.hash(password, 10);
+      const passwordHash = await bcrypt.hash(effectiveAdminPassword, 10);
 
       const userResult = await client.query(`
         INSERT INTO Users (workspace_id, email, name, role, password_hash)
         VALUES ($1, $2, $3, 'admin'::user_role, $4)
         RETURNING id
-      `, [workspaceId, email, primary_contact_name || name + ' Admin', passwordHash]);
+      `, [workspaceId, effectiveAdminEmail, effectiveAdminName, passwordHash]);
 
       const userId = userResult.rows[0].id;
+
+      if (plan_id) {
+        await client.query(`
+          INSERT INTO Subscriptions (workspace_id, organization_id, plan_id, status)
+          VALUES ($1, $1, $2, 'active'::subscription_status)
+          ON CONFLICT (workspace_id) DO UPDATE
+          SET plan_id = $2, status = 'active'::subscription_status, updated_at = CURRENT_TIMESTAMP
+        `, [workspaceId, plan_id]);
+      }
 
       await client.query('COMMIT');
 
@@ -718,15 +812,17 @@ router.post('/organizations', verifySuperAdminToken, async (req: SuperAdminReque
         message: 'Organization and admin user created successfully',
         organization: {
           id: organizationId,
+          organization_id: organizationId,
           name,
+          organization_name: name,
           type,
-          email,
+          email: effectiveAdminEmail,
           workspace_id: workspaceId
         },
         admin_user: {
           id: userId,
-          email,
-          name: primary_contact_name || name + ' Admin'
+          email: effectiveAdminEmail,
+          name: effectiveAdminName
         }
       });
 
@@ -740,6 +836,137 @@ router.post('/organizations', verifySuperAdminToken, async (req: SuperAdminReque
   } catch (error) {
     console.error('Create organization error:', error);
     res.status(500).json({ error: 'Failed to create organization' });
+  }
+});
+
+// PUT /api/admin/organizations/:organizationId - Update organization details
+router.put('/organizations/:organizationId', verifySuperAdminToken, async (req: SuperAdminRequest, res: Response) => {
+  try {
+    const { organizationId } = req.params;
+    const {
+      name,
+      type,
+      industry,
+      company_size,
+      website,
+      gst_number,
+      gst_percentage,
+      country,
+      primary_contact_name,
+      primary_contact_email,
+      primary_contact_phone,
+      create_admin,
+      admin_email,
+      admin_password,
+      admin_name
+    } = req.body;
+
+    // Validate required fields
+    if (!name || !type || !country || !primary_contact_name || !primary_contact_email) {
+      return res.status(400).json({
+        error: 'Missing required fields: name, type, country, primary_contact_name, primary_contact_email'
+      });
+    }
+
+    // Validate organization type
+    if (!isValidOrgType(type)) {
+      return res.status(400).json({
+        error: `Invalid organization type. Must be one of: ${ORG_TYPES.join(', ')}`
+      });
+    }
+
+    console.log('Updating organization:', organizationId, { name, type, create_admin });
+
+    // Start transaction
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      // Generate slug from name
+      const slug = name.toLowerCase().replaceAll(/[^a-z0-9]/g, '-').replaceAll(/-+/g, '-').replaceAll(/^-|-$/g, '');
+
+      // Update organization
+      const orgResult = await client.query(`
+        UPDATE Organizations
+        SET name = $1, slug = $2, type = $3::org_type, industry = $4, company_size = $5, website = $6,
+            gst_number = $7, gst_percentage = $8, country = $9, primary_contact_name = $10,
+            primary_contact_email = $11, primary_contact_phone = $12, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $13 AND deleted_at IS NULL
+        RETURNING id, name, type
+      `, [
+        name, slug, type, industry || null, company_size || null, website || null,
+        gst_number || null, gst_percentage ?? 18, country, primary_contact_name,
+        primary_contact_email, primary_contact_phone || null, organizationId
+      ]);
+
+      if (orgResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Organization not found' });
+      }
+
+      const workspaceId = orgResult.rows[0].id;
+      let adminUser = null;
+
+      // Create admin user if requested
+      if (create_admin && admin_email && admin_password) {
+        console.log('Creating admin user for organization:', organizationId);
+
+        // Check if admin user already exists for this organization
+        const existingUser = await client.query(`
+          SELECT id FROM Users WHERE workspace_id = $1 AND role = 'admin'::user_role
+        `, [workspaceId]);
+
+        if (existingUser.rows.length > 0) {
+          console.log('Admin user already exists for this organization');
+        } else {
+          // Hash password and create admin user
+          const passwordHash = await bcrypt.hash(admin_password, 10);
+
+          const userResult = await client.query(`
+            INSERT INTO Users (workspace_id, email, name, role, password_hash)
+            VALUES ($1, $2, $3, 'admin'::user_role, $4)
+            RETURNING id, email, name
+          `, [workspaceId, admin_email, admin_name || name.concat(' Admin'), passwordHash]);
+
+          adminUser = userResult.rows[0];
+          console.log('✅ Admin user created:', adminUser);
+        }
+      }
+
+      await client.query('COMMIT');
+
+      console.log('✅ Organization updated successfully:', organizationId);
+
+      res.json({
+        message: 'Organization updated successfully',
+        organization: {
+          id: organizationId,
+          name,
+          type,
+          industry,
+          company_size,
+          website,
+          gst_number,
+          gst_percentage,
+          country,
+          primary_contact_name,
+          primary_contact_email,
+          primary_contact_phone
+        },
+        admin_user: adminUser
+      });
+
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+
+  } catch (error) {
+    console.error('Update organization error:', error);
+    res.status(500).json({ error: 'Failed to update organization' });
   }
 });
 
@@ -788,6 +1015,90 @@ router.put('/plans/:planId', verifySuperAdminToken, async (req: SuperAdminReques
   } catch (error) {
     console.error('Update plan error:', error);
     res.status(500).json({ error: 'Failed to update plan' });
+  }
+});
+
+// POST /api/admin/organizations/:orgId/create-admin - Create admin user for existing organization
+router.post('/organizations/:orgId/create-admin', verifySuperAdminToken, async (req: SuperAdminRequest, res: Response) => {
+  try {
+    const { orgId } = req.params;
+    const { email, password, name } = req.body;
+
+    // Validate required fields
+    if (!email || !password) {
+      return res.status(400).json({
+        error: 'Email and password are required'
+      });
+    }
+
+    console.log('Creating admin user for organization:', orgId, { email, name });
+
+    // Check if organization exists
+    const orgResult = await pool.query(
+      'SELECT * FROM Organizations WHERE id = $1',
+      [orgId]
+    );
+
+    if (orgResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    const org = orgResult.rows[0];
+
+    // Check if admin user already exists for this Organizations
+    const existingUser = await pool.query(
+      'SELECT * FROM Users WHERE workspace_id = $1 AND role = $2',
+      [org.id, 'admin']
+    );
+
+    if (existingUser.rows.length > 0) {
+      return res.status(400).json({
+        error: 'Admin user already exists for this organization',
+        admin_user: existingUser.rows[0].email
+      });
+    }
+
+    // Check if email is already taken
+    const emailCheck = await pool.query(
+      'SELECT * FROM Users WHERE email = $1',
+      [email]
+    );
+
+    if (emailCheck.rows.length > 0) {
+      return res.status(400).json({
+        error: 'Email already exists'
+      });
+    }
+
+    // Hash password and create admin user
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const userResult = await pool.query(
+      `INSERT INTO Users (workspace_id, email, name, role, password_hash)
+       VALUES ($1, $2, $3, 'admin'::user_role, $4)
+       RETURNING id, email, name, role`,
+      [org.id, email, name || org.name.concat(' Admin'), passwordHash]
+    );
+
+    console.log('✅ Admin user created for organization:', org.name);
+
+    res.status(201).json({
+      message: 'Admin user created successfully',
+      organization: {
+        id: org.id,
+        name: org.name
+      },
+      admin_user: {
+        id: userResult.rows[0].id,
+        email: userResult.rows[0].email,
+        name: userResult.rows[0].name,
+        role: userResult.rows[0].role
+      }
+    });
+
+  } catch (error) {
+    console.error('Create admin user error:', error);
+    res.status(500).json({ error: 'Failed to create admin user' });
   }
 });
 

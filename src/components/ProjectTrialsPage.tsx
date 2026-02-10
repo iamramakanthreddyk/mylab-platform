@@ -51,6 +51,10 @@ export function ProjectTrialsPage({ user }: ProjectTrialsPageProps) {
   const [removedColumns, setRemovedColumns] = useState<string[]>([])
   const [isSavingColumns, setIsSavingColumns] = useState(false)
   const [hasLoadedColumns, setHasLoadedColumns] = useState(false)
+  const [columnsDirty, setColumnsDirty] = useState(false)
+  const [savedColumns, setSavedColumns] = useState<string[]>([])
+  const [setupLocked, setSetupLocked] = useState(false)
+  const [isSavingSetup, setIsSavingSetup] = useState(false)
   const [sampleForm, setSampleForm] = useState(defaultSampleForm)
   const [isLoading, setIsLoading] = useState(false)
 
@@ -58,21 +62,10 @@ export function ProjectTrialsPage({ user }: ProjectTrialsPageProps) {
     if (projectId) {
       fetchProject()
       fetchParameterTemplate()
+      fetchTrialSetup()
       fetchTrials()
     }
   }, [projectId])
-
-  useEffect(() => {
-    if (!hasLoadedColumns) {
-      return
-    }
-
-    const timeout = setTimeout(() => {
-      handleSaveColumns(true)
-    }, 800)
-
-    return () => clearTimeout(timeout)
-  }, [hasLoadedColumns, parameterColumns])
 
   const fetchProject = async () => {
     try {
@@ -106,10 +99,40 @@ export function ProjectTrialsPage({ user }: ProjectTrialsPageProps) {
       const response = await axiosInstance.get(`/projects/${projectId}/trials/parameters`)
       const columns = response.data.data?.columns || []
       setParameterColumns(columns)
+      setSavedColumns(columns)
+      setRemovedColumns([])
       setHasLoadedColumns(true)
+      setColumnsDirty(false)
     } catch (error) {
       console.error('Failed to fetch trial parameter template:', error)
       setHasLoadedColumns(true)
+    }
+  }
+
+  const fetchTrialSetup = async () => {
+    if (!projectId) {
+      return
+    }
+
+    try {
+      const response = await axiosInstance.get(`/projects/${projectId}/trials/setup`)
+      const setup = response.data.data?.setup
+      const hasSetup = response.data.data?.hasSetup
+
+      if (setup) {
+        setCommonSetup({
+          objective: setup.objective || '',
+          equipment: setup.equipment || '',
+          notes: setup.notes || '',
+          performedAt: setup.performedAt || ''
+        })
+      }
+
+      if (hasSetup) {
+        setSetupLocked(true)
+      }
+    } catch (error) {
+      console.error('Failed to fetch trial setup:', error)
     }
   }
 
@@ -172,16 +195,19 @@ export function ProjectTrialsPage({ user }: ProjectTrialsPageProps) {
 
   const addParameterColumn = () => {
     setParameterColumns(prev => [...prev, ''])
+    setColumnsDirty(true)
   }
 
   const updateParameterColumn = (index: number, value: string) => {
     setParameterColumns(prev => prev.map((col, idx) => (idx === index ? value : col)))
+    setColumnsDirty(true)
   }
 
   const removeParameterColumn = (index: number) => {
     const column = parameterColumns[index]
     if (!column) {
       setParameterColumns(prev => prev.filter((_, idx) => idx !== index))
+      setColumnsDirty(true)
       return
     }
 
@@ -207,6 +233,7 @@ export function ProjectTrialsPage({ user }: ProjectTrialsPageProps) {
 
     setRemovedColumns(prev => (prev.includes(column) ? prev : [...prev, column]))
     setParameterColumns(prev => prev.filter((_, idx) => idx !== index))
+    setColumnsDirty(true)
   }
 
   const restoreParameterColumn = (column: string) => {
@@ -215,14 +242,27 @@ export function ProjectTrialsPage({ user }: ProjectTrialsPageProps) {
     }
     setParameterColumns(prev => [...prev, column])
     setRemovedColumns(prev => prev.filter(col => col !== column))
+    setColumnsDirty(true)
   }
 
-  const handleSaveColumns = async (silent = false) => {
+  const handleSaveColumns = async (silent = false): Promise<boolean> => {
     if (!projectId) {
       if (!silent) {
         toast.error('Project is required')
       }
-      return
+      return false
+    }
+
+    if (!columnsDirty && !silent) {
+      toast.info('No column changes to save')
+      return false
+    }
+
+    if (parameterColumns.some(col => !col.trim())) {
+      if (!silent) {
+        toast.error('Name or remove empty columns before saving')
+      }
+      return false
     }
 
     const trimmed = parameterColumns.map(col => col.trim()).filter(Boolean)
@@ -239,9 +279,12 @@ export function ProjectTrialsPage({ user }: ProjectTrialsPageProps) {
     setIsSavingColumns(true)
     try {
       await axiosInstance.put(`/projects/${projectId}/trials/parameters`, { columns })
+      setColumnsDirty(false)
+      setSavedColumns(columns)
       if (!silent) {
         toast.success('Trial columns saved')
       }
+      return true
     } catch (error: any) {
       console.error('Failed to save trial columns:', error)
       if (!silent) {
@@ -250,8 +293,98 @@ export function ProjectTrialsPage({ user }: ProjectTrialsPageProps) {
           : error.response?.data?.error || 'Failed to save trial columns'
         toast.error(errorMessage)
       }
+      return false
     } finally {
       setIsSavingColumns(false)
+    }
+  }
+
+  const handleSaveSetup = async (override?: typeof commonSetup): Promise<boolean> => {
+    if (!projectId) {
+      toast.error('Project is required')
+      return false
+    }
+
+    const payload = override ?? commonSetup
+
+    setIsSavingSetup(true)
+    try {
+      const response = await axiosInstance.put(`/projects/${projectId}/trials/setup`, payload)
+      const saved = response.data.data?.setup
+      if (saved) {
+        setCommonSetup({
+          objective: saved.objective || '',
+          equipment: saved.equipment || '',
+          notes: saved.notes || '',
+          performedAt: saved.performedAt || ''
+        })
+      }
+      toast.success('Shared setup saved')
+      return true
+    } catch (error: any) {
+      console.error('Failed to save trial setup:', error)
+      const errorMessage = error.response?.data?.details
+        ? Object.values(error.response.data.details).join(', ')
+        : error.response?.data?.error || 'Failed to save shared setup'
+      toast.error(errorMessage)
+      return false
+    } finally {
+      setIsSavingSetup(false)
+    }
+  }
+
+  const handleDiscardColumns = () => {
+    if (!columnsDirty) {
+      return
+    }
+
+    const confirmDiscard = confirm('Discard unsaved column changes?')
+    if (!confirmDiscard) {
+      return
+    }
+
+    setParameterColumns(savedColumns)
+    setRemovedColumns([])
+    setColumnsDirty(false)
+  }
+
+  const handleProceedToTrials = async () => {
+    if (columnsDirty) {
+      const saved = await handleSaveColumns(false)
+      if (!saved) {
+        return
+      }
+    }
+
+    const setupSaved = await handleSaveSetup()
+    if (!setupSaved) {
+      return
+    }
+
+    setSetupLocked(true)
+  }
+
+  const handleEditSetup = () => {
+    setSetupLocked(false)
+  }
+
+  const handleResetSetup = async () => {
+    const confirmReset = confirm('Reset shared setup fields?')
+    if (!confirmReset) {
+      return
+    }
+
+    const clearedSetup = {
+      objective: '',
+      equipment: '',
+      notes: '',
+      performedAt: ''
+    }
+
+    setCommonSetup(clearedSetup)
+    const saved = await handleSaveSetup(clearedSetup)
+    if (saved) {
+      setSetupLocked(false)
     }
   }
 
@@ -364,6 +497,18 @@ export function ProjectTrialsPage({ user }: ProjectTrialsPageProps) {
     navigate(`/projects/${projectId}/samples/${sample.id}/create-analysis`)
   }
 
+  const trimmedColumns = parameterColumns.map(col => col.trim())
+  const columnCounts = trimmedColumns.reduce<Record<string, number>>((acc, col) => {
+    if (!col) {
+      return acc
+    }
+    acc[col] = (acc[col] || 0) + 1
+    return acc
+  }, {})
+  const hasEmptyColumns = parameterColumns.some(col => !col.trim())
+  const canProceedToTrials = hasLoadedColumns && !isSavingColumns && !isSavingSetup && !columnsDirty && !hasEmptyColumns
+  const trialEntriesLocked = !setupLocked
+
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-5xl mx-auto px-6 py-8">
@@ -387,123 +532,206 @@ export function ProjectTrialsPage({ user }: ProjectTrialsPageProps) {
         <div className="space-y-6 mb-8">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Common Trial Setup</CardTitle>
+              <CardTitle className="text-lg">Shared Trial Details</CardTitle>
               <CardDescription>
-                Define shared experiment conditions once. Each trial row will inherit these values.
+                Step 1: Save shared settings. Step 2: Add trials using those settings.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label>Trial Parameters (Table Columns)</Label>
-                  <div className="flex items-center gap-2">
-                    <Button type="button" variant="outline" size="sm" onClick={addParameterColumn} className="gap-2">
-                      <Plus size={14} />
-                      Add Column
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => handleSaveColumns(false)}
-                      disabled={isSavingColumns}
-                      className="gap-2"
-                    >
-                      <FloppyDisk size={14} />
-                      {isSavingColumns ? 'Saving...' : 'Save Columns'}
-                    </Button>
-                    {isSavingColumns && (
-                      <span className="text-xs text-muted-foreground">Autosaving...</span>
-                    )}
+              <div className="rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground">
+                <div className="grid gap-2 md:grid-cols-2">
+                  <div>
+                    <span className="font-semibold text-foreground">Step 1:</span> Save columns and shared details.
+                  </div>
+                  <div>
+                    <span className="font-semibold text-foreground">Step 2:</span> Add trial rows with only trial-specific data.
                   </div>
                 </div>
-                {removedColumns.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <span>Removed:</span>
-                    {removedColumns.map((column) => (
-                      <Button
-                        key={column}
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => restoreParameterColumn(column)}
-                        className="h-7"
-                      >
-                        Restore {column}
-                      </Button>
+              </div>
+              {setupLocked ? (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label>Saved Setup Summary</Label>
+                    <Button type="button" variant="outline" size="sm" onClick={handleEditSetup}>
+                      Edit Setup
+                    </Button>
+                  </div>
+                  <div className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div>
+                        <p className="font-medium text-foreground">Columns</p>
+                        <p>{parameterColumns.length > 0 ? parameterColumns.join(', ') : 'None'}</p>
+                      </div>
+                      <div>
+                        <p className="font-medium text-foreground">Default Date</p>
+                        <p>{commonSetup.performedAt || 'Not set'}</p>
+                      </div>
+                      <div>
+                        <p className="font-medium text-foreground">Objective</p>
+                        <p>{commonSetup.objective || 'Not set'}</p>
+                      </div>
+                      <div>
+                        <p className="font-medium text-foreground">Equipment</p>
+                        <p>{commonSetup.equipment || 'Not set'}</p>
+                      </div>
+                      <div className="md:col-span-2">
+                        <p className="font-medium text-foreground">Notes</p>
+                        <p>{commonSetup.notes || 'Not set'}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label>Trial Parameters (Table Columns)</Label>
+                      <div className="flex items-center gap-2">
+                        <Button type="button" variant="outline" size="sm" onClick={addParameterColumn} className="gap-2">
+                          <Plus size={14} />
+                          Add Column
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleDiscardColumns}
+                          disabled={!columnsDirty}
+                          className="gap-2"
+                        >
+                          Discard Changes
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => handleSaveColumns(false)}
+                          disabled={isSavingColumns || !columnsDirty}
+                          className="gap-2"
+                        >
+                          <FloppyDisk size={14} />
+                          {isSavingColumns ? 'Saving...' : columnsDirty ? 'Save Columns' : 'Saved'}
+                        </Button>
+                        {columnsDirty && !isSavingColumns && (
+                          <span className="text-xs text-muted-foreground">Unsaved changes</span>
+                        )}
+                      </div>
+                    </div>
+                    {removedColumns.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <span>Removed:</span>
+                        {removedColumns.map((column) => (
+                          <Button
+                            key={column}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => restoreParameterColumn(column)}
+                            className="h-7"
+                          >
+                            Restore {column}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
+                    {parameterColumns.length === 0 && (
+                      <div className="text-xs text-muted-foreground">
+                        Add column names like temperature, pressure, flow_rate to capture readings per trial.
+                      </div>
+                    )}
+                    {parameterColumns.length > 0 && (
+                      <div className="text-xs text-muted-foreground">
+                        Removing a column only hides its readings. Saved trials keep their original values.
+                      </div>
+                    )}
+                    {parameterColumns.map((col, index) => (
+                      <div key={`param-${index}`} className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <Input
+                            value={col}
+                            onChange={(e) => updateParameterColumn(index, e.target.value)}
+                            placeholder="e.g., temperature"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="text-red-600 hover:text-red-700"
+                            onClick={() => removeParameterColumn(index)}
+                          >
+                            <X size={14} />
+                          </Button>
+                        </div>
+                        {!col.trim() && (
+                          <p className="text-xs text-red-600">Column name is required.</p>
+                        )}
+                        {!!col.trim() && columnCounts[col.trim()] > 1 && (
+                          <p className="text-xs text-red-600">Duplicate column name.</p>
+                        )}
+                      </div>
                     ))}
                   </div>
-                )}
-                {parameterColumns.length === 0 && (
-                  <div className="text-xs text-muted-foreground">
-                    Add column names like temperature, pressure, flow_rate to capture readings per trial.
-                  </div>
-                )}
-                {parameterColumns.length > 0 && (
-                  <div className="text-xs text-muted-foreground">
-                    Removing a column only hides its readings. Saved trials keep their original values.
-                  </div>
-                )}
-                {parameterColumns.map((col, index) => (
-                  <div key={`param-${index}`} className="flex items-center gap-2">
-                    <Input
-                      value={col}
-                      onChange={(e) => updateParameterColumn(index, e.target.value)}
-                      placeholder="e.g., temperature"
+                  <div className="space-y-2">
+                    <Label htmlFor="common-objective">Objective</Label>
+                    <Textarea
+                      id="common-objective"
+                      value={commonSetup.objective}
+                      onChange={(e) => setCommonSetup({ ...commonSetup, objective: e.target.value })}
+                      placeholder="What are you trying to learn or improve?"
+                      rows={3}
                     />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="common-equipment">Equipment</Label>
+                      <Textarea
+                        id="common-equipment"
+                        value={commonSetup.equipment}
+                        onChange={(e) => setCommonSetup({ ...commonSetup, equipment: e.target.value })}
+                        placeholder="Reactors, pumps, detectors, etc."
+                        rows={3}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="common-notes">Notes</Label>
+                      <Textarea
+                        id="common-notes"
+                        value={commonSetup.notes}
+                        onChange={(e) => setCommonSetup({ ...commonSetup, notes: e.target.value })}
+                        placeholder="Observations, deviations, or outcomes"
+                        rows={3}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="common-date">Default Date</Label>
+                      <Input
+                        id="common-date"
+                        type="date"
+                        value={commonSetup.performedAt}
+                        onChange={(e) => setCommonSetup({ ...commonSetup, performedAt: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-3">
                     <Button
                       type="button"
-                      variant="ghost"
-                      className="text-red-600 hover:text-red-700"
-                      onClick={() => removeParameterColumn(index)}
+                      variant="outline"
+                      onClick={handleResetSetup}
+                      disabled={isSavingSetup}
                     >
-                      <X size={14} />
+                      Reset Setup
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handleProceedToTrials}
+                      disabled={!canProceedToTrials}
+                      className="gap-2"
+                    >
+                      {isSavingSetup ? 'Saving...' : 'Continue to Trials'}
                     </Button>
                   </div>
-                ))}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="common-objective">Objective</Label>
-                <Textarea
-                  id="common-objective"
-                  value={commonSetup.objective}
-                  onChange={(e) => setCommonSetup({ ...commonSetup, objective: e.target.value })}
-                  placeholder="What are you trying to learn or improve?"
-                  rows={3}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="common-equipment">Equipment</Label>
-                  <Textarea
-                    id="common-equipment"
-                    value={commonSetup.equipment}
-                    onChange={(e) => setCommonSetup({ ...commonSetup, equipment: e.target.value })}
-                    placeholder="Reactors, pumps, detectors, etc."
-                    rows={3}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="common-notes">Notes</Label>
-                  <Textarea
-                    id="common-notes"
-                    value={commonSetup.notes}
-                    onChange={(e) => setCommonSetup({ ...commonSetup, notes: e.target.value })}
-                    placeholder="Observations, deviations, or outcomes"
-                    rows={3}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="common-date">Default Date</Label>
-                  <Input
-                    id="common-date"
-                    type="date"
-                    value={commonSetup.performedAt}
-                    onChange={(e) => setCommonSetup({ ...commonSetup, performedAt: e.target.value })}
-                  />
-                </div>
-              </div>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -514,74 +742,103 @@ export function ProjectTrialsPage({ user }: ProjectTrialsPageProps) {
                   <CardTitle className="text-lg">Trial Entries</CardTitle>
                   <CardDescription>Add each trial as a row, then save them together.</CardDescription>
                 </div>
-                <Button type="button" variant="outline" onClick={addTrialRow} className="gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={addTrialRow}
+                  className="gap-2"
+                  disabled={trialEntriesLocked}
+                >
                   <Plus size={16} />
                   Add Row
                 </Button>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-3 text-xs font-medium text-muted-foreground" style={{ gridTemplateColumns: `2fr 1fr 1fr ${parameterColumns.length > 0 ? `repeat(${parameterColumns.length}, minmax(120px, 1fr))` : ''} 40px` }}>
-                <div>Trial Name *</div>
-                <div>Status</div>
-                <div>Date</div>
-                {parameterColumns.map((col, index) => (
-                  <div key={`header-${index}`}>{col || 'Parameter'}</div>
-                ))}
-                <div></div>
-              </div>
-              {trialRows.map((row) => (
-                <div key={row.id} className="grid gap-3 items-center" style={{ gridTemplateColumns: `2fr 1fr 1fr ${parameterColumns.length > 0 ? `repeat(${parameterColumns.length}, minmax(120px, 1fr))` : ''} 40px` }}>
-                  <Input
-                    value={row.name}
-                    onChange={(e) => updateTrialRow(row.id, { name: e.target.value })}
-                    placeholder="e.g., Trial 5TE"
-                  />
-                  <Select
-                    value={row.status}
-                    onValueChange={(value) => updateTrialRow(row.id, { status: value as Trial['status'] })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="planned">Planned</SelectItem>
-                      <SelectItem value="running">Running</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    type="date"
-                    value={row.performedAt}
-                    onChange={(e) => updateTrialRow(row.id, { performedAt: e.target.value })}
-                  />
+              {trialEntriesLocked && (
+                <div className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
+                  Complete Step 1 to unlock trial entry.
+                </div>
+              )}
+              <div className={trialEntriesLocked ? 'space-y-4 opacity-60 pointer-events-none' : 'space-y-4'}>
+                <div
+                  className="grid gap-3 text-xs font-medium text-muted-foreground"
+                  style={{
+                    gridTemplateColumns: `2fr 1fr 1fr ${
+                      parameterColumns.length > 0 ? `repeat(${parameterColumns.length}, minmax(120px, 1fr))` : ''
+                    } 40px`
+                  }}
+                >
+                  <div>Trial Name *</div>
+                  <div>Status</div>
+                  <div>Date</div>
                   {parameterColumns.map((col, index) => (
-                    <Input
-                      key={`cell-${row.id}-${index}`}
-                      value={row.readings[col] || ''}
-                      onChange={(e) => updateTrialReading(row.id, col, e.target.value)}
-                      placeholder={col || 'Value'}
-                    />
+                    <div key={`header-${index}`}>{col || 'Parameter'}</div>
                   ))}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="text-red-600 hover:text-red-700"
-                    onClick={() => removeTrialRow(row.id)}
-                    disabled={trialRows.length === 1}
+                  <div></div>
+                </div>
+                {trialRows.map((row) => (
+                  <div
+                    key={row.id}
+                    className="grid gap-3 items-center"
+                    style={{
+                      gridTemplateColumns: `2fr 1fr 1fr ${
+                        parameterColumns.length > 0 ? `repeat(${parameterColumns.length}, minmax(120px, 1fr))` : ''
+                      } 40px`
+                    }}
                   >
-                    <X size={16} />
+                    <Input
+                      value={row.name}
+                      onChange={(e) => updateTrialRow(row.id, { name: e.target.value })}
+                      placeholder="e.g., Trial 5TE"
+                    />
+                    <Select
+                      value={row.status}
+                      onValueChange={(value) => updateTrialRow(row.id, { status: value as Trial['status'] })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="planned">Planned</SelectItem>
+                        <SelectItem value="running">Running</SelectItem>
+                        <SelectItem value="completed">Completed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="date"
+                      value={row.performedAt}
+                      onChange={(e) => updateTrialRow(row.id, { performedAt: e.target.value })}
+                    />
+                    {parameterColumns.map((col, index) => (
+                      <Input
+                        key={`cell-${row.id}-${index}`}
+                        value={row.readings[col] || ''}
+                        onChange={(e) => updateTrialReading(row.id, col, e.target.value)}
+                        placeholder={col || 'Value'}
+                      />
+                    ))}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="text-red-600 hover:text-red-700"
+                      onClick={() => removeTrialRow(row.id)}
+                      disabled={trialRows.length === 1}
+                    >
+                      <X size={16} />
+                    </Button>
+                  </div>
+                ))}
+                <div className="flex justify-end gap-3 pt-2">
+                  <Button onClick={handleSaveTrials} disabled={isLoading} className="gap-2">
+                    <FloppyDisk size={16} />
+                    {isLoading ? 'Saving...' : 'Save Trials'}
                   </Button>
                 </div>
-              ))}
-              <div className="flex justify-end gap-3 pt-2">
-                <Button onClick={handleSaveTrials} disabled={isLoading} className="gap-2">
-                  <FloppyDisk size={16} />
-                  {isLoading ? 'Saving...' : 'Save Trials'}
-                </Button>
               </div>
             </CardContent>
           </Card>
+
         </div>
 
         <div className="space-y-6">

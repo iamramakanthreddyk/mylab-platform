@@ -155,7 +155,7 @@ const MODULES: FrontendModule[] = [
     subRoutes: [
       {
         path: '/create',
-        component: 'CreateProjectModal',
+        component: 'CreateProjectPage',
         title: 'Create Project'
       },
       {

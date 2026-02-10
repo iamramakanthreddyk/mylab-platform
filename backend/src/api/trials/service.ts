@@ -12,6 +12,98 @@ import {
  */
 
 export class TrialService {
+  static async getTrialSetup(
+    projectId: string,
+    workspaceId: string
+  ): Promise<{ columns: string[]; setup: { objective: string; equipment: string; notes: string; performedAt: string }; hasSetup: boolean }> {
+    try {
+      const result = await pool.query(
+        `
+        SELECT columns, objective, equipment, notes, performed_at
+        FROM trial_parameter_templates
+        WHERE project_id = $1 AND workspace_id = $2
+        `,
+        [projectId, workspaceId]
+      );
+
+      if (result.rows.length === 0) {
+        return {
+          columns: [],
+          setup: { objective: '', equipment: '', notes: '', performedAt: '' },
+          hasSetup: false
+        };
+      }
+
+      const row = result.rows[0];
+      const performedAt = row.performed_at
+        ? new Date(row.performed_at).toISOString().split('T')[0]
+        : '';
+
+      return {
+        columns: row.columns || [],
+        setup: {
+          objective: row.objective || '',
+          equipment: row.equipment || '',
+          notes: row.notes || '',
+          performedAt
+        },
+        hasSetup: true
+      };
+    } catch (error) {
+      logger.error('Failed to get trial setup', { projectId, workspaceId, error });
+      throw error;
+    }
+  }
+
+  static async upsertTrialSetup(
+    projectId: string,
+    workspaceId: string,
+    userId: string,
+    setup: { objective?: string; equipment?: string; notes?: string; performedAt?: string }
+  ): Promise<{ objective: string; equipment: string; notes: string; performedAt: string }> {
+    try {
+      const result = await pool.query(
+        `
+        INSERT INTO trial_parameter_templates (
+          project_id, workspace_id, columns, created_by, objective, equipment, notes, performed_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        ON CONFLICT (project_id, workspace_id)
+        DO UPDATE SET
+          objective = EXCLUDED.objective,
+          equipment = EXCLUDED.equipment,
+          notes = EXCLUDED.notes,
+          performed_at = EXCLUDED.performed_at,
+          updated_at = NOW()
+        RETURNING objective, equipment, notes, performed_at
+        `,
+        [
+          projectId,
+          workspaceId,
+          JSON.stringify([]),
+          userId,
+          setup.objective?.trim() || null,
+          setup.equipment?.trim() || null,
+          setup.notes?.trim() || null,
+          setup.performedAt ? setup.performedAt : null
+        ]
+      );
+
+      const row = result.rows[0];
+      return {
+        objective: row.objective || '',
+        equipment: row.equipment || '',
+        notes: row.notes || '',
+        performedAt: row.performed_at
+          ? new Date(row.performed_at).toISOString().split('T')[0]
+          : ''
+      };
+    } catch (error) {
+      logger.error('Failed to save trial setup', { projectId, workspaceId, error });
+      throw error;
+    }
+  }
+
   static async listTrials(projectId: string, workspaceId: string): Promise<TrialResponse[]> {
     try {
       const result = await pool.query(

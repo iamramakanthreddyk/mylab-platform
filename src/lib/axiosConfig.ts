@@ -10,8 +10,18 @@ axiosInstance.interceptors.request.use(
     // Check for admin token first, then regular auth token
     const adminToken = localStorage.getItem('adminToken')
     const token = adminToken || localStorage.getItem('authToken')
+    
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
+      // Log for debugging (only in development)
+      if (import.meta.env.DEV) {
+        console.log(`[axios] Added auth header to ${config.method?.toUpperCase()} ${config.url}`)
+      }
+    } else {
+      // Log when no token is available (for debugging)
+      if (import.meta.env.DEV) {
+        console.warn(`[axios] No auth token available for ${config.method?.toUpperCase()} ${config.url}`)
+      }
     }
     return config
   },
@@ -25,14 +35,24 @@ axiosInstance.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Only clear auth if we got a 401 from the server (not on initial requests)
-      // Don't redirect - let the component handle it gracefully
-      console.warn('Unauthorized - token may be expired')
-      // Check if this is a real auth error vs initial request
-      const token = localStorage.getItem('authToken')
-      if (token && error.config?.url?.includes('auth') === false) {
-        // This is a real 401, not an auth endpoint
-        // Clear the token but don't redirect - let React component re-render
+      // Log the 401 but don't automatically clear token
+      // Let the component decide what to do based on context
+      console.warn('[axios] Got 401 response:', {
+        url: error.config?.url,
+        method: error.config?.method,
+        message: error.response?.data?.error
+      })
+      
+      // Only clear token for specific errors that indicate invalid/expired token
+      const serverError = error.response?.data?.error || ''
+      const shouldClearToken = 
+        serverError.toLowerCase().includes('invalid token') ||
+        serverError.toLowerCase().includes('expired') ||
+        serverError.toLowerCase().includes('malformed') ||
+        serverError.toLowerCase().includes('revoked')
+      
+      if (shouldClearToken) {
+        console.warn('[axios] Token is invalid/expired, clearing auth')
         localStorage.removeItem('authToken')
         localStorage.removeItem('user')
       }

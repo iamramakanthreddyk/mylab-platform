@@ -1,0 +1,85 @@
+graph TD
+    %% ============================================================================
+    %% MYLAB PLATFORM DATABASE HIERARCHY & DATA FLOW
+    %% ============================================================================
+
+    %% SuperAdmin Level
+    SA[👑 SuperAdmin<br/>PlatformAdmin] -->|creates| WS[🏢 Workspace<br/>Digital Container]
+
+    %% Workspace Level
+    WS -->|owns| ORG[🏭 Organization<br/>Business Entity]
+    WS -->|contains| USERS[👥 Users<br/>Team Members]
+    WS -->|has| SUB[💰 Subscription<br/>Billing]
+    WS -->|contains| PROJ[📁 Projects<br/>Research Work]
+    WS -->|contains| SAMP[🧪 Samples<br/>Lab Materials]
+    WS -->|contains| BATCH[📦 Batches<br/>Analysis Groups]
+    WS -->|contains| ANALY[📊 Analyses<br/>Test Results]
+
+    %% Organization Level
+    ORG -->|employs| USERS
+    ORG -->|clients_for| PROJ
+    ORG -->|executes| PROJ
+    ORG -->|requests| SCR[🔄 SupplyChainRequests<br/>Collaboration]
+    ORG -->|grants_access| AG[🔐 AccessGrants<br/>Permissions]
+    ORG -->|owns| APIK[🔑 APIKeys<br/>Integration]
+
+    %% User Level
+    USERS -->|creates| PROJ
+    USERS -->|creates| SAMP
+    USERS -->|creates| BATCH
+    USERS -->|performs| ANALY
+    USERS -->|uploads| DOCS[📄 Documents<br/>Files]
+    USERS -->|generates| AUDIT[📋 AuditLog<br/>Activity Trail]
+
+    %% Project Flow
+    PROJ -->|contains| PSTAGE[📋 ProjectStages<br/>Milestones]
+    PROJ -->|contains| SAMP
+    PROJ -->|contains| DOCS
+
+    %% Sample Processing Flow
+    SAMP -->|processed_into| DSAMP[🧬 DerivedSamples<br/>Modified Materials]
+    DSAMP -->|grouped_into| BITEMS[📦 BatchItems<br/>Batch Contents]
+    BITEMS -->|belongs_to| BATCH
+    BATCH -->|analyzed_in| ANALY
+
+    %% Collaboration Flow
+    SCR -->|fulfilled_by| MH[📦 MaterialHandoff<br/>Transfer Records]
+    AG -->|enables| DT[🎫 DownloadTokens<br/>Access Tokens]
+
+    %% Business Flow
+    SUB -->|based_on| PLAN[📋 Plans<br/>Feature Tiers]
+    PLAN -->|includes| PFEAT[⚙️ PlanFeatures<br/>Capabilities]
+    PFEAT -->|controls| FEAT[🔧 Features<br/>Platform Functions]
+
+    %% Monitoring & Security
+    USERS -->|tracked_in| UM[📊 UsageMetrics<br/>Consumption]
+    USERS -->|logged_in| LL[🔑 LastLogin<br/>Session Tracking]
+    FEAT -->|usage_logged| FUSAGE[📈 FeatureUsage<br/>Function Usage]
+    AUDIT -->|security_events| SLOG[🚨 SecurityLog<br/>Security Events]
+
+    %% Onboarding Flow
+    ORG -->|created_via| COR[📝 CompanyOnboardingRequests<br/>Registration]
+    COR -->|generates| CI[📧 CompanyInvitations<br/>User Invites]
+    COR -->|billed_via| CPAY[💳 CompanyPayments<br/>Billing]
+
+    %% Metadata & History
+    SAMP -->|history| SMH[📚 SampleMetadataHistory<br/>Change Tracking]
+    DSAMP -->|history| SMH
+
+    %% Styling
+    classDef superAdmin fill:#ff6b6b,color:white,stroke:#d63031,stroke-width:3px
+    classDef workspace fill:#74b9ff,color:white,stroke:#0984e3,stroke-width:2px
+    classDef organization fill:#a29bfe,color:white,stroke:#6c5ce7,stroke-width:2px
+    classDef users fill:#fdcb6e,color:black,stroke:#e17055,stroke-width:2px
+    classDef data fill:#55efc4,color:black,stroke:#00b894,stroke-width:2px
+    classDef security fill:#e17055,color:white,stroke:#d63031,stroke-width:2px
+    classDef business fill:#fd79a8,color:white,stroke:#e84393,stroke-width:2px
+
+    class SA superAdmin
+    class WS workspace
+    class ORG organization
+    class USERS users
+    class PROJ,SAMP,BATCH,ANALY,DOCS,PSTAGE,DSAMP,BITEMS data
+    class AUDIT,SLOG,AG,APIK,DT,LL security
+    class SUB,PLAN,PFEAT,FEAT,UM,FUSAGE,CPAY business
+    class SCR,MH,COR,CI,SMH data

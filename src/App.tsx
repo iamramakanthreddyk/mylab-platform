@@ -21,10 +21,11 @@ import { BatchDetailView } from '@/components/BatchDetailView'
 import { AnalysesView } from '@/components/AnalysesView'
 import { SchemaExplorer } from '@/components/SchemaExplorer'
 import { NotificationCenter } from '@/components/NotificationCenter'
-import { UsersManager } from '@/components/UsersManager'
+import { UserManagement } from '@/components/UserManagement'
 import { CreateSamplePage } from '@/components/CreateSamplePage'
 import { CreateStagePage } from '@/components/CreateStagePage'
 import { CreateAnalysisPage } from '@/components/CreateAnalysisPage'
+import { CreateProjectPage } from '@/components/CreateProjectPage'
 import { CompleteAnalysisPage } from '@/components/CompleteAnalysisPage'
 import { SupplyChainCollaboration } from '@/components/SupplyChainCollaboration'
 import { ModulePlaceholder } from '@/components/ModulePlaceholder'
@@ -207,6 +208,7 @@ function AppContent() {
           <Routes>
             <Route path="/dashboard" element={<Dashboard user={currentUser} projects={projects || []} samples={samples || []} />} />
             <Route path="/projects" element={<ProjectsView user={currentUser} projects={projects || []} onProjectsChange={setProjects} />} />
+            <Route path="/projects/create" element={<CreateProjectPage user={currentUser} onProjectsChange={setProjects} />} />
             <Route path="/projects/:id" element={<ProjectDetails user={currentUser} />} />
             <Route path="/projects/:projectId/trials" element={<ProjectTrialsPage user={currentUser} />} />
             <Route path="/projects/:projectId/create-stage" element={<CreateStagePage user={currentUser} />} />
@@ -214,7 +216,7 @@ function AppContent() {
             <Route path="/projects/:projectId/samples/:sampleId/create-analysis" element={<CreateAnalysisPage user={currentUser} />} />
             <Route path="/supply-chain/collaboration" element={<SupplyChainCollaboration user={currentUser} />} />
             <Route path="/samples" element={<SamplesView user={currentUser} samples={samples || []} onSamplesChange={setSamples} />} />
-            <Route path="/users" element={<UsersManager user={currentUser} />} />
+            <Route path="/users" element={<UserManagement user={currentUser} />} />
             <Route path="/batches" element={<BatchesView user={currentUser} />} />
             <Route path="/batches/:batchId" element={<BatchDetailView user={currentUser} />} />
             <Route path="/analyses" element={<AnalysesView user={currentUser} />} />

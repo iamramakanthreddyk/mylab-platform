@@ -1,9 +1,13 @@
-# 🎯 Superadmin System - Quick Reference Guide
+# 🎯 Platform Admin System - Quick Reference Guide
 
-## 🔑 Superadmin Credentials
+## 🔑 Platform Admin Credentials
+
+Platform admins are stored in the `Users` table with `role = platform_admin`.
+Use environment variables to seed a platform admin in setup:
+
 ```
-Email: superadmin@mylab.io
-Password: SuperAdmin123!
+SUPERADMIN_EMAIL=superadmin@mylab.io
+SUPERADMIN_PASSWORD=SuperAdmin123!
 ```
 
 ## 🚀 Quickstart
@@ -34,9 +38,9 @@ Response:
 {
   "token": "eyJhbGciOiJIUzI1NiIs...",
   "admin": {
-    "id": "superadmin-1",
+    "id": "<platform_admin_user_id>",
     "email": "superadmin@mylab.io",
-    "role": "PlatformAdmin",
+    "role": "platform_admin",
     "name": "Platform Administrator"
   }
 }
@@ -53,12 +57,12 @@ Authorization: Bearer {token}
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
 | `/api/admin/analytics/overview` | GET | Platform-wide metrics |
-| `/api/admin/analytics/workspace/:id` | GET | workspace details & metrics |
+| `/api/admin/analytics/organizations/:id` | GET | Organization details & metrics |
 
 ### Management
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/api/admin/workspaces` | GET | List workspaces |
+| `/api/admin/workspaces` | GET | List organizations (tenant list) |
 | `/api/admin/users` | GET | List users with activity |
 | `/api/admin/plans` | GET | View plans |
 | `/api/admin/subscriptions` | GET | View active subscriptions |
@@ -67,9 +71,11 @@ Authorization: Bearer {token}
 ### Actions
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/api/admin/subscriptions/:id/upgrade` | POST | Change workspace plan |
+| `/api/admin/subscriptions/:id/upgrade` | POST | Change organization plan |
 
 ## 📈 Sample Output
+
+Note: Admin responses still use legacy `workspaces` naming for organization data.
 
 ### Get Platform Overview
 ```bash
@@ -92,7 +98,7 @@ Response:
 }
 ```
 
-### Get Workspaces with Metrics
+### Get Organizations with Metrics
 ```bash
 curl "http://localhost:3001/api/admin/workspaces?limit=10" \
   -H "Authorization: Bearer {token}"
@@ -104,7 +110,7 @@ Response:
   "workspaces": [
     {
       "id": "977b3387-0141-4750-921c-c485cc30f1cf",
-      "name": "Test Workspace 1770237521845",
+      "name": "TechLab Solutions",
       "created_at": "2024-12-06T...",
       "user_count": 1,
       "project_count": 1,
@@ -128,7 +134,7 @@ Response:
 
 Essential tables:
 - `plans` - Subscription tiers
-- `subscriptions` - Workspace plan mappings
+- `subscriptions` - Organization plan mappings
 - `features` - Feature definitions
 - `lastlogin` - User activity tracking
 - `usagemetrics` - Daily aggregated data
@@ -138,7 +144,7 @@ Location: Railway PostgreSQL (caboose.proxy.rlwy.net:53153)
 ## 🔐 Security Features
 
 ✅ JWT authentication (24-hour tokens)
-✅ Role-based authorization (PlatformAdmin only)
+✅ Role-based authorization (`platform_admin` only)
 ✅ SQL injection prevention (parameterized queries)
 ✅ SSL/TLS for database connections
 ✅ Environment variable protection
@@ -149,14 +155,14 @@ All 9 endpoints have passing tests:
 
 ```
 ✅ Unauthorized Access (rejects unauthenticated requests)
-✅ Superadmin Login (JWT generation)
+✅ Platform Admin Login (JWT generation)
 ✅ Analytics Overview (platform metrics)
-✅ Workspaces List (workspace enumeration)
+✅ Organizations List (organization enumeration)
 ✅ Users List (user activity tracking)
 ✅ Plans List (available plans)
 ✅ Subscriptions List (active subscriptions)
 ✅ Features List (feature availability)
-✅ Workspace Analytics (detailed metrics)
+✅ Organization Analytics (detailed metrics)
 ```
 
 ## 📋 File Structure
@@ -165,7 +171,7 @@ All 9 endpoints have passing tests:
 backend/
 ├── src/
 │   ├── routes/
-│   │   └── admin.ts              ← Superadmin endpoints
+│   │   └── admin.ts              ← Platform admin endpoints
 │   ├── middleware/
 │   │   ├── analytics.ts          ← Usage tracking
 │   │   └── auth.ts               ← Authentication
@@ -186,6 +192,8 @@ NODE_ENV=development
 DATABASE_URL=postgresql://user:pwd@caboose.proxy.rlwy.net:53153/railway
 PORT=3001
 JWT_SECRET=dev-jwt-secret-change-in-production
+SUPERADMIN_EMAIL=superadmin@mylab.io
+SUPERADMIN_PASSWORD=SuperAdmin123!
 ```
 
 ## 🚨 Troubleshooting
@@ -200,7 +208,7 @@ JWT_SECRET=dev-jwt-secret-change-in-production
 ## 📚 Next Steps
 
 ### Immediate (High Priority)
-- [ ] Build frontend dashboard for superadmin
+- [ ] Build frontend dashboard for platform admin
 - [ ] Integrate payment processing (Stripe)
 - [ ] Add real email notifications
 - [ ] Implement feature flags for beta testing
@@ -212,8 +220,8 @@ JWT_SECRET=dev-jwt-secret-change-in-production
 - [ ] Customizable reports
 
 ### Future Enhancements
-- [ ] Multi-tenancy support
-- [ ] Custom branding per workspace
+- [ ] Cross-tenant access grant tooling
+- [ ] Custom branding per organization
 - [ ] API usage analytics
 - [ ] Audit trail visualization
 - [ ] Automated scaling alerts

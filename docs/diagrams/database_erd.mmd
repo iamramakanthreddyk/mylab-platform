@@ -1,62 +1,209 @@
 erDiagram
-    Workspace ||--o{ Users : "has"
-    Workspace ||--o{ Projects : "owns"
-    Workspace ||--o{ Samples : "owns"
-    Workspace ||--o{ DerivedSamples : "owns"
-    Workspace ||--o{ Batches : "owns"
-    Workspace ||--o{ Analyses : "owns"
-    Workspace ||--o{ Documents : "owns"
-    Workspace ||--o{ AuditLog : "actor_workspace"
+    %% ============================================================================
+    %% MYLAB PLATFORM DATABASE ENTITY RELATIONSHIP DIAGRAM
+    %% ============================================================================
+    %% Generated: February 8, 2026
+    %% This ERD represents the complete database schema with all relationships
+    %% ============================================================================
 
-    Organizations ||--|| Workspace : "has_workspace"
-    Organizations ||--o{ Projects : "client_org"
-    Organizations ||--o{ Projects : "executing_org"
-    Organizations ||--o{ AccessGrants : "granted_to"
-    Organizations ||--o{ DerivedSamples : "executed_by"
-    Organizations ||--o{ Batches : "executed_by"
-    Organizations ||--o{ Analyses : "executed_by"
-    Organizations ||--o{ Analyses : "source_org"
+    %% ============================================================================
+    %% CORE ENTITIES - Workspace & Organization Management
+    %% ============================================================================
 
-    Users ||--o{ Projects : "created"
-    Users ||--o{ Samples : "created"
-    Users ||--o{ DerivedSamples : "created"
-    Users ||--o{ Batches : "created"
-    Users ||--o{ Analyses : "uploaded"
-    Users ||--o{ Documents : "uploaded"
-    Users ||--o{ AccessGrants : "created"
-    Users ||--o{ AuditLog : "actor"
+    Workspace ||--o{ Users : "has_members"
+    Workspace ||--o{ Projects : "owns_projects"
+    Workspace ||--o{ Samples : "owns_samples"
+    Workspace ||--o{ DerivedSamples : "owns_derived_samples"
+    Workspace ||--o{ Batches : "owns_batches"
+    Workspace ||--o{ Analyses : "owns_analyses"
+    Workspace ||--o{ Documents : "owns_documents"
+    Workspace ||--o{ AuditLog : "audit_logs"
+    Workspace ||--o{ Notifications : "workspace_notifications"
+    Workspace ||--o{ UsageMetrics : "usage_tracking"
+    Workspace ||--o{ FeatureUsage : "feature_usage"
+    Workspace ||--o{ LastLogin : "member_logins"
+    Workspace ||--|| Subscriptions : "has_subscription"
+    Workspace ||--o{ APIKeys : "api_access"
 
-    Projects ||--o{ ProjectStages : "has"
-    Projects ||--o{ Samples : "has"
-    Projects ||--o{ Documents : "has"
+    Organizations ||--|| Workspace : "owns_workspace"
+    Organizations ||--o{ Projects : "client_projects"
+    Organizations ||--o{ Projects : "executing_projects"
+    Organizations ||--o{ AccessGrants : "access_permissions"
+    Organizations ||--o{ DownloadTokens : "download_permissions"
+    Organizations ||--o{ APIKeys : "api_keys"
+    Organizations ||--o{ CompanyPayments : "payments"
+    Organizations ||--o{ CompanyOnboardingRequests : "onboarding"
+    Organizations ||--o{ CompanyInvitations : "invitations"
+
+    Users ||--|| Workspace : "belongs_to"
+    Users ||--o{ Projects : "created_projects"
+    Users ||--o{ Samples : "created_samples"
+    Users ||--o{ DerivedSamples : "created_derived_samples"
+    Users ||--o{ Batches : "created_batches"
+    Users ||--o{ Analyses : "created_analyses"
+    Users ||--o{ Documents : "uploaded_documents"
+    Users ||--o{ AccessGrants : "created_grants"
+    Users ||--o{ AuditLog : "audit_actions"
+    Users ||--o{ Notifications : "receives_notifications"
+    Users ||--o{ NotificationPreferences : "notification_settings"
+    Users ||--o{ LastLogin : "login_history"
+    Users ||--o{ APIKeys : "created_api_keys"
+    Users ||--o{ CompanyOnboardingRequests : "admin_user"
+    Users ||--o{ CompanyOnboardingRequests : "reviewed_by"
+    Users ||--o{ CompanyInvitations : "invited_by"
+    Users ||--o{ CompanyPayments : "verified_by"
+
+    %% ============================================================================
+    %% PROJECT & EXPERIMENT MANAGEMENT
+    %% ============================================================================
+
+    Projects ||--|| Workspace : "belongs_to"
+    Projects ||--o| Organizations : "client_organization"
+    Projects ||--o| Organizations : "executing_organization"
+    Projects ||--o{ ProjectStages : "has_stages"
+    Projects ||--o{ Samples : "contains_samples"
+    Projects ||--o{ Documents : "project_documents"
+    Projects ||--o{ Trials : "has_trials"
 
     ProjectStages ||--|| Workspace : "owner_workspace"
+    ProjectStages ||--|| Projects : "belongs_to"
 
-    Samples ||--o{ DerivedSamples : "root_sample"
-    Samples ||--o{ Documents : "has"
+    Trials ||--|| Projects : "belongs_to"
+    Trials ||--o{ TrialParameterTemplates : "uses_templates"
 
-    DerivedSamples ||--o{ DerivedSamples : "parent"
-    DerivedSamples ||--o{ BatchItems : "in"
+    TrialParameterTemplates ||--|| Projects : "belongs_to"
 
-    Batches ||--o{ BatchItems : "has"
-    Batches ||--o{ Analyses : "has"
-    Batches ||--|| Workspace : "original_workspace"
+    %% ============================================================================
+    %% SAMPLE & ANALYSIS MANAGEMENT
+    %% ============================================================================
 
-    BatchItems ||--|| Batches : "batch"
-    BatchItems ||--|| DerivedSamples : "derived"
+    Samples ||--|| Workspace : "belongs_to"
+    Samples ||--|| Projects : "belongs_to"
+    Samples ||--o| ProjectStages : "current_stage"
+    Samples ||--o| Trials : "belongs_to_trial"
+    Samples ||--o{ DerivedSamples : "has_derived_samples"
+    Samples ||--o{ Documents : "sample_documents"
+    Samples ||--o{ SampleMetadataHistory : "metadata_history"
 
-    AnalysisTypes ||--o{ Analyses : "type"
+    DerivedSamples ||--|| Workspace : "belongs_to"
+    DerivedSamples ||--|| Samples : "derived_from"
+    DerivedSamples ||--o| DerivedSamples : "parent_sample"
+    DerivedSamples ||--o{ BatchItems : "used_in_batches"
+    DerivedSamples ||--o| Organizations : "executed_by_org"
+    DerivedSamples ||--o{ SampleMetadataHistory : "metadata_history"
 
-    Analyses ||--|| Batches : "batch"
-    Analyses ||--|| Workspace : "workspace"
-    Analyses ||--|| AnalysisTypes : "type"
+    Batches ||--|| Workspace : "belongs_to"
+    Batches ||--|| Projects : "belongs_to"
+    Batches ||--o{ BatchItems : "contains_items"
+    Batches ||--o{ Analyses : "has_analyses"
+    Batches ||--o| Organizations : "executed_by_org"
+    Batches ||--o| Users : "created_by"
+    Batches ||--o| Workspace : "original_workspace"
 
-    Documents ||--|| Projects : "project"
-    Documents ||--|| Samples : "sample"
+    BatchItems ||--|| Batches : "belongs_to"
+    BatchItems ||--|| DerivedSamples : "contains_sample"
+
+    AnalysisTypes ||--o{ Analyses : "analysis_type"
+
+    Analyses ||--|| Batches : "belongs_to"
+    Analyses ||--|| Workspace : "belongs_to"
+    Analyses ||--|| AnalysisTypes : "analysis_type"
+    Analyses ||--o| Analyses : "supersedes"
+    Analyses ||--o| Organizations : "executed_by_org"
+    Analyses ||--o| Organizations : "source_organization"
+    Analyses ||--o| Users : "uploaded_by"
+
+    %% ============================================================================
+    %% DOCUMENT & ACCESS MANAGEMENT
+    %% ============================================================================
+
+    Documents ||--|| Workspace : "belongs_to"
+    Documents ||--o| Projects : "project_document"
+    Documents ||--o| Samples : "sample_document"
+    Documents ||--o| Users : "uploaded_by"
 
     AccessGrants ||--|| Organizations : "granted_to"
-    AccessGrants ||--|| Users : "created_by"
+    AccessGrants ||--o| Users : "revoked_by"
+    AccessGrants ||--o| Users : "created_by"
+    AccessGrants ||--o{ DownloadTokens : "enables_downloads"
 
-    AuditLog ||--|| Users : "actor"
+    DownloadTokens ||--|| AccessGrants : "based_on_grant"
+    DownloadTokens ||--|| Organizations : "organization_access"
+
+    %% ============================================================================
+    %% AUDIT & SECURITY
+    %% ============================================================================
+
+    AuditLog ||--|| Users : "actor_user"
     AuditLog ||--|| Workspace : "actor_workspace"
-    AuditLog ||--|| Organizations : "actor_org"
+    AuditLog ||--o| Organizations : "actor_organization"
+
+    SecurityLog {
+        string id
+        string event_type
+        jsonb details
+        string ip_address
+        string user_agent
+        timestamp timestamp
+        string severity
+    }
+
+    SampleMetadataHistory ||--|| Samples : "sample_history"
+    SampleMetadataHistory ||--|| DerivedSamples : "derived_sample_history"
+    SampleMetadataHistory ||--|| Workspace : "workspace_context"
+    SampleMetadataHistory ||--o| Users : "changed_by"
+
+    %% ============================================================================
+    %% BUSINESS & SUBSCRIPTION MANAGEMENT
+    %% ============================================================================
+
+    Plans ||--o{ Subscriptions : "has_subscribers"
+    Plans ||--o{ PlanFeatures : "plan_features"
+
+    Subscriptions ||--|| Workspace : "workspace_subscription"
+    Subscriptions ||--o| Organizations : "organization_subscription"
+    Subscriptions ||--|| Plans : "subscription_plan"
+
+    Features ||--o{ PlanFeatures : "feature_plans"
+    Features ||--o{ FeatureUsage : "feature_usage"
+
+    PlanFeatures ||--|| Plans : "belongs_to_plan"
+    PlanFeatures ||--|| Features : "feature"
+
+    %% ============================================================================
+    %% ONBOARDING & PAYMENT
+    %% ============================================================================
+
+    CompanyOnboardingRequests ||--o{ CompanyPayments : "payment_requests"
+    CompanyOnboardingRequests ||--o{ CompanyInvitations : "invitations"
+    CompanyOnboardingRequests ||--o| Users : "admin_user"
+    CompanyOnboardingRequests ||--o| Workspace : "workspace"
+    CompanyOnboardingRequests ||--o| Users : "reviewed_by"
+
+    CompanyInvitations ||--|| CompanyOnboardingRequests : "belongs_to_request"
+    CompanyInvitations ||--o| Users : "invited_by"
+
+    CompanyPayments ||--|| CompanyOnboardingRequests : "payment_for_request"
+    CompanyPayments ||--o| Users : "verified_by"
+
+    %% ============================================================================
+    %% NOTIFICATION SYSTEM
+    %% ============================================================================
+
+    Notifications ||--|| Users : "recipient"
+    Notifications ||--|| Workspace : "workspace_context"
+    Notifications ||--o| Users : "created_by"
+
+    NotificationPreferences ||--|| Users : "user_preferences"
+
+    %% ============================================================================
+    %% USAGE TRACKING & METRICS
+    %% ============================================================================
+
+    UsageMetrics ||--|| Workspace : "workspace_metrics"
+
+    FeatureUsage ||--|| Workspace : "workspace_usage"
+    FeatureUsage ||--|| Features : "feature_used"
+
+    LastLogin ||--|| Users : "user_login"
+    LastLogin ||--|| Workspace : "workspace_context"

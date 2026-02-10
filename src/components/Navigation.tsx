@@ -23,9 +23,10 @@ export function Navigation({ user, onLogout }: NavigationProps) {
   const location = useLocation()
   const currentView = location.pathname.split('/')[1] || 'dashboard'
   const showSchema = canAccessSchema(user)
+  const normalizedRole = user.role.toLowerCase()
   const availableModules = getAvailableModules(user.role)
     .filter(module => module.id !== 'login' && module.id !== 'notifications')
-  const showSupplyChain = user.role === 'Admin' || user.role === 'Manager'
+  const showSupplyChain = normalizedRole === 'admin' || normalizedRole === 'manager'
 
   return (
     <div className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-50 shadow-sm">
@@ -70,7 +71,7 @@ export function Navigation({ user, onLogout }: NavigationProps) {
               )}
               
               {/* Users Management */}
-              {(user.role === 'Admin' || user.role === 'Manager') && (
+              {(normalizedRole === 'admin' || normalizedRole === 'manager') && (
                 <Link to="/users">
                   <Button
                     variant={currentView === 'users' ? 'default' : 'ghost'}

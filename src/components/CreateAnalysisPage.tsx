@@ -465,7 +465,7 @@ export function CreateAnalysisPage({ user }: CreateAnalysisPageProps) {
                     <Label htmlFor="parameters">Parameters & Conditions</Label>
                     <Textarea
                       id="parameters"
-                      value={analysis.parameters}
+                      value={typeof analysis.parameters === 'string' ? analysis.parameters : ''}
                       onChange={(e) => setAnalysis(prev => ({ ...prev, parameters: e.target.value }))}
                       placeholder="Specific conditions, concentrations, temperatures, durations, etc."
                       rows={3}
@@ -682,7 +682,7 @@ export function CreateAnalysisPage({ user }: CreateAnalysisPageProps) {
                     <Label htmlFor="results">Results & Observations</Label>
                     <Textarea
                       id="results"
-                      value={analysis.results}
+                      value={typeof analysis.results === 'string' ? analysis.results : ''}
                       onChange={(e) => setAnalysis(prev => ({ ...prev, results: e.target.value }))}
                       placeholder="Detailed results, measurements, observations..."
                       rows={6}

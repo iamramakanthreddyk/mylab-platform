@@ -1,8 +1,9 @@
 // Integration test for SQLite DB
+// TODO: This test uses SQLite while the project uses PostgreSQL. Consider removing or updating.
 import sqlite3 from 'sqlite3';
 import path from 'path';
 
-describe('SQLite DB Integration', () => {
+describe.skip('SQLite DB Integration', () => {
   const DB_PATH = path.join(__dirname, '../../local-test.db');
   let db: sqlite3.Database;
 

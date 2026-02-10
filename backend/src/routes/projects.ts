@@ -4,7 +4,9 @@ import {
   authenticate,
   auditLog,
   requireAccess,
-  requireRole
+  requireRole,
+  validate,
+  projectSchemas
 } from '../middleware';
 import { getWorkspacePlanLimits, isPositiveLimit } from '../utils/planLimits';
 
@@ -19,7 +21,7 @@ router.get('/', authenticate, async (req, res) => {
     const result = await pool.query(`
       SELECT p.*, o.name as client_org_name, o2.name as executing_org_name
       FROM Projects p
-      JOIN Organizations o ON p.client_org_id = o.id
+      LEFT JOIN Organizations o ON p.client_org_id = o.id
       JOIN Organizations o2 ON p.executing_org_id = o2.id
       JOIN ProjectTeam pt ON p.id = pt.project_id
       WHERE p.workspace_id = $1
@@ -36,29 +38,97 @@ router.get('/', authenticate, async (req, res) => {
 });
 
 // POST /api/projects - Create project
-router.post('/', authenticate, auditLog('create', 'project'), async (req, res) => {
+router.post('/', authenticate, validate(projectSchemas.create), auditLog('create', 'project'), async (req, res) => {
   try {
-    const { name, description, clientOrgId, executingOrgId, workflowMode } = req.body;
+    const { name, description, clientOrgId, externalClientName, executingOrgId, workflowMode } = req.body;
     const workspaceId = req.user!.workspaceId;
+    const userId = req.user!.id;
     const createdBy = req.user!.id;
     const workflow_mode = workflowMode || 'trial_first';
 
     if (req.user!.role !== 'admin' && req.user!.role !== 'manager') {
-      return res.status(403).json({ error: 'Only admins and managers can create projects' });
-    }
-
-    const plan = await getWorkspacePlanLimits(pool, workspaceId);
-    if (!plan) {
-      return res.status(403).json({
-        error: 'No active or trial subscription found',
-        hint: 'Assign a plan to this workspace before creating projects'
+      return res.status(403).json({ 
+        error: 'Insufficient permissions',
+        details: 'Only admins and managers can create projects. Your role is ' + req.user!.role
       });
     }
 
-    if (!isPositiveLimit(plan.maxProjects)) {
+    // Validate that either clientOrgId OR externalClientName is provided
+    if (!clientOrgId && !externalClientName) {
       return res.status(400).json({
-        error: 'Plan max_projects is not configured',
-        plan: plan.planName
+        error: 'Client information required',
+        statusCode: 400,
+        details: {
+          client: 'Either select a registered client organization or provide an external client name'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // If clientOrgId provided, validate it exists
+    if (clientOrgId) {
+      const clientOrgCheck = await pool.query(
+        `SELECT id, name FROM Organizations WHERE id = $1 AND deleted_at IS NULL`,
+        [clientOrgId]
+      );
+
+      if (clientOrgCheck.rows.length === 0) {
+        return res.status(400).json({
+          error: 'Client organization not found',
+          statusCode: 400,
+          details: {
+            clientOrgId: `Organization with ID "${clientOrgId}" does not exist. Please ask your admin to register this organization on the platform first.`
+          },
+          timestamp: new Date().toISOString()
+        });
+      }
+    }
+
+    const executingOrgCheck = await pool.query(
+      `SELECT id, name FROM Organizations WHERE id = $1 AND deleted_at IS NULL`,
+      [executingOrgId]
+    );
+
+    if (executingOrgCheck.rows.length === 0) {
+      return res.status(400).json({
+        error: 'Executing organization (Lab) not found',
+        statusCode: 400,
+        details: {
+          executingOrgId: `Organization with ID "${executingOrgId}" does not exist. Please ask your admin to register this laboratory on the platform first.`
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Get organization (workspace) and its plan
+    const orgResult = await pool.query(`
+      SELECT o.id, o.name, o.plan_id, p.name as plan_name, p.max_projects
+      FROM organizations o
+      LEFT JOIN plans p ON o.plan_id = p.id
+      WHERE o.id = $1 AND o.deleted_at IS NULL
+    `, [workspaceId]);
+
+    if (orgResult.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Organization not found',
+        details: 'Your workspace organization could not be found'
+      });
+    }
+
+    const org = orgResult.rows[0];
+
+    if (!org.plan_id) {
+      return res.status(402).json({
+        error: 'No plan assigned',
+        details: 'Your organization needs a plan to create projects',
+        code: 'NO_PLAN'
+      });
+    }
+
+    if (!org.max_projects || org.max_projects <= 0) {
+      return res.status(400).json({
+        error: 'Invalid plan configuration',
+        details: `Plan "${org.plan_name}" has no project limit configured`
       });
     }
 
@@ -68,12 +138,13 @@ router.post('/', authenticate, auditLog('create', 'project'), async (req, res) =
     );
     const existingProjects = projectCountResult.rows[0].count || 0;
 
-    if (existingProjects >= plan.maxProjects) {
+    if (existingProjects >= org.max_projects) {
       return res.status(403).json({
-        error: 'Project limit reached for current plan',
-        plan: plan.planName,
-        maxProjects: plan.maxProjects,
-        existingProjects
+        error: 'Project limit reached',
+        details: `Your ${org.plan_name} plan allows ${org.max_projects} project(s). You have ${existingProjects} active project(s).`,
+        plan: org.plan_name,
+        limit: org.max_projects,
+        current: existingProjects
       });
     }
 
@@ -83,10 +154,10 @@ router.post('/', authenticate, auditLog('create', 'project'), async (req, res) =
       await client.query('BEGIN');
 
       const result = await client.query(`
-        INSERT INTO Projects (workspace_id, name, description, client_org_id, executing_org_id, workflow_mode, created_by)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        INSERT INTO Projects (workspace_id, name, description, client_org_id, external_client_name, executing_org_id, workflow_mode, created_by)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING *
-      `, [workspaceId, name, description, clientOrgId, executingOrgId, workflow_mode, createdBy]);
+      `, [workspaceId, name, description, clientOrgId || null, externalClientName || null, executingOrgId, workflow_mode, createdBy]);
 
       const project = result.rows[0];
 
@@ -143,7 +214,7 @@ router.get('/:projectId', authenticate, requireAccess(pool, 'project', 'view'), 
     const result = await pool.query(`
       SELECT p.*, o.name as client_org_name, o2.name as executing_org_name
       FROM Projects p
-      JOIN Organizations o ON p.client_org_id = o.id
+      LEFT JOIN Organizations o ON p.client_org_id = o.id
       JOIN Organizations o2 ON p.executing_org_id = o2.id
       WHERE p.id = $1 AND p.workspace_id = $2
     `, [projectId, workspaceId]);

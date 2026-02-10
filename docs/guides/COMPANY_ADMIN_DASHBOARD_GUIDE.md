@@ -498,7 +498,7 @@ PATCH /api/company/employees/{userId}
 **Company Dashboard connects:**
 
 ```
-Workspace (Company)
+Organization (Company)
   ├─ Users (Company Employees)
   │  └─ ProjectTeam (Project Assignments)
   │     └─ Projects (Company Projects)
@@ -513,7 +513,7 @@ Workspace (Company)
 
 ### Required Database Tables
 
-- `Workspace` - Company information
+- `Organizations` - Company information (tenant)
 - `Users` - Company employees
 - `Projects` - Company projects
 - `ProjectTeam` - User-project assignments

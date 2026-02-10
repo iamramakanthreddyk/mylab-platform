@@ -25,7 +25,7 @@ export interface OwnershipCheck {
 }
 
 /**
- * Check if a workspace owns an object
+ * Check if a tenant organization owns an object
  * For external organizations, ownership is determined differently
  */
 export async function checkOwnership(
@@ -94,7 +94,7 @@ export async function checkAccess(
     WHERE ag.object_type = $1
       AND ag.object_id = $2
       AND (
-        (o.is_platform_workspace = true AND o.workspace_id = $3) OR
+        (o.is_platform_workspace = true AND o.id = $3) OR
         (o.is_platform_workspace = false AND ag.access_mode = 'offline')
       )
       AND ag.revoked_at IS NULL
@@ -136,14 +136,14 @@ export async function grantAccess(
 ): Promise<string> {
   // Verify the granter owns the object
   const ownerWorkspaceResult = await pool.query(`
-    SELECT workspace_id FROM Organizations WHERE id = $1
+    SELECT id FROM Organizations WHERE id = $1
   `, [grantedBy]);
 
   if (ownerWorkspaceResult.rows.length === 0) {
     throw new Error('Invalid granting organization');
   }
 
-  const ownerWorkspaceId = ownerWorkspaceResult.rows[0].workspace_id;
+  const ownerWorkspaceId = ownerWorkspaceResult.rows[0].id;
 
   const isOwner = await checkOwnership(objectType, objectId, ownerWorkspaceId);
   if (!isOwner) {

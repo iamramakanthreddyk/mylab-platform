@@ -148,7 +148,7 @@ router.get('/documents/:id/download-file', async (req, res) => {
 /**
  * POST /api/access/grants/:grantId/revoke
  * Revokes an access grant and all associated download tokens
- * Only grant owner or workspace admin can revoke
+ * Only grant owner or organization admin can revoke
  */
 router.post('/grants/:grantId/revoke', authenticate, auditLog('revoke', 'access_grant'), async (req, res) => {
   try {
@@ -284,9 +284,7 @@ router.get('/audit', authenticate, async (req, res) => {
       LEFT JOIN Users u_revoked ON ag.revoked_by = u_revoked.id
       JOIN Organizations o ON ag.granted_to_org_id = o.id
       LEFT JOIN DownloadTokens dt ON ag.id = dt.grant_id
-      WHERE o.workspace_id = (
-        SELECT workspace_id FROM Organizations WHERE id = $1
-      )
+      WHERE o.id = $1
       AND ag.revoked_at IS NOT NULL
     `;
 

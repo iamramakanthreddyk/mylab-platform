@@ -4,6 +4,8 @@
 
 The database now uses an **automatic migration system** that runs when your backend starts. No manual scripts needed!
 
+Note: Legacy "workspace" naming refers to the Organization tenant. The column name `workspace_id` is retained for compatibility.
+
 ---
 
 ## Why Automated Migrations Are Better
@@ -83,7 +85,7 @@ CREATE INDEX IF NOT EXISTS idx_workspace_id_analyses ON "Analyses"("workspace_id
 ### Migration 002: Performance Indexes
 - **Status**: Runs automatically  
 - **What it does**: Creates 5 performance indexes
-  - `idx_workspace_id_analyses` - Fast workspace queries
+  - `idx_workspace_id_analyses` - Fast organization queries
   - `idx_user_id_users` - Fast user lookups
   - `idx_created_at_analyses` - Fast sorting by date
   - `idx_analysis_type` - Fast filtering by type

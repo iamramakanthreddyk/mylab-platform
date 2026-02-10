@@ -5,7 +5,7 @@ export interface SecurityEvent {
   eventType: string;
   severity: 'low' | 'medium' | 'high' | 'critical';
   userId?: string;
-  workspaceId: string;
+  organizationId?: string;
   resourceType?: string;
   resourceId?: string;
   reason: string;
@@ -23,12 +23,13 @@ export async function logSecurityEvent(
   event: SecurityEvent
 ): Promise<void> {
   try {
+    const organizationId = event.organizationId?.trim();
     await pool.query(`
       INSERT INTO SecurityLog (
         event_type,
         severity,
         user_id,
-        workspace_id,
+        organization_id,
         resource_type,
         resource_id,
         reason,
@@ -41,7 +42,7 @@ export async function logSecurityEvent(
       event.eventType,
       event.severity,
       event.userId || null,
-      event.workspaceId,
+      organizationId || null,
       event.resourceType || null,
       event.resourceId || null,
       event.reason,
@@ -60,14 +61,14 @@ export async function logSecurityEvent(
  */
 export async function logAuthFailure(
   pool: Pool,
-  workspaceId: string,
+  organizationId: string | undefined,
   reason: string,
   req: Request
 ): Promise<void> {
   return logSecurityEvent(pool, {
     eventType: 'auth_failure',
     severity: 'high',
-    workspaceId,
+    organizationId,
     reason,
     details: {
       endpoint: req.path,
@@ -85,7 +86,7 @@ export async function logAuthFailure(
 export async function logAccessDenied(
   pool: Pool,
   userId: string,
-  workspaceId: string,
+  organizationId: string,
   resourceType: string,
   resourceId: string,
   reason: string,
@@ -95,7 +96,7 @@ export async function logAccessDenied(
     eventType: 'access_denied',
     severity: 'medium',
     userId,
-    workspaceId,
+    organizationId,
     resourceType,
     resourceId,
     reason,
@@ -114,7 +115,7 @@ export async function logAccessDenied(
 export async function logValidationFailure(
   pool: Pool,
   userId: string,
-  workspaceId: string,
+  organizationId: string,
   resourceType: string,
   reason: string,
   req: Request
@@ -123,7 +124,7 @@ export async function logValidationFailure(
     eventType: 'validation_failure',
     severity: 'low',
     userId,
-    workspaceId,
+    organizationId,
     resourceType,
     reason,
     details: {
@@ -142,7 +143,7 @@ export async function logValidationFailure(
 export async function logRateLimitExceeded(
   pool: Pool,
   userId: string | undefined,
-  workspaceId: string,
+  organizationId: string,
   reason: string,
   req: Request
 ): Promise<void> {
@@ -150,7 +151,7 @@ export async function logRateLimitExceeded(
     eventType: 'rate_limit_exceeded',
     severity: 'medium',
     userId,
-    workspaceId,
+    organizationId,
     reason,
     details: {
       endpoint: req.path,
@@ -167,7 +168,7 @@ export async function logRateLimitExceeded(
 export async function logSuspiciousActivity(
   pool: Pool,
   userId: string | undefined,
-  workspaceId: string,
+  organizationId: string,
   pattern: string,
   req: Request
 ): Promise<void> {
@@ -175,7 +176,7 @@ export async function logSuspiciousActivity(
     eventType: 'suspicious_activity',
     severity: 'high',
     userId,
-    workspaceId,
+    organizationId,
     reason: `Suspicious pattern detected: ${pattern}`,
     details: {
       endpoint: req.path,
@@ -192,7 +193,7 @@ export async function logSuspiciousActivity(
 export async function logDataAccess(
   pool: Pool,
   userId: string,
-  workspaceId: string,
+  organizationId: string,
   resourceType: string,
   resourceId: string,
   action: string,
@@ -203,7 +204,7 @@ export async function logDataAccess(
     eventType: 'data_access',
     severity: success ? 'low' : 'medium',
     userId,
-    workspaceId,
+    organizationId,
     resourceType,
     resourceId,
     reason: success ? `${action} successful` : `${action} failed`,

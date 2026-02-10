@@ -66,7 +66,7 @@ router.post('/onboarding/register', async (req, res) => {
       'INR',
       'bank_transfer', // Default to bank transfer for offline payments
       'pending',
-      `Monthly subscription: ₹${basePrice}/month${setupFee > 0 ? ` + Setup fee: ₹${setupFee}` : ''}. First payment due before workspace activation.`,
+      `Monthly subscription: ₹${basePrice}/month${setupFee > 0 ? ` + Setup fee: ₹${setupFee}` : ''}. First payment due before organization activation.`,
       new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days to pay
     ]);
 
@@ -78,9 +78,9 @@ router.post('/onboarding/register', async (req, res) => {
         amount: totalAmount,
         currency: 'INR',
         dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        instructions: 'Payment must be completed before workspace activation. Contact support for payment details.'
+        instructions: 'Payment must be completed before organization activation. Contact support for payment details.'
       },
-      message: 'Company onboarding request submitted successfully. Please complete payment within 30 days to activate your workspace.'
+      message: 'Company onboarding request submitted successfully. Please complete payment within 30 days to activate your organization.'
     });
 
   } catch (error) {
@@ -119,6 +119,7 @@ router.get('/onboarding/status/:requestId', async (req, res) => {
       status: request.status,
       adminUserId: request.admin_user_id,
       workspaceId: request.workspace_id,
+      organizationId: request.workspace_id,
       reviewedAt: request.reviewed_at,
       createdAt: request.created_at,
       payment: request.payment_id ? {
@@ -137,7 +138,7 @@ router.get('/onboarding/status/:requestId', async (req, res) => {
         : request.status === 'pending' && request.payment_status === 'completed'
         ? ['Waiting for admin approval']
         : request.status === 'approved'
-        ? ['Workspace being created']
+        ? ['Organization being created']
         : request.status === 'workspace_created'
         ? ['Onboarding complete - check email for login details']
         : [],
@@ -196,8 +197,8 @@ router.put('/onboarding/approve/:requestId', async (req, res) => {
       const company = updateResult.rows[0];
 
 
-      // Generate workspace slug from company name
-      const workspaceSlug = company.company_name
+      // Generate organization slug from company name
+      const organizationSlug = company.company_name
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)/g, '')
@@ -207,21 +208,21 @@ router.put('/onboarding/approve/:requestId', async (req, res) => {
                            paymentInfo?.status === 'pending' && paymentInfo.due_date && new Date() > new Date(paymentInfo.due_date) ? 'overdue' :
                            paymentInfo?.status === 'pending' ? 'pending' : 'trial';
 
-      const workspaceResult = await client.query(`
-        INSERT INTO Workspace (name, slug, domain, created_by, payment_status, payment_amount, payment_due_date)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+      const orgResult = await client.query(`
+        INSERT INTO Organizations (name, slug, type, email_domain, is_platform_workspace, payment_status, payment_amount, payment_due_date)
+        VALUES ($1, $2, $3::org_type, $4, true, $5, $6, $7)
         RETURNING id
       `, [
         company.company_name,
-        workspaceSlug,
+        organizationSlug,
+        'client',
         company.company_domain,
-        adminUserId,
         paymentStatus,
         paymentInfo?.amount || null,
         paymentInfo?.due_date || null
       ]);
 
-      const workspaceId = workspaceResult.rows[0].id;
+      const workspaceId = orgResult.rows[0].id;
 
       // Create admin user
       const userResult = await client.query(`
@@ -232,7 +233,7 @@ router.put('/onboarding/approve/:requestId', async (req, res) => {
 
       const userId = userResult.rows[0].id;
 
-      // Update request with workspace and admin user
+      // Update request with organization and admin user
       await client.query(`
         UPDATE CompanyOnboardingRequests
         SET status = 'workspace_created', admin_user_id = $2, workspace_id = $3
@@ -245,7 +246,7 @@ router.put('/onboarding/approve/:requestId', async (req, res) => {
       try {
         await client.query(`
           INSERT INTO Notifications (user_id, workspace_id, type, title, message, priority, action_url, action_label)
-          VALUES ($1, $2, 'success', 'Workspace Created Successfully!', 'Welcome to MyLab! Your workspace ${company.company_name} is now ready. You can start creating projects and managing samples.', 'high', '/dashboard', 'Get Started')
+          VALUES ($1, $2, 'success', 'Organization Created Successfully!', 'Welcome to MyLab! Your organization ${company.company_name} is now ready. You can start creating projects and managing samples.', 'high', '/dashboard', 'Get Started')
         `, [userId, workspaceId]);
       } catch (notificationError) {
         console.warn('Failed to create welcome notification:', notificationError);
@@ -271,11 +272,12 @@ router.put('/onboarding/approve/:requestId', async (req, res) => {
 
       res.json({
         success: true,
-        message: 'Company onboarding approved and workspace created',
-        workspace: {
+        message: 'Company onboarding approved and organization created',
+        organization: {
           id: workspaceId,
+          organizationId: workspaceId,
           name: company.company_name,
-          slug: workspaceSlug,
+          slug: organizationSlug,
           domain: company.company_domain
         },
         adminUser: {
@@ -307,33 +309,34 @@ router.put('/onboarding/approve/:requestId', async (req, res) => {
   }
 });
 
-// POST /api/company/invitations - Send invitation to join workspace
+// POST /api/company/invitations - Send invitation to join organization
 router.post('/invitations', async (req, res) => {
   try {
     const { workspaceId, invitedEmail, invitedName, role, invitedBy } = req.body;
+    const organizationId = workspaceId;
 
     // Validate required fields
-    if (!workspaceId || !invitedEmail || !invitedName || !role || !invitedBy) {
+    if (!organizationId || !invitedEmail || !invitedName || !role || !invitedBy) {
       return res.status(400).json({
         error: 'Missing required fields',
         required: ['workspaceId', 'invitedEmail', 'invitedName', 'role', 'invitedBy']
       });
     }
 
-    // Check if user already exists in workspace
+    // Check if user already exists in organization
     const existingUser = await pool.query(
       'SELECT id FROM Users WHERE workspace_id = $1 AND email = $2',
-      [workspaceId, invitedEmail]
+      [organizationId, invitedEmail]
     );
 
     if (existingUser.rows.length > 0) {
-      return res.status(409).json({ error: 'User already exists in this workspace' });
+      return res.status(409).json({ error: 'User already exists in this organization' });
     }
 
     // Check for existing pending invitation
     const existingInvitation = await pool.query(
       'SELECT id FROM CompanyInvitations WHERE workspace_id = $1 AND invited_email = $2 AND status = $3',
-      [workspaceId, invitedEmail, 'pending']
+      [organizationId, invitedEmail, 'pending']
     );
 
     if (existingInvitation.rows.length > 0) {
@@ -350,7 +353,7 @@ router.post('/invitations', async (req, res) => {
       (workspace_id, invited_email, invited_name, role, invited_by, invitation_token, expires_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING id, invitation_token, expires_at
-    `, [workspaceId, invitedEmail, invitedName, role, invitedBy, invitationToken, expiresAt]);
+    `, [organizationId, invitedEmail, invitedName, role, invitedBy, invitationToken, expiresAt]);
 
     // TODO: Send invitation email
 
@@ -437,6 +440,7 @@ router.post('/invitations/accept/:token', async (req, res) => {
 router.get('/invitations/workspace/:workspaceId', async (req, res) => {
   try {
     const { workspaceId } = req.params;
+    const organizationId = workspaceId;
 
     const result = await pool.query(`
       SELECT
@@ -445,7 +449,7 @@ router.get('/invitations/workspace/:workspaceId', async (req, res) => {
       FROM CompanyInvitations
       WHERE workspace_id = $1
       ORDER BY created_at DESC
-    `, [workspaceId]);
+    `, [organizationId]);
 
     res.json({
       invitations: result.rows.map(inv => ({
@@ -688,17 +692,18 @@ router.get('/payments/:paymentId/receipt', async (req, res) => {
 router.post('/payments/send-reminder', async (req, res) => {
   try {
     const { workspaceId, message } = req.body;
+    const organizationId = workspaceId;
 
     // Update last reminder timestamp
     const result = await pool.query(`
-      UPDATE Workspace
+      UPDATE Organizations
       SET payment_last_reminder = NOW()
       WHERE id = $1 AND payment_status IN ('pending', 'overdue')
       RETURNING id, name, payment_status, payment_amount, payment_due_date
-    `, [workspaceId]);
+    `, [organizationId]);
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Workspace not found or payment already completed' });
+      return res.status(404).json({ error: 'Organization not found or payment already completed' });
     }
 
     const workspace = result.rows[0];
@@ -722,7 +727,9 @@ router.post('/payments/send-reminder', async (req, res) => {
     res.json({
       success: true,
       workspaceId: workspace.id,
+      organizationId: workspace.id,
       workspaceName: workspace.name,
+      organizationName: workspace.name,
       paymentStatus: workspace.payment_status,
       reminderSent: true,
       notificationCreated: true,
@@ -735,31 +742,34 @@ router.post('/payments/send-reminder', async (req, res) => {
   }
 });
 
-// GET /api/company/workspaces/payment-status - Get workspaces with payment issues (admin)
+// GET /api/company/workspaces/payment-status - Get organizations with payment issues (admin)
 router.get('/workspaces/payment-status', async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT
-        w.id, w.name, w.slug, w.payment_status, w.payment_amount,
-        w.payment_due_date, w.payment_last_reminder, w.created_at,
+        o.id, o.name, o.slug, o.payment_status, o.payment_amount,
+        o.payment_due_date, o.payment_last_reminder, o.created_at,
         cor.company_name, cor.contact_email, cor.contact_name
-      FROM Workspace w
-      LEFT JOIN CompanyOnboardingRequests cor ON w.id = cor.workspace_id
-      WHERE w.payment_status IN ('pending', 'overdue', 'trial')
-      AND w.deleted_at IS NULL
+      FROM Organizations o
+      LEFT JOIN CompanyOnboardingRequests cor ON o.id = cor.workspace_id
+      WHERE o.payment_status IN ('pending', 'overdue', 'trial')
+      AND o.deleted_at IS NULL
       ORDER BY
-        CASE w.payment_status
+        CASE o.payment_status
           WHEN 'overdue' THEN 1
           WHEN 'pending' THEN 2
           WHEN 'trial' THEN 3
         END,
-        w.payment_due_date ASC
+        o.payment_due_date ASC
     `);
 
-    const workspaces = result.rows.map(row => ({
+    const organizations = result.rows.map(row => ({
       workspaceId: row.id,
       workspaceName: row.name,
       workspaceSlug: row.slug,
+      organizationId: row.id,
+      organizationName: row.name,
+      organizationSlug: row.slug,
       paymentStatus: row.payment_status,
       paymentAmount: row.payment_amount,
       paymentDueDate: row.payment_due_date,
@@ -776,19 +786,20 @@ router.get('/workspaces/payment-status', async (req, res) => {
     }));
 
     res.json({
-      workspaces,
+      organizations,
+      workspaces: organizations,
       summary: {
-        total: workspaces.length,
-        overdue: workspaces.filter(w => w.paymentStatus === 'overdue').length,
-        pending: workspaces.filter(w => w.paymentStatus === 'pending').length,
-        trial: workspaces.filter(w => w.paymentStatus === 'trial').length,
-        needReminders: workspaces.filter(w => w.needsReminder).length
+        total: organizations.length,
+        overdue: organizations.filter(w => w.paymentStatus === 'overdue').length,
+        pending: organizations.filter(w => w.paymentStatus === 'pending').length,
+        trial: organizations.filter(w => w.paymentStatus === 'trial').length,
+        needReminders: organizations.filter(w => w.needsReminder).length
       }
     });
 
   } catch (error) {
-    console.error('Error fetching workspace payment status:', error);
-    res.status(500).json({ error: 'Failed to fetch workspace payment status' });
+    console.error('Error fetching organization payment status:', error);
+    res.status(500).json({ error: 'Failed to fetch organization payment status' });
   }
 });
 
@@ -801,19 +812,26 @@ router.post('/payments/send-reminder', async (req, res) => {
       return res.status(400).json({ error: 'workspaceId is required' });
     }
 
-    // Get workspace and admin user info
+    // Get organization and admin user info
     const workspaceResult = await pool.query(`
-      SELECT w.id, w.name, w.admin_user_id, u.email, u.name as admin_name
-      FROM Workspace w
-      JOIN Users u ON w.admin_user_id = u.id
-      WHERE w.id = $1
+      SELECT o.id, o.name, cor.admin_user_id, u.email, u.name as admin_name
+      FROM Organizations o
+      LEFT JOIN CompanyOnboardingRequests cor ON cor.workspace_id = o.id
+      LEFT JOIN Users u ON cor.admin_user_id = u.id
+      WHERE o.id = $1
+      ORDER BY cor.created_at DESC
+      LIMIT 1
     `, [workspaceId]);
 
     if (workspaceResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Workspace not found' });
+      return res.status(404).json({ error: 'Organization not found' });
     }
 
     const workspace = workspaceResult.rows[0];
+
+    if (!workspace.admin_user_id) {
+      return res.status(404).json({ error: 'Organization admin not found' });
+    }
 
     // Create notification
     const notificationResult = await pool.query(`
@@ -826,7 +844,7 @@ router.post('/payments/send-reminder', async (req, res) => {
       workspaceId,
       'payment_reminder',
       'Payment Reminder',
-      message || ` for workspace "${workspace.name}"`,
+      message || ` for organization "${workspace.name}"`,
       'medium',
       '/dashboard/payments',
       new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
@@ -834,7 +852,7 @@ router.post('/payments/send-reminder', async (req, res) => {
 
     // Update last reminder timestamp
     await pool.query(`
-      UPDATE Workspace
+      UPDATE Organizations
       SET payment_last_reminder = NOW()
       WHERE id = $1
     `, [workspaceId]);
@@ -842,6 +860,8 @@ router.post('/payments/send-reminder', async (req, res) => {
     res.json({
       success: true,
       notificationId: notificationResult.rows[0].id,
+      organizationId: workspace.id,
+      organizationName: workspace.name,
       message: 'Payment reminder sent successfully'
     });
 

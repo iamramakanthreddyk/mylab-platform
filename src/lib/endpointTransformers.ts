@@ -1,17 +1,35 @@
+import { CreateProjectRequestPayload, WorkflowMode } from './types'
+
+export interface CreateProjectFormState {
+  name: string
+  description: string
+  clientOrgId: string | null
+  clientOrgLookupId: string
+  externalClientName: string
+  clientMode: 'registered' | 'external'
+  executingOrgId: string
+  workflowMode: WorkflowMode
+}
+
 /**
  * Transform frontend Project data to API CreateProjectRequest format
  */
-export function transformProjectForAPI(projectData: any): any {
-  // Remove status from create request - it's only for updates
-  const { status, ...rest } = projectData;
-  
+export function transformProjectForAPI(projectData: CreateProjectFormState): CreateProjectRequestPayload {
+  const clientOrgId = projectData.clientOrgId || projectData.clientOrgLookupId.trim() || undefined
+  const externalClientName = projectData.externalClientName?.trim() || undefined
+
+  if (!clientOrgId && !externalClientName) {
+    throw new Error('Either clientOrgId or externalClientName is required to create a project')
+  }
+
   return {
-    name: projectData.name,
-    description: projectData.description || undefined,
-    clientOrgId: projectData.clientOrgId,
+    name: projectData.name.trim(),
+    description: projectData.description?.trim() || undefined,
+    clientOrgId,
+    externalClientName,
     executingOrgId: projectData.executingOrgId,
     workflowMode: projectData.workflowMode
-  };
+  }
 }
 
 /**

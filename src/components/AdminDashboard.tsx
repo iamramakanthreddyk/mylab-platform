@@ -4,40 +4,57 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { AlertCircle, LogOut, RefreshCw, Building2, Users, Plus, Edit2, Save, X } from 'lucide-react'
+import { toast } from 'sonner'
 import axiosInstance from '@/lib/axiosConfig'
 
-interface AdminUser {
-  id: string
-  email: string
-  role: string
-}
-
-interface Organization {
+// Type definitions for Admin Dashboard
+interface FrontendOrganization {
   id: string
   name: string
+  type: string
+  organizationId?: string
+  created_at?: string
   gst_number?: string
   gst_percentage?: number
   country?: string
   industry?: string
-  plan_name?: string
+  company_size?: string
+  website?: string
+  primary_contact_name?: string
+  primary_contact_email?: string
+  primary_contact_phone?: string
   subscription_status?: string
-  created_at?: string
+  plan_name?: string
+  admin_user_id?: string
+  admin_user_email?: string
+  admin_user_name?: string
+  organization_id?: string
+  organization_name?: string
+  organization_type?: string
 }
 
-interface Plan {
+interface FrontendPlan {
   id: string
   name: string
   tier: string
   description?: string
+  price_monthly?: number
   max_users?: number
   max_projects?: number
   max_storage_gb?: number
-  price_monthly: number
-  features?: any
   is_active?: boolean
-  companies_on_plan: number
-  active_companies: number
-  monthly_revenue: number
+  features?: any
+  subscription_count?: number
+  monthly_revenue?: number
+  companies_on_plan?: number
+  active_companies?: number
+}
+
+interface AdminUser {
+  id: string
+  email: string
+  name: string
+  role: string
 }
 
 interface AdminDashboardProps {
@@ -48,8 +65,8 @@ interface AdminDashboardProps {
 
 export function AdminDashboard({ user, token, onLogout }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState('overview')
-  const [organizations, setOrganizations] = useState<Organization[]>([])
-  const [plans, setPlans] = useState<Plan[]>([])
+  const [organizations, setOrganizations] = useState<FrontendOrganization[]>([])
+  const [plans, setPlans] = useState<FrontendPlan[]>([])
   const [stats, setStats] = useState({ totalOrgs: 0, activeSubscriptions: 0 })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
@@ -59,6 +76,7 @@ export function AdminDashboard({ user, token, onLogout }: AdminDashboardProps) {
     type: 'client',
     email: '',
     password: '',
+    admin_name: '',
     gst_number: '',
     gst_percentage: 18,
     country: '',
@@ -67,10 +85,11 @@ export function AdminDashboard({ user, token, onLogout }: AdminDashboardProps) {
     website: '',
     primary_contact_name: '',
     primary_contact_email: '',
-    primary_contact_phone: ''
+    primary_contact_phone: '',
+    plan_id: ''
   })
   const [isCreatingOrg, setIsCreatingOrg] = useState(false)
-  const [editingPlan, setEditingPlan] = useState<Plan | null>(null)
+  const [editingPlan, setEditingPlan] = useState<FrontendPlan | null>(null)
   const [editPlanForm, setEditPlanForm] = useState({
     name: '',
     tier: 'basic',
@@ -83,6 +102,33 @@ export function AdminDashboard({ user, token, onLogout }: AdminDashboardProps) {
     is_active: true
   })
   const [isUpdatingPlan, setIsUpdatingPlan] = useState(false)
+  const [editingOrg, setEditingOrg] = useState<FrontendOrganization | null>(null)
+  const [editOrgForm, setEditOrgForm] = useState({
+    name: '',
+    type: 'client',
+    industry: '',
+    company_size: '',
+    website: '',
+    gst_number: '',
+    gst_percentage: 18,
+    country: '',
+    primary_contact_name: '',
+    primary_contact_email: '',
+    primary_contact_phone: '',
+    plan_id: '',
+    // Admin creation fields
+    create_admin: false,
+    admin_email: '',
+    admin_password: '',
+    admin_name: ''
+  })
+  const [isUpdatingOrg, setIsUpdatingOrg] = useState(false)
+  const [isCreatingAdmin, setIsCreatingAdmin] = useState(false)
+  const [createAdminForm, setCreateAdminForm] = useState({
+    email: '',
+    password: '',
+    name: ''
+  })
 
   const fetchData = async () => {
     setIsLoading(true)
@@ -95,7 +141,9 @@ export function AdminDashboard({ user, token, onLogout }: AdminDashboardProps) {
       console.log('📦 Fetching organizations...')
       const orgsResponse = await axiosInstance.get(`/admin/organizations`)
       console.log('✅ Organizations fetched:', orgsResponse.data)
+      console.log('🔍 Organizations being set to state:', orgsResponse.data.organizations || [])
       setOrganizations(orgsResponse.data.organizations || [])
+      console.log('📊 Total organizations in response:', (orgsResponse.data.organizations || []).length)
       setStats((prev) => ({ ...prev, totalOrgs: orgsResponse.data.total || 0 }))
 
       // Fetch plans
@@ -143,6 +191,7 @@ export function AdminDashboard({ user, token, onLogout }: AdminDashboardProps) {
         type: 'client',
         email: '',
         password: '',
+        admin_name: '',
         gst_number: '',
         gst_percentage: 18,
         country: '',
@@ -151,7 +200,8 @@ export function AdminDashboard({ user, token, onLogout }: AdminDashboardProps) {
         website: '',
         primary_contact_name: '',
         primary_contact_email: '',
-        primary_contact_phone: ''
+        primary_contact_phone: '',
+        plan_id: ''
       })
 
       // Refresh data to show new organization
@@ -172,7 +222,7 @@ export function AdminDashboard({ user, token, onLogout }: AdminDashboardProps) {
     }
   }
 
-  const startEditingPlan = (plan: Plan) => {
+  const startEditingPlan = (plan: FrontendPlan) => {
     setEditingPlan(plan)
     setEditPlanForm({
       name: plan.name,
@@ -184,6 +234,34 @@ export function AdminDashboard({ user, token, onLogout }: AdminDashboardProps) {
       max_storage_gb: plan.max_storage_gb || 1,
       features: (plan as any).features || {},
       is_active: (plan as any).is_active !== undefined ? (plan as any).is_active : true
+    })
+  }
+
+  const startEditingOrg = (org: FrontendOrganization) => {
+    console.log('🔍 Selected organization for editing:', {
+      id: org.id,
+      organization_id: (org as any).organization_id,
+      name: org.name,
+      allKeys: Object.keys(org)
+    })
+    setEditingOrg(org)
+    setEditOrgForm({
+      name: org.name,
+      type: org.type || 'client',
+      industry: org.industry || '',
+      company_size: org.company_size || '',
+      website: org.website || '',
+      gst_number: org.gst_number || '',
+      gst_percentage: org.gst_percentage || 18,
+      country: org.country || '',
+      primary_contact_name: org.primary_contact_name || '',
+      primary_contact_email: org.primary_contact_email || '',
+      primary_contact_phone: org.primary_contact_phone || '',
+      plan_id: (org as any).plan_id || '',
+      create_admin: false,
+      admin_email: '',
+      admin_password: '',
+      admin_name: `${org.name} Admin`
     })
   }
 
@@ -229,12 +307,134 @@ export function AdminDashboard({ user, token, onLogout }: AdminDashboardProps) {
     }
   }
 
+  const cancelEditingOrg = () => {
+    setEditingOrg(null)
+    setEditOrgForm({
+      name: '',
+      type: 'client',
+      industry: '',
+      company_size: '',
+      website: '',
+      gst_number: '',
+      gst_percentage: 18,
+      country: '',
+      primary_contact_name: '',
+      primary_contact_email: '',
+      primary_contact_phone: '',
+      plan_id: '',
+      create_admin: false,
+      admin_email: '',
+      admin_password: '',
+      admin_name: ''
+    })
+  }
+
+  const updateOrg = async () => {
+    if (!editingOrg) return
+
+    // Validate required fields
+    if (!editOrgForm.name || !editOrgForm.type || !editOrgForm.country || !editOrgForm.primary_contact_name || !editOrgForm.primary_contact_email) {
+      setError('Missing required fields: name, type, country, primary_contact_name, primary_contact_email')
+      return
+    }
+
+    setIsUpdatingOrg(true)
+    setError('')
+
+    try {
+      console.log('� BEFORE UPDATE - Full editingOrg state:', JSON.parse(JSON.stringify(editingOrg)))
+      console.log('📝 Updating organization:', {
+        id: editingOrg.id,
+        organization_id: (editingOrg as any).organization_id,
+        name: editingOrg.name,
+        url: `/admin/organizations/${editingOrg.id}`,
+        CONFIRMING_ID_USED: editingOrg.id
+      })
+      
+      const url = `/admin/organizations/${editingOrg.id}`
+      console.log('🌐 About to send PUT request to:', url)
+      
+      const response = await axiosInstance.put(url, editOrgForm)
+      console.log('✅ Organization updated:', response.data)
+
+      const nextPlanId = editOrgForm.plan_id
+      const currentPlanId = (editingOrg as any).plan_id || ''
+
+      if (nextPlanId && nextPlanId !== currentPlanId) {
+        console.log('💳 Assigning plan:', nextPlanId)
+        await axiosInstance.post(`/admin/subscriptions/${editingOrg.id}/upgrade`, { planId: nextPlanId })
+      }
+
+      // Refresh data to show updated organization
+      await fetchData()
+      cancelEditingOrg()
+    } catch (err: any) {
+      const message = err.response?.data?.error || err.response?.data?.message || err.message || 'Failed to update organization'
+      console.error('❌ Update organization error:', {
+        status: err.response?.status,
+        data: err.response?.data,
+        message: err.message
+      })
+      setError(message)
+    } finally {
+      setIsUpdatingOrg(false)
+    }
+  }
+
+  const createAdmin = async () => {
+    if (!editingOrg) return
+
+    // Validate required fields
+    if (!createAdminForm.email || !createAdminForm.password) {
+      setError('Email and password are required')
+      return
+    }
+
+    setIsCreatingAdmin(true)
+    setError('')
+
+    try {
+      console.log('👤 Creating admin user for organization:', editingOrg.id)
+      const response = await axiosInstance.post(
+        `/admin/organizations/${editingOrg.id}/create-admin`,
+        {
+          email: createAdminForm.email,
+          password: createAdminForm.password,
+          name: createAdminForm.name || `${editingOrg.name} Admin`
+        }
+      )
+      console.log('✅ Admin user created:', response.data)
+
+      // Reset form and refresh data
+      setCreateAdminForm({ email: '', password: '', name: '' })
+      await fetchData()
+      toast.success('Admin user created successfully!')
+    } catch (err: any) {
+      const message = err.response?.data?.error || err.response?.data?.message || err.message || 'Failed to create admin user'
+      console.error('❌ Create admin error:', {
+        status: err.response?.status,
+        data: err.response?.data,
+        message: err.message
+      })
+      setError(message)
+      toast.error(message)
+    } finally {
+      setIsCreatingAdmin(false)
+    }
+  }
+
   const filteredOrgs = organizations.filter(
     (org) =>
       org.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       org.gst_number?.includes(searchQuery) ||
       org.country?.toLowerCase().includes(searchQuery.toLowerCase())
   )
+
+  console.log('🎯 Current state:', {
+    totalOrganizationsInState: organizations.length,
+    filteredOrganizations: filteredOrgs.length,
+    organizationIds: organizations.map(o => ({ name: o.name, id: o.id }))
+  })
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -385,17 +585,29 @@ export function AdminDashboard({ user, token, onLogout }: AdminDashboardProps) {
                         <div className="flex justify-between items-start mb-2">
                           <div>
                             <h3 className="font-semibold text-gray-900">{org.name}</h3>
+                            <p className="text-sm text-gray-500 font-mono">ID: {org.id}</p>
                             <p className="text-sm text-gray-600">{org.industry || 'N/A'}</p>
                           </div>
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${
-                            org.subscription_status === 'active'
-                              ? 'bg-green-100 text-green-800'
-                              : org.subscription_status
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : 'bg-gray-200 text-gray-700'
-                          }`}>
-                            {org.subscription_status?.toUpperCase() || 'NO PLAN'}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${
+                              org.subscription_status === 'active'
+                                ? 'bg-green-100 text-green-800'
+                                : org.subscription_status
+                                ? 'bg-yellow-100 text-yellow-800'
+                                : 'bg-gray-200 text-gray-700'
+                            }`}>
+                              {org.subscription_status?.toUpperCase() || 'NO PLAN'}
+                            </span>
+                            <Button
+                              onClick={() => startEditingOrg(org)}
+                              variant="outline"
+                              size="sm"
+                              className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                            >
+                              <Edit2 size={14} className="mr-1" />
+                              Edit
+                            </Button>
+                          </div>
                         </div>
                         <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
                           <div>
@@ -409,6 +621,9 @@ export function AdminDashboard({ user, token, onLogout }: AdminDashboardProps) {
                           </div>
                           <div>
                             <span className="text-gray-500">Country:</span> {org.country || 'N/A'}
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Admin:</span> {org.admin_user_email || 'Not set'}
                           </div>
                         </div>
                       </div>
@@ -507,6 +722,27 @@ export function AdminDashboard({ user, token, onLogout }: AdminDashboardProps) {
                         className="bg-white border-gray-300 text-gray-900"
                       />
                     </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Plan
+                      </label>
+                      <select
+                        value={createOrgForm.plan_id}
+                        onChange={(e) => setCreateOrgForm(prev => ({ ...prev, plan_id: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="">No plan (trial)</option>
+                        {plans.map((plan) => (
+                          <option key={plan.id} value={plan.id} disabled={plan.is_active === false}>
+                            {plan.name} ({plan.tier})
+                          </option>
+                        ))}
+                      </select>
+                      <p className="mt-1 text-xs text-gray-500">
+                        Select a plan to activate immediately or leave empty to keep the organization on trial.
+                      </p>
+                    </div>
                   </div>
 
                   {/* Admin User Information */}
@@ -544,16 +780,48 @@ export function AdminDashboard({ user, token, onLogout }: AdminDashboardProps) {
                         Admin Name
                       </label>
                       <Input
+                        value={createOrgForm.admin_name}
+                        onChange={(e) => setCreateOrgForm(prev => ({ ...prev, admin_name: e.target.value }))}
+                        placeholder="Full name of admin user"
+                        className="bg-white border-gray-300 text-gray-900"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Primary Contact */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium text-gray-900">Primary Contact</h3>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Primary Contact Name
+                      </label>
+                      <Input
                         value={createOrgForm.primary_contact_name}
                         onChange={(e) => setCreateOrgForm(prev => ({ ...prev, primary_contact_name: e.target.value }))}
-                        placeholder="Full name of admin user"
+                        placeholder="Contact person name"
                         className="bg-white border-gray-300 text-gray-900"
                       />
                     </div>
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Admin Phone
+                        Primary Contact Email
+                      </label>
+                      <Input
+                        type="email"
+                        value={createOrgForm.primary_contact_email}
+                        onChange={(e) => setCreateOrgForm(prev => ({ ...prev, primary_contact_email: e.target.value }))}
+                        placeholder="contact@company.com"
+                        className="bg-white border-gray-300 text-gray-900"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Primary Contact Phone
                       </label>
                       <Input
                         value={createOrgForm.primary_contact_phone}
@@ -864,6 +1132,407 @@ export function AdminDashboard({ user, token, onLogout }: AdminDashboardProps) {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Edit Organization Modal */}
+        {editingOrg && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Edit Organization: {editingOrg.name}
+                </h3>
+                <Button
+                  onClick={cancelEditingOrg}
+                  variant="ghost"
+                  size="sm"
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X size={20} />
+                </Button>
+              </div>
+
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Basic Information */}
+                  <div className="space-y-4">
+                    <h4 className="text-lg font-medium text-gray-900">Basic Information</h4>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Organization Name *
+                      </label>
+                      <Input
+                        value={editOrgForm.name}
+                        onChange={(e) => setEditOrgForm(prev => ({ ...prev, name: e.target.value }))}
+                        placeholder="Enter organization name"
+                        className="bg-white border-gray-300 text-gray-900"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Organization Type *
+                      </label>
+                      <select
+                        value={editOrgForm.type}
+                        onChange={(e) => setEditOrgForm(prev => ({ ...prev, type: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="client">Client</option>
+                        <option value="cro">CRO</option>
+                        <option value="analyzer">Analyzer</option>
+                        <option value="vendor">Vendor</option>
+                        <option value="pharma">Pharma</option>
+                      </select>
+                      <p className="mt-1 text-xs text-gray-500">
+                        Used for documentation and reporting only. Workflow and feature access are controlled by RBAC and plan.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Industry
+                      </label>
+                      <Input
+                        value={editOrgForm.industry}
+                        onChange={(e) => setEditOrgForm(prev => ({ ...prev, industry: e.target.value }))}
+                        placeholder="e.g., Pharmaceuticals, Biotechnology"
+                        className="bg-white border-gray-300 text-gray-900"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Company Size
+                      </label>
+                      <select
+                        value={editOrgForm.company_size}
+                        onChange={(e) => setEditOrgForm(prev => ({ ...prev, company_size: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="">Select company size</option>
+                        <option value="1-10">1-10 employees</option>
+                        <option value="11-50">11-50 employees</option>
+                        <option value="51-200">51-200 employees</option>
+                        <option value="201-1000">201-1000 employees</option>
+                        <option value="1000+">1000+ employees</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Website
+                      </label>
+                      <Input
+                        value={editOrgForm.website}
+                        onChange={(e) => setEditOrgForm(prev => ({ ...prev, website: e.target.value }))}
+                        placeholder="https://example.com"
+                        className="bg-white border-gray-300 text-gray-900"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Plan
+                      </label>
+                      <select
+                        value={editOrgForm.plan_id}
+                        onChange={(e) => setEditOrgForm(prev => ({ ...prev, plan_id: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="">No plan (trial)</option>
+                        {plans.map((plan) => (
+                          <option key={plan.id} value={plan.id} disabled={plan.is_active === false}>
+                            {plan.name} ({plan.tier})
+                          </option>
+                        ))}
+                      </select>
+                      <p className="mt-1 text-xs text-gray-500">
+                        Select a plan to activate or change subscription.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Tax & Location Information */}
+                  <div className="space-y-4">
+                    <h4 className="text-lg font-medium text-gray-900">Tax & Location Information</h4>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        GST Number
+                      </label>
+                      <Input
+                        value={editOrgForm.gst_number}
+                        onChange={(e) => setEditOrgForm(prev => ({ ...prev, gst_number: e.target.value }))}
+                        placeholder="22AAAAA0000A1Z5"
+                        className="bg-white border-gray-300 text-gray-900"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        GST Percentage
+                      </label>
+                      <Input
+                        type="number"
+                        value={editOrgForm.gst_percentage}
+                        onChange={(e) => setEditOrgForm(prev => ({ ...prev, gst_percentage: parseInt(e.target.value) || 0 }))}
+                        placeholder="18"
+                        className="bg-white border-gray-300 text-gray-900"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Country *
+                      </label>
+                      <Input
+                        value={editOrgForm.country}
+                        onChange={(e) => setEditOrgForm(prev => ({ ...prev, country: e.target.value }))}
+                        placeholder="India"
+                        className="bg-white border-gray-300 text-gray-900"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Primary Contact Name *
+                      </label>
+                      <Input
+                        value={editOrgForm.primary_contact_name}
+                        onChange={(e) => setEditOrgForm(prev => ({ ...prev, primary_contact_name: e.target.value }))}
+                        placeholder="John Doe"
+                        className="bg-white border-gray-300 text-gray-900"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Primary Contact Email *
+                      </label>
+                      <Input
+                        type="email"
+                        value={editOrgForm.primary_contact_email}
+                        onChange={(e) => setEditOrgForm(prev => ({ ...prev, primary_contact_email: e.target.value }))}
+                        placeholder="john.doe@company.com"
+                        className="bg-white border-gray-300 text-gray-900"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Primary Contact Phone
+                      </label>
+                      <Input
+                        value={editOrgForm.primary_contact_phone}
+                        onChange={(e) => setEditOrgForm(prev => ({ ...prev, primary_contact_phone: e.target.value }))}
+                        placeholder="+91 9876543210"
+                        className="bg-white border-gray-300 text-gray-900"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Current Admin */}
+                <div className="border-t border-gray-200 pt-6">
+                  <h4 className="text-lg font-medium text-gray-900 mb-4">Current Admin</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Admin Name</label>
+                      <Input
+                        value={(editingOrg as any).admin_user_name || ''}
+                        placeholder="Not set"
+                        className="bg-white border-gray-300 text-gray-900"
+                        readOnly
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Admin Email</label>
+                      <Input
+                        value={(editingOrg as any).admin_user_email || ''}
+                        placeholder="Not set"
+                        className="bg-white border-gray-300 text-gray-900"
+                        readOnly
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Admin ID</label>
+                      <Input
+                        value={(editingOrg as any).admin_user_id || ''}
+                        placeholder="Not set"
+                        className="bg-white border-gray-300 text-gray-900"
+                        readOnly
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Create Admin User Section - If No Admin Exists */}
+                {!(editingOrg as any).admin_user_id && (
+                  <div className="border-t border-gray-200 pt-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Create Admin User</h3>
+                    <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mb-4">
+                      <p className="text-sm text-blue-800">
+                        No admin user is currently assigned to this organization. Create one to manage this workspace.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Email Address *
+                        </label>
+                        <Input
+                          type="email"
+                          value={createAdminForm.email}
+                          onChange={(e) => setCreateAdminForm(prev => ({ ...prev, email: e.target.value }))}
+                          placeholder="admin@company.com"
+                          className="bg-white border-gray-300 text-gray-900"
+                          disabled={isCreatingAdmin}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Password *
+                        </label>
+                        <Input
+                          type="password"
+                          value={createAdminForm.password}
+                          onChange={(e) => setCreateAdminForm(prev => ({ ...prev, password: e.target.value }))}
+                          placeholder="Secure password"
+                          className="bg-white border-gray-300 text-gray-900"
+                          disabled={isCreatingAdmin}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Name (Optional)
+                        </label>
+                        <Input
+                          type="text"
+                          value={createAdminForm.name}
+                          onChange={(e) => setCreateAdminForm(prev => ({ ...prev, name: e.target.value }))}
+                          placeholder="Admin Name"
+                          className="bg-white border-gray-300 text-gray-900"
+                          disabled={isCreatingAdmin}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-3 mt-4">
+                      <Button
+                        onClick={createAdmin}
+                        disabled={isCreatingAdmin || !createAdminForm.email || !createAdminForm.password}
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        {isCreatingAdmin ? (
+                          <>
+                            <RefreshCw size={16} className="mr-2 animate-spin" />
+                            Creating...
+                          </>
+                        ) : (
+                          <>
+                            <Plus size={16} className="mr-2" />
+                            Create Admin User
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Legacy Admin Creation on Org Creation */}
+                <div className="border-t border-gray-200 pt-6">
+                  <div className="flex items-center mb-4">
+                    <input
+                      type="checkbox"
+                      id="create_admin"
+                      checked={editOrgForm.create_admin}
+                      onChange={(e) => setEditOrgForm(prev => ({ ...prev, create_admin: e.target.checked }))}
+                      className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                    <label htmlFor="create_admin" className="ml-2 text-sm font-medium text-gray-700">
+                      Create Admin User During Organization Creation
+                    </label>
+                  </div>
+
+                  {editOrgForm.create_admin && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 ml-6">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Admin Email *
+                        </label>
+                        <Input
+                          type="email"
+                          value={editOrgForm.admin_email}
+                          onChange={(e) => setEditOrgForm(prev => ({ ...prev, admin_email: e.target.value }))}
+                          placeholder="admin@company.com"
+                          className="bg-white border-gray-300 text-gray-900"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Admin Password *
+                        </label>
+                        <Input
+                          type="password"
+                          value={editOrgForm.admin_password}
+                          onChange={(e) => setEditOrgForm(prev => ({ ...prev, admin_password: e.target.value }))}
+                          placeholder="Secure password"
+                          className="bg-white border-gray-300 text-gray-900"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Admin Name
+                        </label>
+                        <Input
+                          value={editOrgForm.admin_name}
+                          onChange={(e) => setEditOrgForm(prev => ({ ...prev, admin_name: e.target.value }))}
+                          placeholder="Admin User Name"
+                          className="bg-white border-gray-300 text-gray-900"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex justify-end gap-3 border-t border-gray-200 pt-6">
+                  <Button
+                    onClick={cancelEditingOrg}
+                    variant="outline"
+                    className="border-gray-300 text-gray-700 hover:bg-gray-100"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={updateOrg}
+                    disabled={isUpdatingOrg}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    {isUpdatingOrg ? (
+                      <>
+                        <RefreshCw size={16} className="mr-2 animate-spin" />
+                        Updating...
+                      </>
+                    ) : (
+                      <>
+                        <Save size={16} className="mr-2" />
+                        Update Organization
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   )

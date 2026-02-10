@@ -6,6 +6,8 @@
 **Frontend Build**: ✅ **Successful**  
 **Database**: ✅ **Configured (Railway PostgreSQL)**
 
+Note: Legacy "workspace" naming refers to the Organization tenant. The column name `workspace_id` is retained for compatibility.
+
 ---
 
 ## 📊 OVERALL COMPLETION STATUS
@@ -41,18 +43,18 @@ The application expects these tables to exist:
 ```
 ✅ Implied from code:
 ├── Users (id, email, password_hash, full_name, role, is_active)
-├── Workspaces (id, name, description, is_active)
-├── WorkspaceUsers (user_id, workspace_id)
+├── Organizations (id, name, slug, type, is_active)
+├── WorkspaceUsers (user_id, workspace_id)  // legacy naming
 ├── Projects (id, workspace_id, name, deleted_at)
 ├── Samples (id, workspace_id, name, stage, deleted_at)
 ├── DerivedSamples (id, parent_sample_id, name)
 ├── Analyses (id, batch_id, workspace_id, is_authoritative)
 ├── CompanyOnboardingRequests (status, admin_user_id)
 ├── CompanyPayments (amount, status, due_date)
-├── Integrations (workspace_id, provider, is_active)
+├── Integrations (workspace_id, provider, is_active)  // legacy naming
 ├── ApiKeys (key, expires_at, last_used_at, deleted_at)
 ├── ObjectAccess (user_id, object_type, access_level)
-├── Notifications (workspace_id, user_id, type, read_at)
+├── Notifications (workspace_id, user_id, type, read_at)  // legacy naming
 └── AuditLog (type, object_type, user_id)
 ```
 
@@ -111,7 +113,7 @@ backend/src/api/
 │   ├── routes.ts (50 lines) - 6 endpoints (mixed auth)
 │   └── **Status**: Production-ready
 │
-├── ✅ workspaces/
+├── ✅ workspaces/  // legacy naming
 │   ├── types.ts (40 lines) - WorkspaceSummaryResponse, DetailResponse
 │   ├── service.ts (105 lines) - Summary with aggregations, access check
 │   ├── controller.ts (75 lines) - 3 handlers

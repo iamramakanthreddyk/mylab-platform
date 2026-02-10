@@ -108,7 +108,7 @@ router.post('/partners',
   auditLog('create', 'organization'),
   asyncHandler(async (req: Request, res: Response) => {
     // Check if user has admin privileges (implementation depends on your auth system)
-    if (req.user!.role !== 'admin' && req.user!.role !== 'superadmin') {
+    if (req.user!.role !== 'admin' && req.user!.role !== 'platform_admin') {
       return res.status(403).json({ error: 'Admin privileges required' });
     }
 

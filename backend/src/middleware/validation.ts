@@ -155,8 +155,9 @@ export const projectSchemas = {
   create: Joi.object({
     name: schemas.name,
     description: schemas.description,
-    clientOrgId: schemas.uuid,
+    clientOrgId: schemas.uuidOptional,
     executingOrgId: schemas.uuid,
+    workflowMode: Joi.string().valid('trial_first', 'analysis_first').default('trial_first'),
     status: schemas.projectStatus.default('active'),
   }),
 

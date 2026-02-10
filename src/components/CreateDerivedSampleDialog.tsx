@@ -194,7 +194,7 @@ export function CreateDerivedSampleDialog({
       })
 
       await axiosInstance.post(
-        `/samples/${activeParentSample.workspace_id}/${activeParentSample.id}/derived`,
+        `/samples/${activeParentSample.organizationId || activeParentSample.workspace_id}/${activeParentSample.id}/derived`,
         transformedData
       )
 

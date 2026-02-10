@@ -14,8 +14,9 @@ export interface ListProjectsRequest {
 export interface CreateProjectRequest {
   name: string;
   description?: string;
-  clientOrgId: string;
-  executingOrgId: string;
+  clientOrgId?: string; // Registered client org
+  externalClientName?: string; // External client not yet on platform
+  executingOrgId: string; // Required lab/analyzer org
   workflowMode?: 'analysis_first' | 'trial_first';
 }
 
@@ -38,8 +39,9 @@ export interface ProjectResponse {
   workspaceId: string;
   name: string;
   description?: string;
-  clientOrgId: string;
-  clientOrgName: string;
+  clientOrgId?: string;
+  clientOrgName?: string;
+  externalClientName?: string;
   executingOrgId: string;
   executingOrgName: string;
   status: string;
@@ -93,15 +95,23 @@ export const createProjectSchema = Joi.object({
     }),
   clientOrgId: Joi.string()
     .uuid()
-    .required()
+    .optional()
     .messages({
       'string.guid': 'Client organization ID must be a valid UUID'
+    }),
+  externalClientName: Joi.string()
+    .optional()
+    .trim()
+    .max(255)
+    .messages({
+      'string.max': 'Client name cannot exceed 255 characters'
     }),
   executingOrgId: Joi.string()
     .uuid()
     .required()
     .messages({
-      'string.guid': 'Executing organization ID must be a valid UUID'
+      'string.guid': 'Executing organization ID must be a valid UUID',
+      'any.required': 'Executing organization (Lab) ID is required. Please select a laboratory or provide its UUID.'
     }),
   workflowMode: Joi.string()
     .optional()
@@ -109,6 +119,8 @@ export const createProjectSchema = Joi.object({
     .messages({
       'any.only': 'Workflow mode must be analysis_first or trial_first'
     })
+}).or('clientOrgId', 'externalClientName').messages({
+  'object.missing': 'Either select a registered client organization or provide an external client name'
 });
 
 export const updateProjectSchema = Joi.object({

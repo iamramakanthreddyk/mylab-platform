@@ -18,7 +18,10 @@ export const analysisController = {
    * GET /api/analyses - List analyses with pagination
    */
   list: asyncHandler(async (req: Request, res: Response) => {
-    const workspaceId = req.user!.workspaceId;
+    const workspaceId = req.user?.workspaceId;
+    if (!workspaceId) {
+      return res.status(401).json({ success: false, error: 'Workspace not found for user' });
+    }
     const { batchId, executionMode, limit, offset } = req.query;
 
     const result = await AnalysisService.listAnalyses(workspaceId, {
@@ -40,7 +43,10 @@ export const analysisController = {
    */
   getById: asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
-    const workspaceId = req.user!.workspaceId;
+    const workspaceId = req.user?.workspaceId;
+    if (!workspaceId) {
+      return res.status(401).json({ success: false, error: 'Workspace not found for user' });
+    }
 
     const analysis = await AnalysisService.getAnalysis(id, workspaceId);
 
@@ -54,8 +60,11 @@ export const analysisController = {
    * POST /api/analyses - Create new analysis
    */
   create: asyncHandler(async (req: Request, res: Response) => {
-    const workspaceId = req.user!.workspaceId;
-    const userId = req.user!.id;
+    const workspaceId = req.user?.workspaceId;
+    const userId = req.user?.id;
+    if (!workspaceId || !userId) {
+      return res.status(401).json({ success: false, error: 'Workspace or user not found' });
+    }
     const {
       batchId,
       analysisTypeId,
@@ -110,8 +119,11 @@ export const analysisController = {
    */
   update: asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
-    const workspaceId = req.user!.workspaceId;
-    const userId = req.user!.id;
+    const workspaceId = req.user?.workspaceId;
+    const userId = req.user?.id;
+    if (!workspaceId || !userId) {
+      return res.status(401).json({ success: false, error: 'Workspace or user not found' });
+    }
     const { status, results, filePath, fileChecksum, fileSizeBytes, performedAt, externalReference } = req.body;
 
     const analysis = await AnalysisService.updateAnalysis(id, workspaceId, userId, {

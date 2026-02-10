@@ -10,7 +10,7 @@ import {
 
 const router = Router();
 
-// GET /api/analyses - List analyses for workspace
+// GET /api/analyses - List analyses for organization
 router.get('/', authenticate, async (req, res) => {
   try {
     const { batchId, executionMode, limit: limitParam, offset: offsetParam } = req.query;
@@ -92,7 +92,7 @@ router.post('/', authenticate, requireObjectAccess('batch', 'analyzer'), auditLo
     const workspaceId = req.user!.workspaceId;
     const uploadedBy = req.user!.id;
 
-    // CRITICAL VALIDATION 1: Verify batch exists AND belongs to current workspace
+    // CRITICAL VALIDATION 1: Verify batch exists AND belongs to current organization
     const batchCheck = await pool.query(`
       SELECT b.workspace_id, b.status, b.id,
              COUNT(DISTINCT bi.derived_id) as sample_count
@@ -108,11 +108,11 @@ router.post('/', authenticate, requireObjectAccess('batch', 'analyzer'), auditLo
 
     const batch = batchCheck.rows[0];
 
-    // CRITICAL: Batch MUST be in requesting workspace (prevent cross-workspace upload)
+    // CRITICAL: Batch MUST be in requesting organization (prevent cross-tenant upload)
     if (batch.workspace_id !== workspaceId) {
       return res.status(403).json({
-        error: 'Batch belongs to different workspace',
-        detail: `Cannot upload to batch in workspace ${batch.workspace_id} from workspace ${workspaceId}`
+        error: 'Batch belongs to different organization',
+        detail: `Cannot upload to batch in organization ${batch.workspace_id} from organization ${workspaceId}`
       });
     }
 

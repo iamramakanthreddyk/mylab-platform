@@ -29,6 +29,10 @@ export { SystemNotificationWorkflow } from './SystemNotificationWorkflow'
 export { PaymentNotificationWidget } from './PaymentNotificationWidget'
 export { SystemNotificationWidget } from './SystemNotificationWidget'
 
+// User Management
+export { UserManagement } from './UserManagement'
+export { UsersManager } from './UsersManager'
+
 // Layout & UI Components
 export { Navigation } from './Navigation'
 export { EntityCard } from './EntityCard'

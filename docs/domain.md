@@ -4,6 +4,7 @@ Assumptions
 - Scope is the Batches domain only (Batch and BatchItem).
 - Existing fields in code and schema are authoritative; no new fields are introduced.
 - Canonical enums follow the database enum values unless explicitly contradicted by product docs.
+- `workspaceId` remains the API field name but stores the tenant Organization ID.
 
 A. Canonical Domain Model
 
@@ -11,8 +12,8 @@ Entity: Batch
 - Meaning: A batch groups derived samples for a single analysis workflow and tracks its lifecycle and execution context.
 - Fields:
   - id: System UUID for the batch record.
-  - workspaceId: Workspace that owns the batch.
-  - originalWorkspaceId: Workspace that created the original samples (for cross-workspace lineage).
+  - workspaceId: Organization (tenant) that owns the batch.
+  - originalWorkspaceId: Organization that created the original samples (for cross-organization lineage).
   - batchId: Human-friendly batch identifier (user-facing).
   - description: Batch description and intent.
   - parameters: JSON parameters used for the batch (analysis inputs, notes).
@@ -53,8 +54,8 @@ B. Database Schema
 Table: batches
 - Columns (snake_case):
   - id UUID PK
-  - workspace_id UUID FK workspace(id)
-  - original_workspace_id UUID FK workspace(id)
+  - workspace_id UUID FK organizations(id)
+  - original_workspace_id UUID FK organizations(id)
   - batch_id VARCHAR(100)
   - description TEXT
   - parameters JSONB
@@ -234,8 +235,8 @@ D. UI Mapping
 
 Field label mapping
 - id -> "Batch Record ID"
-- workspaceId -> "Workspace"
-- originalWorkspaceId -> "Original Workspace"
+- workspaceId -> "Organization"
+- originalWorkspaceId -> "Origin Organization"
 - batchId -> "Batch ID"
 - description -> "Description"
 - parameters -> "Parameters"
@@ -268,7 +269,7 @@ E. Validation Rules
 Allowed
 - batch_status must be one of: created, ready, sent, in_progress, completed.
 - execution_mode must be one of: platform, external.
-- batch_id must be unique per workspace.
+- batch_id must be unique per organization.
 - batch_items.sequence must be a non-negative integer and ordered within a batch.
 - batch_items.derived_id must reference an existing derived sample.
 
@@ -276,7 +277,7 @@ Must never happen
 - Status values outside the canonical batch_status enum.
 - Mixing camelCase and snake_case in the same layer.
 - Creating batch_items with a batch_id that does not exist.
-- Creating a batch without a workspace owner.
+- Creating a batch without an organization owner.
 - External execution (execution_mode = external) without external_reference or executed_by_org_id.
 
 Governance Rule (habit and enforcement)

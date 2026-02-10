@@ -1,26 +1,21 @@
 -- SQLite schema for MyLab (testing only)
 -- Only core tables for initial integration
 
-CREATE TABLE Workspace (
+CREATE TABLE Organizations (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   slug TEXT NOT NULL UNIQUE,
   type TEXT NOT NULL,
-  email_domain TEXT,
-  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-  deleted_at TEXT
-);
-
-CREATE TABLE Organizations (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  type TEXT NOT NULL,
   is_platform_workspace INTEGER NOT NULL DEFAULT 0,
-  workspace_id TEXT,
+  email_domain TEXT,
+  payment_status TEXT DEFAULT 'trial',
+  payment_amount REAL,
+  payment_due_date TEXT,
+  payment_last_reminder TEXT,
   contact_info TEXT,
   gst_number TEXT,
   gst_percentage REAL DEFAULT 18.00,
+  is_active INTEGER NOT NULL DEFAULT 1,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
   deleted_at TEXT
@@ -28,10 +23,10 @@ CREATE TABLE Organizations (
 
 CREATE TABLE Users (
   id TEXT PRIMARY KEY,
-  workspace_id TEXT NOT NULL,
+  workspace_id TEXT,
   email TEXT NOT NULL,
   name TEXT,
-  role TEXT NOT NULL DEFAULT 'user',
+  role TEXT NOT NULL DEFAULT 'scientist',
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
   deleted_at TEXT,

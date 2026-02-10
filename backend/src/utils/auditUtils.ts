@@ -165,7 +165,7 @@ export async function getSampleMetadataHistory(
  */
 export async function getSecurityEvents(
   pool: Pool,
-  workspaceId: string,
+  organizationId: string,
   eventType?: string,
   severity?: string,
   limit: number = 100
@@ -178,7 +178,7 @@ export async function getSecurityEvents(
         sl.severity,
         sl.user_id,
         u.email as user_email,
-        sl.workspace_id,
+        sl.organization_id,
         sl.resource_type,
         sl.resource_id,
         sl.reason,
@@ -186,10 +186,10 @@ export async function getSecurityEvents(
         sl.ip_address
       FROM SecurityLog sl
       LEFT JOIN Users u ON sl.user_id = u.id
-      WHERE sl.workspace_id = $1
+      WHERE sl.organization_id = $1
     `;
     
-    const params: any[] = [workspaceId];
+    const params: any[] = [organizationId];
 
     if (eventType) {
       query += ` AND sl.event_type = $${params.length + 1}`;

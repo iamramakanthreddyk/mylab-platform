@@ -55,25 +55,29 @@ router.post('/organization-admin', async (req: Request, res: Response) => {
       return res.status(409).json({ error: 'Email already registered' });
     }
 
-    // Create workspace first
-    const workspaceResult = await client.query(
-      `INSERT INTO Workspace (name, slug, type)
-       VALUES ($1, $2, $3)
-       RETURNING id`,
-      [organizationName, organizationName.toLowerCase().replace(/\s+/g, '-'), 'research']
-    );
-
-    const workspaceId = workspaceResult.rows[0].id;
-
-    // Create organization
+    const slug = organizationName.toLowerCase().replace(/\s+/g, '-');
     const orgResult = await client.query(
-      `INSERT INTO Organizations (name, type, workspace_id)
-       VALUES ($1, $2, $3)
+      `INSERT INTO Organizations (name, slug, type, is_platform_workspace)
+       VALUES ($1, $2, $3, true)
        RETURNING id`,
-      [organizationName, organizationType, workspaceId]
+      [organizationName, slug, organizationType]
     );
 
     const organizationId = orgResult.rows[0].id;
+    const workspaceId = organizationId;
+
+    // Assign a default plan to the organization
+    const planResult = await client.query(
+      `SELECT id FROM Plans WHERE tier = 'starter' AND is_active = true LIMIT 1`
+    );
+    
+    if (planResult.rows.length > 0) {
+      const planId = planResult.rows[0].id;
+      await client.query(
+        `UPDATE Organizations SET plan_id = $1 WHERE id = $2`,
+        [planId, organizationId]
+      );
+    }
 
     // Hash password
     const passwordHash = await bcrypt.hash(adminPassword, 10);
@@ -109,15 +113,19 @@ router.post('/organization-admin', async (req: Request, res: Response) => {
       success: true,
       organization: {
         id: organizationId,
+        organizationId: organizationId,
         name: organizationName,
         type: organizationType,
-        workspace_id: workspaceId
+        workspace_id: workspaceId,
+        workspaceId: workspaceId
       },
       admin: {
         id: user.id,
         email: user.email,
         name: user.name,
-        role: user.role
+        role: user.role,
+        organizationId: organizationId,
+        workspaceId: workspaceId
       },
       token: token,
       message: 'Organization and admin user created successfully'
@@ -153,9 +161,11 @@ router.post('/login', async (req: Request, res: Response) => {
     // Query user by email OR userId
     let query = `
       SELECT u.id, u.email, u.name, u.role, u.workspace_id, u.password_hash, u.require_password_change,
-             o.id as organization_id, o.name as organization_name
+        o.id as organization_id, o.name as organization_name, o.plan_id,
+        p.name as plan_name, p.max_projects, p.tier as plan_tier
       FROM Users u
-      LEFT JOIN Organizations o ON u.workspace_id = o.workspace_id
+      LEFT JOIN Organizations o ON u.workspace_id = o.id
+      LEFT JOIN Plans p ON o.plan_id = p.id
       WHERE u.deleted_at IS NULL AND (
     `;
 
@@ -200,7 +210,7 @@ router.post('/login', async (req: Request, res: Response) => {
         name: user.name,
         role: user.role,
         workspaceId: user.workspace_id,
-        organizationId: user.organization_id
+        organizationId: user.organization_id || user.workspace_id
       },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRY }
@@ -215,8 +225,15 @@ router.post('/login', async (req: Request, res: Response) => {
         name: user.name,
         role: user.role,
         workspaceId: user.workspace_id,
-        organizationId: user.organization_id,
-        organizationName: user.organization_name
+        organizationId: user.organization_id || user.workspace_id,
+        organization_id: user.organization_id || user.workspace_id,
+        organizationName: user.organization_name,
+        plan: {
+          id: user.plan_id,
+          name: user.plan_name,
+          tier: user.plan_tier,
+          maxProjects: user.max_projects
+        }
       },
       requirePasswordChange: user.require_password_change,
       message: 'Login successful'

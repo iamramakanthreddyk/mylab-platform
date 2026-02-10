@@ -23,6 +23,13 @@ export interface TrialParameterTemplateRequest {
   columns: string[];
 }
 
+export interface TrialSetupRequest {
+  objective?: string;
+  equipment?: string;
+  notes?: string;
+  performedAt?: string;
+}
+
 export interface UpdateTrialRequest {
   name?: string;
   objective?: string;
@@ -72,6 +79,13 @@ export const bulkCreateTrialSchema = Joi.object({
 
 export const trialParameterTemplateSchema = Joi.object({
   columns: Joi.array().items(Joi.string().trim().min(1)).required()
+});
+
+export const trialSetupSchema = Joi.object({
+  objective: Joi.string().trim().max(2000).allow('').optional(),
+  equipment: Joi.string().trim().max(2000).allow('').optional(),
+  notes: Joi.string().trim().max(4000).allow('').optional(),
+  performedAt: Joi.string().isoDate().allow('').optional()
 });
 
 export const updateTrialSchema = Joi.object({

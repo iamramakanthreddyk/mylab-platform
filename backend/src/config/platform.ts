@@ -188,9 +188,10 @@ const MODULES: PlatformModule[] = [
         description: 'Project summary card'
       },
       {
-        name: 'CreateProjectModal',
-        type: 'modal',
-        description: 'Create new project form'
+        name: 'CreateProjectPage',
+        type: 'page',
+        route: '/projects/create',
+        description: 'Create new project form page'
       }
     ],
     permissions: [
@@ -433,14 +434,14 @@ const MODULES: PlatformModule[] = [
         method: 'POST',
         description: 'Verify offline payment completion (admin)',
         requiresAuth: true,
-        roles: ['PlatformAdmin']
+        roles: ['platform_admin']
       },
       {
         path: '/payments/:paymentId/receipt',
         method: 'GET',
         description: 'Get payment receipt',
         requiresAuth: true,
-        roles: ['PlatformAdmin', 'OrgAdmin']
+        roles: ['platform_admin', 'admin']
       },
       // Payment Management
       {
@@ -448,14 +449,14 @@ const MODULES: PlatformModule[] = [
         method: 'POST',
         description: 'Send payment reminder to workspace',
         requiresAuth: true,
-        roles: ['PlatformAdmin']
+        roles: ['platform_admin']
       },
       {
         path: '/workspaces/payment-status',
         method: 'GET',
         description: 'Get workspaces with payment issues',
         requiresAuth: true,
-        roles: ['PlatformAdmin']
+        roles: ['platform_admin']
       },
       // Company Management (Admin)
       {
@@ -463,35 +464,35 @@ const MODULES: PlatformModule[] = [
         method: 'GET',
         description: 'List all organizations',
         requiresAuth: true,
-        roles: ['PlatformAdmin']
+        roles: ['platform_admin']
       },
       {
         path: '/organizations',
         method: 'POST',
         description: 'Create organization (admin only)',
         requiresAuth: true,
-        roles: ['PlatformAdmin']
+        roles: ['platform_admin']
       },
       {
         path: '/organizations/:id',
         method: 'GET',
         description: 'Get organization details',
         requiresAuth: true,
-        roles: ['PlatformAdmin', 'OrgAdmin']
+        roles: ['platform_admin', 'admin']
       },
       {
         path: '/organizations/:id',
         method: 'PUT',
         description: 'Update organization',
         requiresAuth: true,
-        roles: ['PlatformAdmin', 'OrgAdmin']
+        roles: ['platform_admin', 'admin']
       },
       {
         path: '/organizations/:id/status',
         method: 'PUT',
         description: 'Update organization status (activate/suspend)',
         requiresAuth: true,
-        roles: ['PlatformAdmin']
+        roles: ['platform_admin']
       },
       // Workspace Management
       {
@@ -499,21 +500,21 @@ const MODULES: PlatformModule[] = [
         method: 'GET',
         description: 'List workspaces',
         requiresAuth: true,
-        roles: ['PlatformAdmin']
+        roles: ['platform_admin']
       },
       {
         path: '/workspaces',
         method: 'POST',
         description: 'Create workspace',
         requiresAuth: true,
-        roles: ['PlatformAdmin']
+        roles: ['platform_admin']
       },
       {
         path: '/workspaces/:id',
         method: 'GET',
         description: 'Get workspace details',
         requiresAuth: true,
-        roles: ['PlatformAdmin', 'WorkspaceAdmin']
+        roles: ['platform_admin', 'admin']
       },
       // User Invitations
       {
@@ -521,7 +522,7 @@ const MODULES: PlatformModule[] = [
         method: 'POST',
         description: 'Send user invitation',
         requiresAuth: true,
-        roles: ['OrgAdmin', 'WorkspaceAdmin']
+        roles: ['admin', 'admin']
       },
       {
         path: '/invitations/:token',
@@ -579,38 +580,38 @@ const MODULES: PlatformModule[] = [
       {
         action: 'create',
         resource: 'organization',
-        roles: ['PlatformAdmin']
+        roles: ['platform_admin']
       },
       {
         action: 'manage',
         resource: 'organization',
-        roles: ['PlatformAdmin']
+        roles: ['platform_admin']
       },
       {
         action: 'suspend',
         resource: 'organization',
-        roles: ['PlatformAdmin']
+        roles: ['platform_admin']
       },
       {
         action: 'create',
         resource: 'workspace',
-        roles: ['PlatformAdmin']
+        roles: ['platform_admin']
       },
       {
         action: 'manage',
         resource: 'workspace',
-        roles: ['PlatformAdmin']
+        roles: ['platform_admin']
       },
       // Organization Admin permissions
       {
         action: 'manage',
         resource: 'own_organization',
-        roles: ['OrgAdmin']
+        roles: ['admin']
       },
       {
         action: 'invite',
         resource: 'users',
-        roles: ['OrgAdmin', 'WorkspaceAdmin']
+        roles: ['admin', 'admin']
       },
       // Payment permissions
       {
@@ -621,22 +622,22 @@ const MODULES: PlatformModule[] = [
       {
         action: 'verify',
         resource: 'payment',
-        roles: ['PlatformAdmin']
+        roles: ['platform_admin']
       },
       {
         action: 'view',
         resource: 'payment_receipt',
-        roles: ['PlatformAdmin', 'OrgAdmin']
+        roles: ['platform_admin', 'admin']
       },
       {
         action: 'send',
         resource: 'payment_reminder',
-        roles: ['PlatformAdmin']
+        roles: ['platform_admin']
       },
       {
         action: 'view',
         resource: 'payment_status',
-        roles: ['PlatformAdmin']
+        roles: ['platform_admin']
       },
       // Self-service permissions
       {

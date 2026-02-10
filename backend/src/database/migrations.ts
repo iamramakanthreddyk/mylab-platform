@@ -6,11 +6,11 @@
  * Tracks migration history in `schema_migrations` table.
  */
 
-import { Pool, QueryResult } from 'pg';
+import { Pool } from 'pg';
 import logger from '../utils/logger';
 
 // Migration version - increment when adding new migrations
-const MIGRATIONS_VERSION = '014';
+const MIGRATIONS_VERSION = '019';
 
 /**
  * Migration definition
@@ -44,6 +44,62 @@ const migrations: Migration[] = [
   },
 
   {
+    id: '019',
+    name: 'org_tenant_model_alignment',
+    description: 'Add organization tenant fields and platform_admin role support',
+    up: async (pool: Pool) => {
+      try {
+        await pool.query(`
+          DO $$ BEGIN
+            ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'platform_admin';
+          EXCEPTION
+            WHEN duplicate_object THEN null;
+          END $$;
+        `);
+
+        await pool.query(`
+          ALTER TABLE Organizations
+          ADD COLUMN IF NOT EXISTS slug VARCHAR(50),
+          ADD COLUMN IF NOT EXISTS email_domain VARCHAR(255),
+          ADD COLUMN IF NOT EXISTS payment_status payment_status DEFAULT 'trial',
+          ADD COLUMN IF NOT EXISTS payment_amount DECIMAL(10,2),
+          ADD COLUMN IF NOT EXISTS payment_due_date TIMESTAMP,
+          ADD COLUMN IF NOT EXISTS payment_last_reminder TIMESTAMP,
+          ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+        `);
+
+        await pool.query(`
+          UPDATE Organizations
+          SET slug = COALESCE(slug, LOWER(REGEXP_REPLACE(name, '[^a-z0-9]+', '-', 'g')))
+          WHERE slug IS NULL;
+        `);
+
+        await pool.query(`
+          ALTER TABLE Users
+          ALTER COLUMN workspace_id DROP NOT NULL;
+        `);
+
+        // Fix Users table foreign key constraint to reference Organizations instead of old Workspace table
+        await pool.query(`
+          ALTER TABLE Users
+          DROP CONSTRAINT IF EXISTS users_workspace_id_fkey;
+        `);
+
+        await pool.query(`
+          ALTER TABLE Users
+          ADD CONSTRAINT users_workspace_id_fkey 
+          FOREIGN KEY (workspace_id) REFERENCES Organizations(id) ON DELETE SET NULL;
+        `);
+
+        logger.info('✅ Aligned organization tenant fields and platform_admin role');
+      } catch (err) {
+        logger.error('Error aligning organization tenant model', { error: (err as Error).message });
+        throw err;
+      }
+    }
+  },
+
+  {
     id: '009',
     name: 'add_projects_workflow_mode',
     description: 'Add workflow_mode column to Projects table to support trial-first or analysis-first journeys',
@@ -71,7 +127,7 @@ const migrations: Migration[] = [
           CREATE TABLE IF NOT EXISTS trials (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-            workspace_id UUID NOT NULL REFERENCES workspace(id),
+            workspace_id UUID NOT NULL REFERENCES Organizations(id),
             name VARCHAR(255) NOT NULL,
             objective TEXT,
             parameters TEXT,
@@ -132,7 +188,7 @@ const migrations: Migration[] = [
           CREATE TABLE IF NOT EXISTS trial_parameter_templates (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-            workspace_id UUID NOT NULL REFERENCES workspace(id),
+            workspace_id UUID NOT NULL REFERENCES Organizations(id),
             columns JSONB NOT NULL,
             created_by UUID NOT NULL REFERENCES users(id),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -144,6 +200,89 @@ const migrations: Migration[] = [
       } catch (err) {
         logger.error('Error adding trial_parameter_templates', { error: (err as Error).message });
         throw err;
+      }
+    }
+  },
+
+  {
+    id: '013',
+    name: 'add_trial_setup_fields',
+    description: 'Add shared setup fields to trial_parameter_templates',
+    up: async (pool: Pool) => {
+      try {
+        await pool.query(`
+          ALTER TABLE IF EXISTS trial_parameter_templates
+          ADD COLUMN IF NOT EXISTS objective TEXT,
+          ADD COLUMN IF NOT EXISTS equipment TEXT,
+          ADD COLUMN IF NOT EXISTS notes TEXT,
+          ADD COLUMN IF NOT EXISTS performed_at DATE;
+        `);
+        logger.info('✅ Added shared setup fields to trial_parameter_templates');
+      } catch (err) {
+        logger.error('Error adding trial setup fields', { error: (err as Error).message });
+        throw err;
+      }
+    }
+  },
+
+  {
+    id: '014',
+    name: 'rename_securitylog_workspace_id',
+    description: 'Rename SecurityLog workspace_id column to organization_id',
+    up: async (pool: Pool) => {
+      try {
+        await pool.query(`
+          DO $$
+          BEGIN
+            IF EXISTS (
+              SELECT 1
+              FROM information_schema.columns
+              WHERE table_name = 'securitylog' AND column_name = 'workspace_id'
+            ) AND NOT EXISTS (
+              SELECT 1
+              FROM information_schema.columns
+              WHERE table_name = 'securitylog' AND column_name = 'organization_id'
+            ) THEN
+              ALTER TABLE "SecurityLog" RENAME COLUMN workspace_id TO organization_id;
+            END IF;
+          END $$;
+        `);
+
+        await pool.query(`
+          ALTER TABLE "SecurityLog"
+          DROP CONSTRAINT IF EXISTS securitylog_workspace_id_fkey;
+        `);
+
+        await pool.query(`
+          ALTER TABLE "SecurityLog"
+          ALTER COLUMN organization_id DROP NOT NULL;
+        `);
+
+        await pool.query(`
+          DO $$
+          BEGIN
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_constraint WHERE conname = 'securitylog_organization_id_fkey'
+            ) THEN
+              ALTER TABLE "SecurityLog"
+              ADD CONSTRAINT securitylog_organization_id_fkey
+              FOREIGN KEY (organization_id) REFERENCES "Organizations"(id) ON DELETE SET NULL;
+            END IF;
+          END $$;
+        `);
+
+        await pool.query(`
+          DROP INDEX IF EXISTS idx_security_log_workspace;
+        `);
+
+        await pool.query(`
+          CREATE INDEX IF NOT EXISTS idx_security_log_organization
+          ON "SecurityLog"(organization_id);
+        `);
+
+        logger.info('✅ Renamed SecurityLog workspace_id to organization_id');
+      } catch (err) {
+        logger.warn('Could not rename SecurityLog workspace_id', { error: (err as Error).message });
       }
     }
   },
@@ -345,7 +484,7 @@ const migrations: Migration[] = [
             assignment_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             project_id UUID NOT NULL REFERENCES Projects(id),
             user_id UUID NOT NULL REFERENCES Users(id),
-            workspace_id UUID NOT NULL REFERENCES Workspace(id),
+            workspace_id UUID NOT NULL REFERENCES Organizations(id),
             company_id UUID NOT NULL,
             assigned_role VARCHAR(50) NOT NULL,
             assigned_by UUID NOT NULL REFERENCES Users(id),
@@ -376,7 +515,7 @@ const migrations: Migration[] = [
             access_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             report_id UUID NOT NULL REFERENCES AnalysisReports(report_id),
             user_id UUID NOT NULL REFERENCES Users(id),
-            workspace_id UUID NOT NULL REFERENCES Workspace(id),
+            workspace_id UUID NOT NULL REFERENCES Organizations(id),
             access_level VARCHAR(50) DEFAULT 'view',
             can_share BOOLEAN DEFAULT false,
             shared_by_user_id UUID REFERENCES Users(id),
@@ -393,7 +532,7 @@ const migrations: Migration[] = [
             access_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             sample_id UUID NOT NULL REFERENCES Samples(id),
             user_id UUID NOT NULL REFERENCES Users(id),
-            workspace_id UUID NOT NULL REFERENCES Workspace(id),
+            workspace_id UUID NOT NULL REFERENCES Organizations(id),
             access_level VARCHAR(50) DEFAULT 'view',
             can_share BOOLEAN DEFAULT false,
             shared_by_user_id UUID REFERENCES Users(id),
@@ -648,7 +787,7 @@ const migrations: Migration[] = [
         await pool.query(`
           CREATE TABLE IF NOT EXISTS UserInvitations (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            workspace_id UUID NOT NULL REFERENCES Workspace(id) ON DELETE CASCADE,
+            workspace_id UUID NOT NULL REFERENCES Organizations(id) ON DELETE CASCADE,
             email VARCHAR(255) NOT NULL,
             role VARCHAR(50) NOT NULL CHECK (role IN ('admin', 'manager', 'scientist', 'viewer')),
             invited_by UUID NOT NULL REFERENCES Users(id),
@@ -685,7 +824,7 @@ const migrations: Migration[] = [
         await pool.query(`
           CREATE TABLE IF NOT EXISTS FileDocuments (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            workspace_id UUID NOT NULL REFERENCES Workspace(id) ON DELETE CASCADE,
+            workspace_id UUID NOT NULL REFERENCES Organizations(id) ON DELETE CASCADE,
             uploaded_by UUID NOT NULL REFERENCES Users(id),
             entity_type VARCHAR(50) NOT NULL CHECK (entity_type IN ('sample', 'analysis', 'project', 'batch', 'organization')),
             entity_id UUID NOT NULL,
@@ -712,7 +851,7 @@ const migrations: Migration[] = [
         await pool.query(`
           CREATE TABLE IF NOT EXISTS AnalysisRequests (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            workspace_id UUID NOT NULL REFERENCES Workspace(id) ON DELETE CASCADE,
+            workspace_id UUID NOT NULL REFERENCES Organizations(id) ON DELETE CASCADE,
             from_organization_id UUID NOT NULL REFERENCES Organizations(id),
             to_organization_id UUID NOT NULL REFERENCES Organizations(id),
             sample_id UUID NOT NULL REFERENCES Samples(id),
@@ -767,7 +906,7 @@ const migrations: Migration[] = [
           BEGIN
             IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
                            WHERE table_name='analyses' AND column_name='workspace_id') THEN
-              ALTER TABLE Analyses ADD COLUMN workspace_id UUID REFERENCES Workspace(id);
+              ALTER TABLE Analyses ADD COLUMN workspace_id UUID REFERENCES Organizations(id);
             END IF;
           END$$;
         `);
@@ -822,7 +961,7 @@ const migrations: Migration[] = [
 
         // Seed enhanced analysis types if AnalysisTypes table is relatively empty
         const countResult = await pool.query('SELECT COUNT(*) as count FROM AnalysisTypes');
-        const currentCount = parseInt(countResult.rows[0].count);
+        const currentCount = Number.parseInt(countResult.rows[0].count, 10);
         
         if (currentCount < 15) {
           await pool.query(`
@@ -899,6 +1038,167 @@ const migrations: Migration[] = [
         throw err;
       }
     }
+  },
+
+  {
+    id: '015',
+    name: 'add_industry_to_organizations',
+    description: 'Add industry column to Organizations table for better organization categorization',
+    up: async (pool: Pool) => {
+      try {
+        await pool.query(`
+          ALTER TABLE IF EXISTS Organizations
+          ADD COLUMN IF NOT EXISTS industry VARCHAR(100);
+        `);
+        logger.info('✅ Added industry column to Organizations table');
+      } catch (err) {
+        logger.error('Error adding industry column to Organizations', { error: (err as Error).message });
+        throw err;
+      }
+    }
+  },
+
+  {
+    id: '016',
+    name: 'add_missing_organization_columns',
+    description: 'Add missing columns to Organizations table for complete organization data',
+    up: async (pool: Pool) => {
+      try {
+        // First ensure the enum types exist
+        await pool.query(`
+          DO $$ BEGIN
+            CREATE TYPE company_size_type AS ENUM ('1-10', '11-50', '51-200', '201-1000', '1000+');
+          EXCEPTION
+            WHEN duplicate_object THEN null;
+          END $$;
+        `);
+
+        // Add missing columns
+        await pool.query(`
+          ALTER TABLE IF EXISTS Organizations
+          ADD COLUMN IF NOT EXISTS industry VARCHAR(100),
+          ADD COLUMN IF NOT EXISTS company_size company_size_type,
+          ADD COLUMN IF NOT EXISTS annual_revenue VARCHAR(50),
+          ADD COLUMN IF NOT EXISTS company_registration_number VARCHAR(255),
+          ADD COLUMN IF NOT EXISTS tax_id VARCHAR(255),
+          ADD COLUMN IF NOT EXISTS state VARCHAR(100),
+          ADD COLUMN IF NOT EXISTS city VARCHAR(100),
+          ADD COLUMN IF NOT EXISTS postal_code VARCHAR(20),
+          ADD COLUMN IF NOT EXISTS address TEXT,
+          ADD COLUMN IF NOT EXISTS contact_info JSONB,
+          ADD COLUMN IF NOT EXISTS logo_url VARCHAR(255),
+          ADD COLUMN IF NOT EXISTS billing_contact_name VARCHAR(255),
+          ADD COLUMN IF NOT EXISTS billing_contact_email VARCHAR(255),
+          ADD COLUMN IF NOT EXISTS billing_contact_phone VARCHAR(20),
+          ADD COLUMN IF NOT EXISTS notes TEXT;
+        `);
+
+        logger.info('✅ Added missing columns to Organizations table');
+      } catch (err) {
+        logger.error('Error adding missing columns to Organizations', { error: (err as Error).message });
+        throw err;
+      }
+    }
+  },
+
+  {
+    id: '017',
+    name: 'add_missing_columns_to_organizations',
+    description: 'Add all missing columns to Organizations table for comprehensive org management',
+    up: async (pool: Pool) => {
+      try {
+        // First ensure the enum type exists
+        await pool.query(`
+          DO $$ BEGIN
+            CREATE TYPE company_size_type AS ENUM ('1-10', '11-50', '51-200', '201-1000', '1000+');
+          EXCEPTION
+            WHEN duplicate_object THEN null;
+          END $$;
+        `);
+
+        // Add all missing columns to Organizations table
+        await pool.query(`
+          ALTER TABLE Organizations 
+          ADD COLUMN IF NOT EXISTS is_platform_workspace BOOLEAN DEFAULT false,
+          ADD COLUMN IF NOT EXISTS website VARCHAR(255),
+          ADD COLUMN IF NOT EXISTS industry VARCHAR(100),
+          ADD COLUMN IF NOT EXISTS company_size company_size_type,
+          ADD COLUMN IF NOT EXISTS annual_revenue VARCHAR(50),
+          ADD COLUMN IF NOT EXISTS company_registration_number VARCHAR(255),
+          ADD COLUMN IF NOT EXISTS gst_number VARCHAR(255),
+          ADD COLUMN IF NOT EXISTS gst_percentage DECIMAL(5,2) DEFAULT 18.00,
+          ADD COLUMN IF NOT EXISTS tax_id VARCHAR(255),
+          ADD COLUMN IF NOT EXISTS country VARCHAR(100),
+          ADD COLUMN IF NOT EXISTS state VARCHAR(100),
+          ADD COLUMN IF NOT EXISTS city VARCHAR(100),
+          ADD COLUMN IF NOT EXISTS postal_code VARCHAR(20),
+          ADD COLUMN IF NOT EXISTS address TEXT,
+          ADD COLUMN IF NOT EXISTS contact_info JSONB,
+          ADD COLUMN IF NOT EXISTS logo_url VARCHAR(255),
+          ADD COLUMN IF NOT EXISTS primary_contact_name VARCHAR(255),
+          ADD COLUMN IF NOT EXISTS primary_contact_email VARCHAR(255),
+          ADD COLUMN IF NOT EXISTS primary_contact_phone VARCHAR(20),
+          ADD COLUMN IF NOT EXISTS billing_contact_name VARCHAR(255),
+          ADD COLUMN IF NOT EXISTS billing_contact_email VARCHAR(255),
+          ADD COLUMN IF NOT EXISTS billing_contact_phone VARCHAR(20),
+          ADD COLUMN IF NOT EXISTS notes TEXT;
+        `);
+
+        logger.info('✅ Added all missing columns to Organizations table');
+      } catch (err) {
+        logger.error('Error adding missing columns to Organizations', { error: (err as Error).message });
+        throw err;
+      }
+    }
+  },
+
+  {
+    id: '018',
+    name: 'ensure_organizations_columns',
+    description: 'Ensure Organizations table has all expected columns (rerunnable safety)',
+    up: async (pool: Pool) => {
+      try {
+        await pool.query(`
+          DO $$ BEGIN
+            CREATE TYPE company_size_type AS ENUM ('1-10', '11-50', '51-200', '201-1000', '1000+');
+          EXCEPTION
+            WHEN duplicate_object THEN null;
+          END $$;
+        `);
+
+        await pool.query(`
+          ALTER TABLE Organizations 
+          ADD COLUMN IF NOT EXISTS is_platform_workspace BOOLEAN DEFAULT false,
+          ADD COLUMN IF NOT EXISTS website VARCHAR(255),
+          ADD COLUMN IF NOT EXISTS industry VARCHAR(100),
+          ADD COLUMN IF NOT EXISTS company_size company_size_type,
+          ADD COLUMN IF NOT EXISTS annual_revenue VARCHAR(50),
+          ADD COLUMN IF NOT EXISTS company_registration_number VARCHAR(255),
+          ADD COLUMN IF NOT EXISTS gst_number VARCHAR(255),
+          ADD COLUMN IF NOT EXISTS gst_percentage DECIMAL(5,2) DEFAULT 18.00,
+          ADD COLUMN IF NOT EXISTS tax_id VARCHAR(255),
+          ADD COLUMN IF NOT EXISTS country VARCHAR(100),
+          ADD COLUMN IF NOT EXISTS state VARCHAR(100),
+          ADD COLUMN IF NOT EXISTS city VARCHAR(100),
+          ADD COLUMN IF NOT EXISTS postal_code VARCHAR(20),
+          ADD COLUMN IF NOT EXISTS address TEXT,
+          ADD COLUMN IF NOT EXISTS contact_info JSONB,
+          ADD COLUMN IF NOT EXISTS logo_url VARCHAR(255),
+          ADD COLUMN IF NOT EXISTS primary_contact_name VARCHAR(255),
+          ADD COLUMN IF NOT EXISTS primary_contact_email VARCHAR(255),
+          ADD COLUMN IF NOT EXISTS primary_contact_phone VARCHAR(20),
+          ADD COLUMN IF NOT EXISTS billing_contact_name VARCHAR(255),
+          ADD COLUMN IF NOT EXISTS billing_contact_email VARCHAR(255),
+          ADD COLUMN IF NOT EXISTS billing_contact_phone VARCHAR(20),
+          ADD COLUMN IF NOT EXISTS notes TEXT;
+        `);
+
+        logger.info('✅ Ensured all Organizations columns exist');
+      } catch (err) {
+        logger.error('Error ensuring Organizations columns', { error: (err as Error).message });
+        throw err;
+      }
+    }
   }
 
   // Add more migrations here as your database evolves
@@ -936,7 +1236,7 @@ export async function runMigrations(pool: Pool): Promise<boolean> {
       executedMigrations = result.rows.map((row) => row.migration_id);
     } catch (err) {
       // Table doesn't exist yet, will be created in first migration
-      logger.debug('Migration table not ready yet, will be created');
+      logger.debug('Migration table not ready yet, will be created', { error: err instanceof Error ? err.message : String(err) });
     }
 
     // 3. Find pending migrations
@@ -1008,7 +1308,6 @@ export async function getMigrationStatus(pool: Pool): Promise<string> {
       ORDER BY executed_at ASC;
     `);
 
-    const allMigrations = migrations.map((m) => m.id).sort();
     const executedMigrations = result.rows.map((row) => row.migration_id);
 
     let status = 'Database Migrations Status:\n';

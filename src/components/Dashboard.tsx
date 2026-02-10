@@ -26,6 +26,8 @@ interface DashboardProps {
 
 export function Dashboard({ user, projects, samples }: DashboardProps) {
   const navigate = useNavigate()
+  const normalizedRole = user.role.toLowerCase()
+  const isAdmin = normalizedRole === 'admin'
   // Defensive: ensure data is always an array
   const safeProjects = projects || []
   const safeSamples = samples || []
@@ -74,6 +76,17 @@ export function Dashboard({ user, projects, samples }: DashboardProps) {
       route: '/batches'
     },
   ]
+
+  if (isAdmin) {
+    statCards.push({
+      title: 'User Management',
+      value: 0,
+      icon: Users,
+      color: 'text-emerald-600',
+      bgColor: 'bg-emerald-100',
+      route: '/users'
+    })
+  }
 
   // Workflow summary stats
   const workflowStats = {
@@ -204,7 +217,7 @@ export function Dashboard({ user, projects, samples }: DashboardProps) {
             </CardContent>
           </Card>
         </motion.div>          {/* Payment Notifications - Only for Admins */}
-          {user.role === 'Admin' && (
+          {isAdmin && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -315,7 +328,7 @@ export function Dashboard({ user, projects, samples }: DashboardProps) {
                 <ChartBar size={18} />
                 View Analysis Results
               </Button>
-              {user.role === 'Admin' && (
+              {isAdmin && (
                 <Button 
                   onClick={() => navigate('/schema')} 
                   className="w-full justify-start gap-3 h-12"

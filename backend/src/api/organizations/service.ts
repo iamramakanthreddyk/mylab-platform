@@ -15,59 +15,70 @@ import {
  * Database queries, validation, and cross-module operations
  */
 
+/**
+ * Generate URL-safe slug from organization name
+ */
+function toSlug(name: string): string {
+  const base = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .substring(0, 40) || 'org';
+  // Add random suffix to ensure uniqueness
+  const suffix = Math.random().toString(36).slice(2, 6);
+  return `${base}-${suffix}`;
+}
+
 export class OrganizationService {
   /**
-   * List all organizations for a workspace
+   * List all organizations accessible to the user
    */
-  static async listOrganizations(workspaceId: string): Promise<OrganizationResponse[]> {
+  static async listOrganizations(userOrgId: string): Promise<OrganizationResponse[]> {
     try {
-      logger.info('Fetching organizations for workspace', { workspaceId });
+      logger.info('Fetching organizations', { userOrgId });
 
       const result = await pool.query(
         `
         SELECT
           id,
-          workspace_id as "workspaceId",
           name,
           type,
           contact_info as "contactInfo",
           created_at as "createdAt",
           updated_at as "updatedAt"
         FROM Organizations
-        WHERE workspace_id = $1 AND deleted_at IS NULL
+        WHERE deleted_at IS NULL
         ORDER BY name ASC
-        `,
-        [workspaceId]
+        `
       );
 
       return result.rows as OrganizationResponse[];
     } catch (error) {
-      logger.error('Failed to list organizations', { workspaceId, error });
+      logger.error('Failed to list organizations', { error });
       throw error;
     }
   }
 
   /**
-   * Get a single organization by ID with workspace validation
+   * Get a single organization by ID
    */
-  static async getOrganization(id: string, workspaceId: string): Promise<OrganizationResponse> {
+  static async getOrganization(id: string, userOrgId: string): Promise<OrganizationResponse> {
     try {
-      logger.info('Fetching organization', { id, workspaceId });
+      logger.info('Fetching organization', { id, userOrgId });
 
       const result = await pool.query(
         `
         SELECT
           id,
-          workspace_id as "workspaceId",
           name,
           type,
           contact_info as "contactInfo",
           created_at as "createdAt",
           updated_at as "updatedAt"
         FROM Organizations
-        WHERE id = $1 AND workspace_id = $2 AND deleted_at IS NULL
+        WHERE id = $1 AND deleted_at IS NULL
         `,
-        [id, workspaceId]
+        [id]
       );
 
       if (result.rows.length === 0) {
@@ -79,7 +90,7 @@ export class OrganizationService {
       if (error instanceof OrganizationNotFoundError) {
         throw error;
       }
-      logger.error('Failed to get organization', { id, workspaceId, error });
+      logger.error('Failed to get organization', { id, userOrgId, error });
       throw error;
     }
   }
@@ -88,38 +99,40 @@ export class OrganizationService {
    * Create a new organization
    */
   static async createOrganization(
-    workspaceId: string,
+    userOrgId: string,
     userId: string,
     data: CreateOrganizationRequest
   ): Promise<OrganizationResponse> {
     try {
-      logger.info('Creating organization', { workspaceId, userId, name: data.name });
+      logger.info('Creating organization', { userOrgId, userId, name: data.name });
+
+      const slug = toSlug(data.name);
 
       const result = await pool.query(
         `
         INSERT INTO Organizations (
-          workspace_id,
           name,
+          slug,
           type,
           contact_info,
+          is_active,
           created_at,
           updated_at
-        ) VALUES ($1, $2, $3, $4, NOW(), NOW())
+        ) VALUES ($1, $2, $3, $4, true, NOW(), NOW())
         RETURNING
           id,
-          workspace_id as "workspaceId",
           name,
           type,
           contact_info as "contactInfo",
           created_at as "createdAt",
           updated_at as "updatedAt"
         `,
-        [workspaceId, data.name, data.type, data.contactInfo || {}]
+        [data.name, slug, data.type, data.contactInfo || {}]
       );
 
       return result.rows[0] as OrganizationResponse;
     } catch (error) {
-      logger.error('Failed to create organization', { workspaceId, userId, data, error });
+      logger.error('Failed to create organization', { userOrgId, userId, data, error });
       throw error;
     }
   }

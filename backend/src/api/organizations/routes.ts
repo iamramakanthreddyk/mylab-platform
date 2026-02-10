@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authenticate } from '../../middleware/auth';
 import { validate } from '../../middleware/validation';
 import { requireObjectAccess, auditLog } from '../../middleware/auth';
+import { requirePlatformAdmin, requireOrgOrPlatformAdmin } from '../../middleware/platformAdmin';
 import { organizationController } from './controller';
 import { createOrganizationSchema, updateOrganizationSchema } from './types';
 
@@ -26,10 +27,11 @@ router.get(
   organizationController.getById
 );
 
-// Create organization
+// Create organization (Platform Admin only)
 router.post(
   '/',
   authenticate,
+  requirePlatformAdmin,
   validate(createOrganizationSchema),
   auditLog('create', 'organization'),
   organizationController.create
@@ -44,10 +46,11 @@ router.put(
   organizationController.update
 );
 
-// Delete organization
+// Delete organization (Platform Admin only)
 router.delete(
   '/:id',
   authenticate,
+  requirePlatformAdmin,
   auditLog('delete', 'organization'),
   organizationController.delete
 );

@@ -11,7 +11,7 @@ import Joi from 'joi';
 export const FILE_DOCUMENT_SCHEMA = {
   columns: {
     id: { type: 'UUID', required: true, primaryKey: true },
-    workspace_id: { type: 'UUID', required: true, foreignKey: 'Workspace' },
+    workspace_id: { type: 'UUID', required: true, foreignKey: 'Organizations' },
     uploaded_by: { type: 'UUID', required: true, foreignKey: 'Users' },
     entity_type: { type: 'VARCHAR(50)', required: true, description: 'sample, analysis, project, etc.' },
     entity_id: { type: 'UUID', required: true, description: 'ID of the related entity' },
@@ -58,7 +58,7 @@ export const FILE_DOCUMENT_SCHEMA = {
 export const USER_INVITATION_SCHEMA = {
   columns: {
     id: { type: 'UUID', required: true, primaryKey: true },
-    workspace_id: { type: 'UUID', required: true, foreignKey: 'Workspace' },
+    workspace_id: { type: 'UUID', required: true, foreignKey: 'Organizations' },
     email: { type: 'VARCHAR(255)', required: true },
     role: { type: 'user_role', required: true },
     invited_by: { type: 'UUID', required: true, foreignKey: 'Users' },
@@ -86,7 +86,7 @@ export const USER_INVITATION_SCHEMA = {
 export const ANALYSIS_REQUEST_SCHEMA = {
   columns: {
     id: { type: 'UUID', required: true, primaryKey: true },
-    workspace_id: { type: 'UUID', required: true, foreignKey: 'Workspace' },
+    workspace_id: { type: 'UUID', required: true, foreignKey: 'Organizations' },
     from_organization_id: { type: 'UUID', required: true, foreignKey: 'Organizations' },
     to_organization_id: { type: 'UUID', required: true, foreignKey: 'Organizations' },
     sample_id: { type: 'UUID', required: true, foreignKey: 'Samples' },

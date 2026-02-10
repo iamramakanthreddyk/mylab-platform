@@ -102,17 +102,30 @@ export interface MaterialHandoff {
   updatedAt: string
 }
 
+export type ProjectStatusApi = 'active' | 'completed' | 'archived'
+
+export type WorkflowMode = 'analysis_first' | 'trial_first'
+
+export interface CreateProjectRequestPayload {
+  name: string
+  description?: string
+  clientOrgId?: string
+  externalClientName?: string
+  executingOrgId: string
+  workflowMode?: WorkflowMode
+}
+
 export interface Project {
   id: string
-  workspaceId: string
+  organizationId: string // Primary organization (usually client)
   name: string
   description: string
-  clientOrgId: string
-  clientOrgName: string
+  clientOrgId?: string
+  clientOrgName?: string
   executingOrgId: string
   executingOrgName: string
-  status: 'Planning' | 'Active' | 'On Hold' | 'Completed' | 'Archived'
-  workflowMode?: 'analysis_first' | 'trial_first'
+  status: ProjectStatusApi | 'Planning' | 'Active' | 'On Hold' | 'Completed' | 'Archived'
+  workflowMode?: WorkflowMode
   createdBy: string
   createdAt: string
   updatedAt: string
@@ -189,11 +202,13 @@ export interface SampleTransfer {
   created_at: string
 }
 
+export type AccessLevel = 'view' | 'download' | 'edit'
+
 export interface ReportSharing {
   sharing_id: string
   report_id: string
   shared_with_company_id: string
-  access_level: 'view' | 'download' | 'edit'
+  access_level: AccessLevel
   shared_date: string
   created_at: string
 }

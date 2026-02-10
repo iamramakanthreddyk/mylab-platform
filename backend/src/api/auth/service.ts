@@ -31,6 +31,18 @@ function generateToken(payload: TokenPayload): string {
   return jwt.sign(payload, jwtSecret, { expiresIn: '7d' });
 }
 
+// Simple slug generator for workspace/organization names
+function toSlug(name: string): string {
+  const base = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .substring(0, 40) || 'workspace';
+  // Add random suffix to avoid unique conflicts in tests
+  const suffix = Math.random().toString(36).slice(2, 6);
+  return `${base}-${suffix}`;
+}
+
 export class AuthService {
   /**
    * Register organization admin
@@ -49,26 +61,27 @@ export class AuthService {
       // Hash password
       const passwordHash = await hashPassword(data.password);
 
-      // Create workspace first (user references workspace)
-      const workspaceResult = await pool.query(
+      // Create organization record (top-level entity)
+      const slug = toSlug(data.companyName || 'organization');
+      const orgResult = await pool.query(
         `
-        INSERT INTO Workspace (name)
-        VALUES ($1)
+        INSERT INTO Organizations (name, slug, type, is_active)
+        VALUES ($1, $2, $3, true)
         RETURNING id
         `,
-        [data.companyName]
+        [data.companyName, slug, 'client']
       );
 
-      const workspaceId = workspaceResult.rows[0].id;
+      const organizationId = orgResult.rows[0].id;
 
-      // Create user with org_admin role and the workspace
+      // Create user with admin role linked to organization
       const result = await pool.query(
         `
-        INSERT INTO Users (email, password_hash, name, role, workspace_id)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO Users (email, password_hash, name, role, organization_id, workspace_id)
+        VALUES ($1, $2, $3, $4, $5, $5)
         RETURNING id, email
         `,
-        [data.email, passwordHash, data.fullName, 'org_admin', workspaceId]
+        [data.email, passwordHash, data.fullName, 'admin', organizationId]
       );
 
       const userId = result.rows[0].id;

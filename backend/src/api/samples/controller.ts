@@ -19,7 +19,10 @@ export const sampleController = {
    */
   list: asyncHandler(async (req: Request, res: Response) => {
     const { projectId } = req.query;
-    const workspaceId = req.user!.workspaceId;
+    const workspaceId = req.user?.workspaceId;
+    if (!workspaceId) {
+      return res.status(401).json({ success: false, error: 'Workspace not found for user' });
+    }
 
     let samples;
     if (projectId) {
@@ -40,7 +43,10 @@ export const sampleController = {
    */
   getById: asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
-    const workspaceId = req.user!.workspaceId;
+    const workspaceId = req.user?.workspaceId;
+    if (!workspaceId) {
+      return res.status(401).json({ success: false, error: 'Workspace not found for user' });
+    }
 
     const sample = await SampleService.getSample(id, workspaceId);
 
@@ -54,8 +60,11 @@ export const sampleController = {
    * POST /api/samples - Create new sample
    */
   create: asyncHandler(async (req: Request, res: Response) => {
-    const workspaceId = req.user!.workspaceId;
-    const userId = req.user!.id;
+    const workspaceId = req.user?.workspaceId;
+    const userId = req.user?.id;
+    if (!workspaceId || !userId) {
+      return res.status(401).json({ success: false, error: 'Workspace or user not found' });
+    }
     const { projectId, stageId, trialId, sampleId, description, type, metadata } = req.body;
 
     const sample = await SampleService.createSample(workspaceId, userId, {
@@ -82,7 +91,10 @@ export const sampleController = {
    */
   update: asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
-    const workspaceId = req.user!.workspaceId;
+    const workspaceId = req.user?.workspaceId;
+    if (!workspaceId) {
+      return res.status(401).json({ success: false, error: 'Workspace not found for user' });
+    }
     const { projectId, sampleId, description, type, status, metadata, stageId, trialId } = req.body;
 
     const sample = await SampleService.updateSample(id, workspaceId, projectId, {
@@ -109,7 +121,10 @@ export const sampleController = {
    */
   delete: asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
-    const workspaceId = req.user!.workspaceId;
+    const workspaceId = req.user?.workspaceId;
+    if (!workspaceId) {
+      return res.status(401).json({ success: false, error: 'Workspace not found for user' });
+    }
 
     try {
       await SampleService.deleteSample(id, workspaceId);

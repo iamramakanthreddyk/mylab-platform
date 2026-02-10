@@ -95,7 +95,7 @@ export function SubmitAnalysisResults({ user }: SubmitAnalysisResultsProps) {
         parameters: 'Temperature: 250°C, Flow rate: 1ml/min',
         performed_by: user.id,
         performed_date: '2024-02-06',
-        status: 'In Progress',
+        status: 'in_progress',
         execution_mode: 'external',
         external_lab: user.workspaceId,
         integrity_check: 'passed',

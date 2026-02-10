@@ -192,7 +192,7 @@ export function CreateSamplePage({ user }: CreateSamplePageProps) {
       const createdSample = sampleResponse.data?.data
 
       if (createdSample && selectedTrialIds.length > 0) {
-        const workspaceId = createdSample.workspace_id || user.workspaceId
+        const organizationId = createdSample.organizationId || createdSample.workspace_id || user.organizationId
         const selectedTrials = selectedTrialIds
           .map(id => trials.find(t => t.id === id))
           .filter(Boolean) as TrialData[]
@@ -210,7 +210,7 @@ export function CreateSamplePage({ user }: CreateSamplePageProps) {
             })
 
             return axiosInstance.post(
-              `/samples/${workspaceId}/${createdSample.id}/derived`,
+              `/samples/${organizationId}/${createdSample.id}/derived`,
               derivedPayload
             )
           })

@@ -11,7 +11,7 @@ In pharmaceutical research, sample management is fragmented across disparate sys
 ## Solution
 
 MyLab provides a unified platform with:
-- **Workspace Isolation**: Secure environments for organizations and projects.
+- **Organization Isolation**: Secure tenant boundaries for organizations and projects.
 - **Immutable Lineage Tracking**: Full traceability of sample origins, transformations, and analyses.
 - **Access Grants**: Flexible sharing mechanisms replacing rigid permissions.
 - **Off-Platform Support**: Integration with external organizations and systems (e.g., Tekflow analyzers).

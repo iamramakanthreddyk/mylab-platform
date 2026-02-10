@@ -6,11 +6,7 @@ import { User, Project, Organization } from '@/lib/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { FolderOpen, Plus, MagnifyingGlass, Calendar, Trash, Pencil, ArrowLeft } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { canManageProjects } from '@/lib/auth'
@@ -24,77 +20,10 @@ interface ProjectsViewProps {
 export function ProjectsView({ user, projects, onProjectsChange }: ProjectsViewProps) {
   const navigate = useNavigate()
   const [searchQuery, setSearchQuery] = useState('')
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [organizations, setOrganizations] = useState<Organization[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
-  const [newProject, setNewProject] = useState<{
-    name: string
-    description: string
-    clientOrgId: string
-    executingOrgId: string
-    status: Project['status']
-    workflowMode: NonNullable<Project['workflowMode']>
-  }>({
-    name: '',
-    description: '',
-    clientOrgId: '',
-    executingOrgId: '',
-    status: 'Planning',
-    workflowMode: 'trial_first',
-  })
 
   const canManage = canManageProjects(user)
-
-  const normalizeProject = (project: any): Project => ({
-    ...project,
-    workflowMode: project.workflowMode ?? project.workflow_mode
-  })
-
-  // Fetch organizations on mount
-  useEffect(() => {
-    fetchOrganizations()
-  }, [])
-
-  const handleCreateProject = async () => {
-    if (!newProject.name.trim()) {
-      toast.error('Project name is required')
-      return
-    }
-
-    if (!newProject.clientOrgId || !newProject.executingOrgId) {
-      toast.error('Please select both client and executing organizations')
-      return
-    }
-
-    setIsLoading(true)
-    try {
-      const transformedData = transformProjectForAPI(newProject)
-      const response = await axiosInstance.post('/projects', transformedData)
-
-      // API returns { success, data }
-      const createdProject = normalizeProject(response.data.data || response.data)
-      onProjectsChange([...projects, createdProject])
-      setIsDialogOpen(false)
-      setNewProject({
-        name: '',
-        description: '',
-        clientOrgId: organizations[0]?.id || '',
-        executingOrgId: organizations[1]?.id || organizations[0]?.id || '',
-        status: 'Planning',
-        workflowMode: 'trial_first',
-      })
-      toast.success('Project created successfully')
-    } catch (error: any) {
-      console.error('Failed to create project:', error)
-      const errorMessage = error.response?.data?.details 
-        ? Object.values(error.response.data.details).join(', ')
-        : error.response?.data?.error || 'Failed to create project'
-      toast.error(errorMessage)
-    } finally {
-      setIsLoading(false)
-    }
-  }
 
   const handleDeleteProject = async (projectId: string) => {
     if (!confirm('Are you sure you want to delete this project?')) return
@@ -106,35 +35,6 @@ export function ProjectsView({ user, projects, onProjectsChange }: ProjectsViewP
     } catch (error: any) {
       console.error('Failed to delete project:', error)
       toast.error(error.response?.data?.error || 'Failed to delete project')
-    }
-  }
-
-  const fetchOrganizations = async () => {
-    try {
-      const response = await axiosInstance.get('/organizations')
-      const orgsData = response.data.data || response.data || []
-      setOrganizations(orgsData)
-      // Set default organization if available
-      if (orgsData.length > 0 && !newProject.clientOrgId) {
-        setNewProject(prev => ({
-          ...prev,
-          clientOrgId: orgsData[0].id,
-          executingOrgId: orgsData[0].id
-        }))
-      }
-    } catch (error) {
-      console.log('Organizations endpoint not available yet - using mock data')
-      // Mock data for now
-      const mockOrgs = [
-        { id: 'org-1', name: 'Acme Pharmaceuticals', type: 'Client' as const, workspaceId: user.workspaceId },
-        { id: 'org-2', name: 'Internal Lab', type: 'Laboratory' as const, workspaceId: user.workspaceId }
-      ]
-      setOrganizations(mockOrgs)
-      setNewProject(prev => ({
-        ...prev,
-        clientOrgId: mockOrgs[0].id,
-        executingOrgId: mockOrgs[1].id
-      }))
     }
   }
 
@@ -176,104 +76,13 @@ export function ProjectsView({ user, projects, onProjectsChange }: ProjectsViewP
             </div>
           </div>
           {canManage && (
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="gap-2">
-                  <Plus size={18} />
-                  New Project
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl">
-                <DialogHeader>
-                  <DialogTitle>Create New Project</DialogTitle>
-                  <DialogDescription>
-                    Set up a new research or testing initiative
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="client">Client Organization</Label>
-                    <Select
-                      value={newProject.clientOrgId}
-                      onValueChange={(val) => setNewProject({ ...newProject, clientOrgId: val })}
-                    >
-                      <SelectTrigger id="client">
-                        <SelectValue placeholder="Select client organization" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {organizations.filter(org => org.type === 'Client' || org.type === 'Internal').map(org => (
-                          <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
-                        ))}
-                        {organizations.length === 0 && (
-                          <SelectItem value="none" disabled>No organizations available</SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="executing">Executing Lab</Label>
-                    <Select
-                      value={newProject.executingOrgId}
-                      onValueChange={(val) => setNewProject({ ...newProject, executingOrgId: val })}
-                    >
-                      <SelectTrigger id="executing">
-                        <SelectValue placeholder="Select executing lab" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {organizations.filter(org => org.type === 'Laboratory' || org.type === 'Internal').map(org => (
-                          <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
-                        ))}
-                        {organizations.length === 0 && (
-                          <SelectItem value="none" disabled>No organizations available</SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="status">Initial Status</Label>
-                    <Select 
-                      value={newProject.status} 
-                      onValueChange={(val) => setNewProject({ ...newProject, status: val as Project['status'] })}
-                    >
-                      <SelectTrigger id="status">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Planning">Planning</SelectItem>
-                        <SelectItem value="Active">Active</SelectItem>
-                        <SelectItem value="On Hold">On Hold</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="workflow">Project Workflow</Label>
-                    <Select
-                      value={newProject.workflowMode}
-                      onValueChange={(val) => setNewProject({ ...newProject, workflowMode: val as NonNullable<Project['workflowMode']> })}
-                    >
-                      <SelectTrigger id="workflow">
-                        <SelectValue placeholder="Select workflow" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="trial_first">Trial-first (Flow chemistry)</SelectItem>
-                        <SelectItem value="analysis_first">Analysis-first (QC / Routine analysis)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      Trial-first starts with experiments and then selects samples for analysis.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex justify-end gap-3">
-                  <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleCreateProject}>
-                    Create Project
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+            <Button 
+              onClick={() => navigate('/projects/create')}
+              className="gap-2"
+            >
+              <Plus size={18} />
+              New Project
+            </Button>
           )}
         </div>
 
@@ -305,7 +114,7 @@ export function ProjectsView({ user, projects, onProjectsChange }: ProjectsViewP
                 : 'Try adjusting your search query'}
             </p>
             {canManage && projects.length === 0 && (
-              <Button onClick={() => setIsDialogOpen(true)} size="lg" className="gap-2">
+              <Button onClick={() => navigate('/projects/create')} size="lg" className="gap-2">
                 <Plus size={20} />
                 Create First Project
               </Button>

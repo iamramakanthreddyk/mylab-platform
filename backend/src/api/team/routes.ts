@@ -8,13 +8,13 @@
 import { Router } from 'express';
 import { Pool } from 'pg';
 import {
-  requireRole,
-  requireProjectAccess,
   requireAccess,
   AccessControlRequest,
 } from '../../middleware/accessControlMiddleware';
+import { authenticate } from '../../middleware/auth';
 import {
   getUserProjectAssignments,
+  getUserRoleInProject,
   checkAccess,
   grantReportAccess,
   revokeSampleAccess,
@@ -23,6 +23,36 @@ import logger from '../../utils/logger';
 
 export function createTeamRoutes(pool: Pool): Router {
   const router = Router();
+
+  const roleHierarchy: Record<string, number> = {
+    admin: 4,
+    manager: 3,
+    scientist: 2,
+    viewer: 1,
+  };
+
+  const hasRequiredRole = (userRole: string, requiredRole: string): boolean => {
+    const userLevel = roleHierarchy[userRole] || 0;
+    const requiredLevel = roleHierarchy[requiredRole] || 0;
+    return userLevel >= requiredLevel;
+  };
+
+  const ensureProjectInWorkspace = async (projectId: string, workspaceId: string) => {
+    const projectResult = await pool.query(
+      'SELECT id, workspace_id FROM Projects WHERE id = $1',
+      [projectId]
+    );
+
+    if (projectResult.rows.length === 0) {
+      return { ok: false, status: 404, error: 'Project not found' } as const;
+    }
+
+    if (projectResult.rows[0].workspace_id !== workspaceId) {
+      return { ok: false, status: 403, error: 'Project is outside your workspace' } as const;
+    }
+
+    return { ok: true } as const;
+  };
 
   // ============================================================================
   // PROJECT TEAM ENDPOINTS
@@ -36,10 +66,29 @@ export function createTeamRoutes(pool: Pool): Router {
    */
   router.get(
     '/api/projects/:projectId/team',
-    requireProjectAccess(pool),
+    authenticate,
     async (req: AccessControlRequest, res) => {
       try {
         const { projectId } = req.params;
+
+        if (!req.user?.id || !req.user.workspaceId) {
+          return res.status(401).json({ error: 'Not authenticated' });
+        }
+
+        if (req.user.role === 'admin') {
+          const workspaceCheck = await ensureProjectInWorkspace(projectId, req.user.workspaceId);
+          if (!workspaceCheck.ok) {
+            return res.status(workspaceCheck.status).json({ error: workspaceCheck.error });
+          }
+        } else {
+          const userRole = await getUserRoleInProject(pool, req.user.id, projectId);
+          if (!userRole) {
+            return res.status(403).json({
+              error: 'Access denied',
+              reason: 'User is not assigned to this project',
+            });
+          }
+        }
 
         const result = await pool.query(
           `SELECT 
@@ -77,17 +126,42 @@ export function createTeamRoutes(pool: Pool): Router {
    */
   router.post(
     '/api/projects/:projectId/team',
-    requireRole(pool, 'admin'),
+    authenticate,
     async (req: AccessControlRequest, res) => {
       try {
         const { projectId } = req.params;
         const { userId, assignedRole } = req.body;
+
+        if (!req.user?.id || !req.user.workspaceId) {
+          return res.status(401).json({ error: 'Not authenticated' });
+        }
 
         if (!userId || !assignedRole) {
           return res.status(400).json({
             error: 'Missing required fields',
             required: ['userId', 'assignedRole'],
           });
+        }
+
+        if (req.user.role === 'admin') {
+          const workspaceCheck = await ensureProjectInWorkspace(projectId, req.user.workspaceId);
+          if (!workspaceCheck.ok) {
+            return res.status(workspaceCheck.status).json({ error: workspaceCheck.error });
+          }
+        } else {
+          const requesterRole = await getUserRoleInProject(pool, req.user.id, projectId);
+          if (!requesterRole) {
+            return res.status(403).json({
+              error: 'Access denied',
+              reason: 'User is not assigned to this project',
+            });
+          }
+          if (!hasRequiredRole(requesterRole, 'admin')) {
+            return res.status(403).json({
+              error: 'Access denied',
+              reason: `This action requires 'admin' role or higher. You have '${requesterRole}' role.`,
+            });
+          }
         }
 
         // Get user info to verify they exist
@@ -139,7 +213,7 @@ export function createTeamRoutes(pool: Pool): Router {
           `INSERT INTO ProjectTeam (
             assignment_id, project_id, user_id, workspace_id, company_id, 
             assigned_role, assigned_by, assigned_at, is_external, external_workspace_id
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, $9)
           ON CONFLICT (project_id, user_id) 
           DO UPDATE SET 
             assigned_role = EXCLUDED.assigned_role,
@@ -197,11 +271,36 @@ export function createTeamRoutes(pool: Pool): Router {
    */
   router.patch(
     '/api/projects/:projectId/team/:userId',
-    requireRole(pool, 'admin'),
+    authenticate,
     async (req: AccessControlRequest, res) => {
       try {
         const { projectId, userId } = req.params;
         const { assignedRole } = req.body;
+
+        if (!req.user?.id || !req.user.workspaceId) {
+          return res.status(401).json({ error: 'Not authenticated' });
+        }
+
+        if (req.user.role === 'admin') {
+          const workspaceCheck = await ensureProjectInWorkspace(projectId, req.user.workspaceId);
+          if (!workspaceCheck.ok) {
+            return res.status(workspaceCheck.status).json({ error: workspaceCheck.error });
+          }
+        } else {
+          const requesterRole = await getUserRoleInProject(pool, req.user.id, projectId);
+          if (!requesterRole) {
+            return res.status(403).json({
+              error: 'Access denied',
+              reason: 'User is not assigned to this project',
+            });
+          }
+          if (!hasRequiredRole(requesterRole, 'admin')) {
+            return res.status(403).json({
+              error: 'Access denied',
+              reason: `This action requires 'admin' role or higher. You have '${requesterRole}' role.`,
+            });
+          }
+        }
 
         if (!assignedRole) {
           return res.status(400).json({ error: 'Missing assignedRole' });
@@ -249,10 +348,35 @@ export function createTeamRoutes(pool: Pool): Router {
    */
   router.delete(
     '/api/projects/:projectId/team/:userId',
-    requireRole(pool, 'admin'),
+    authenticate,
     async (req: AccessControlRequest, res) => {
       try {
         const { projectId, userId } = req.params;
+
+        if (!req.user?.id || !req.user.workspaceId) {
+          return res.status(401).json({ error: 'Not authenticated' });
+        }
+
+        if (req.user.role === 'admin') {
+          const workspaceCheck = await ensureProjectInWorkspace(projectId, req.user.workspaceId);
+          if (!workspaceCheck.ok) {
+            return res.status(workspaceCheck.status).json({ error: workspaceCheck.error });
+          }
+        } else {
+          const requesterRole = await getUserRoleInProject(pool, req.user.id, projectId);
+          if (!requesterRole) {
+            return res.status(403).json({
+              error: 'Access denied',
+              reason: 'User is not assigned to this project',
+            });
+          }
+          if (!hasRequiredRole(requesterRole, 'admin')) {
+            return res.status(403).json({
+              error: 'Access denied',
+              reason: `This action requires 'admin' role or higher. You have '${requesterRole}' role.`,
+            });
+          }
+        }
 
         const result = await pool.query(
           `DELETE FROM ProjectTeam 
@@ -296,6 +420,7 @@ export function createTeamRoutes(pool: Pool): Router {
    */
   router.post(
     '/api/reports/:reportId/share',
+    authenticate,
     requireAccess(pool, 'report', 'share'),
     async (req: AccessControlRequest, res) => {
       try {
@@ -358,6 +483,7 @@ export function createTeamRoutes(pool: Pool): Router {
    */
   router.patch(
     '/api/reports/:reportId/share/:userId',
+    authenticate,
     requireAccess(pool, 'report', 'share'),
     async (req: AccessControlRequest, res) => {
       try {
@@ -410,6 +536,7 @@ export function createTeamRoutes(pool: Pool): Router {
    */
   router.delete(
     '/api/reports/:reportId/share/:userId',
+    authenticate,
     requireAccess(pool, 'report', 'share'),
     async (req: AccessControlRequest, res) => {
       try {
@@ -447,16 +574,16 @@ export function createTeamRoutes(pool: Pool): Router {
    * 
    * No role requirement - all authenticated users
    */
-  router.get('/api/user/projects', async (req: AccessControlRequest, res) => {
+  router.get('/api/user/projects', authenticate, async (req: AccessControlRequest, res) => {
     try {
-      if (!req.user?.id) {
+      if (!req.user?.id || !req.user.workspaceId) {
         return res.status(401).json({ error: 'Not authenticated' });
       }
 
       const projects = await getUserProjectAssignments(
         pool,
         req.user.id,
-        req.user.workspaceId || ''
+        req.user.workspaceId
       );
 
       // Fetch full project details
@@ -485,6 +612,50 @@ export function createTeamRoutes(pool: Pool): Router {
       res.json([]);
     } catch (error) {
       logger.error('Error fetching user projects', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  router.get('/api/users/:userId/projects', authenticate, async (req: AccessControlRequest, res) => {
+    try {
+      const { userId } = req.params;
+
+      if (!req.user?.id || !req.user.workspaceId) {
+        return res.status(401).json({ error: 'Not authenticated' });
+      }
+
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Only admins can view user assignments' });
+      }
+
+      const userResult = await pool.query(
+        'SELECT id FROM Users WHERE id = $1 AND workspace_id = $2 AND deleted_at IS NULL',
+        [userId, req.user.workspaceId]
+      );
+
+      if (userResult.rows.length === 0) {
+        return res.status(404).json({ error: 'User not found in workspace' });
+      }
+
+      const result = await pool.query(
+        `SELECT
+          pt.project_id as "projectId",
+          p.name as "projectName",
+          pt.assigned_role as "assignedRole"
+        FROM ProjectTeam pt
+        JOIN Projects p ON p.id = pt.project_id
+        WHERE pt.user_id = $1
+          AND pt.workspace_id = $2
+          AND p.deleted_at IS NULL
+        ORDER BY pt.assigned_at DESC`,
+        [userId, req.user.workspaceId]
+      );
+
+      res.json(result.rows);
+    } catch (error) {
+      logger.error('Error fetching user project assignments', {
         error: error instanceof Error ? error.message : String(error),
       });
       res.status(500).json({ error: 'Internal server error' });

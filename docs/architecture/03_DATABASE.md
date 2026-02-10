@@ -2,14 +2,16 @@
 
 **PostgreSQL schema for the lab collaboration platform.**
 
+Note: Legacy "workspace" naming in this document refers to the Organization tenant. The column name `workspace_id` is retained for compatibility.
+
 See [Database ERD Diagram](../diagrams/database_erd.mmd) for visual representation of tables and relationships.
 
 ---
 
 ## Overview
 
-- **15 core tables**: Workspace, Organizations, Users, Projects, ProjectStages, Samples, DerivedSamples, Batches, BatchItems, AnalysisTypes, Analyses, Documents, AccessGrants, AuditLog
-- **Workspace isolation**: Every org has own workspace
+- **Core tables**: Organizations, Users, Projects, ProjectStages, Samples, DerivedSamples, Batches, BatchItems, AnalysisTypes, Analyses, Documents, AccessGrants, AuditLog
+- **Organization isolation**: Each org is a tenant boundary
 - **Audit trail**: Complete chain of custody
 - **Immutable lineage**: Parent-child relationships never change
 - **External actor support**: Organizations can exist outside the platform
@@ -18,21 +20,21 @@ See [Database ERD Diagram](../diagrams/database_erd.mmd) for visual representati
 
 ## Core Schema
 
-### **1. Workspace (Platform Container)**
+### **1. Organization (Tenant)**
 
 | Column | Type | Nullable | Default | Description |
 |--------|------|----------|---------|-------------|
 | id | UUID | NO | gen_random_uuid() | Primary key |
 | name | VARCHAR(255) | NO | - | Organization name |
 | slug | VARCHAR(50) | NO | - | URL-friendly identifier, unique |
-| type | ENUM ('research', 'cro', 'analyzer', 'pharma') | NO | - | Organization type |
+| type | ENUM ('client', 'cro', 'analyzer', 'vendor', 'pharma') | NO | - | Organization type |
 | email_domain | VARCHAR(255) | YES | - | Domain for user invites |
 | created_at | TIMESTAMP | YES | CURRENT_TIMESTAMP | Creation timestamp |
 | updated_at | TIMESTAMP | YES | CURRENT_TIMESTAMP | Last update timestamp |
 | deleted_at | TIMESTAMP | YES | - | Soft delete timestamp |
 
-**Purpose**: Platform container for data isolation
-**Example**: "Flow Chemistry Inc" = workspace
+**Purpose**: Tenant boundary for data isolation
+**Example**: "Flow Chemistry Inc" = organization
 
 **Relations**:
 - 1:N with Users (workspace_id)
@@ -49,22 +51,22 @@ See [Database ERD Diagram](../diagrams/database_erd.mmd) for visual representati
 
 ---
 
-### **2. Organizations**
+### **2. External Organizations**
 
 | Column | Type | Nullable | Default | Description |
 |--------|------|----------|---------|-------------|
 | id | UUID | NO | gen_random_uuid() | Primary key |
 | name | TEXT | NO | - | Organization name |
 | type | ENUM ('client', 'cro', 'analyzer', 'vendor', 'pharma') | NO | - | Organization type |
-| is_platform_workspace | BOOLEAN | NO | false | Whether this org has a MyLab workspace |
-| workspace_id | UUID | YES | - | Foreign key to Workspace (if on platform) |
+| is_platform_workspace | BOOLEAN | NO | false | Whether this org is hosted on MyLab |
+| workspace_id | UUID | YES | - | Tenant Organization ID (legacy column name) |
 | contact_info | JSONB | YES | - | Contact details: {email, address, phone} |
 | created_at | TIMESTAMP | YES | CURRENT_TIMESTAMP | Creation timestamp |
 | updated_at | TIMESTAMP | YES | CURRENT_TIMESTAMP | Last update timestamp |
 
-**Purpose**: Model organizations, including those not on the platform
+**Purpose**: Model external organizations, including those not on the platform
 **Relations**:
-- 1:1 with Workspace (workspace_id, optional)
+- 1:1 with Organization tenant (workspace_id, optional)
 - 1:N with Projects (client_org_id)
 - 1:N with Projects (executing_org_id)
 - 1:N with AccessGrants (granted_to_org_id)
@@ -79,10 +81,10 @@ See [Database ERD Diagram](../diagrams/database_erd.mmd) for visual representati
 | Column | Type | Nullable | Default | Description |
 |--------|------|----------|---------|-------------|
 | id | UUID | NO | gen_random_uuid() | Primary key |
-| workspace_id | UUID | NO | - | Foreign key to Workspace |
-| email | VARCHAR(255) | NO | - | User email, unique globally |
+| workspace_id | UUID | NO | - | Foreign key to Organization tenant |
+| email | VARCHAR(255) | NO | - | User email, unique per tenant |
 | name | VARCHAR(255) | YES | - | Display name |
-| role | ENUM ('admin', 'user', 'viewer') | NO | 'user' | Role in workspace |
+| role | ENUM ('admin', 'manager', 'scientist', 'viewer') | NO | 'scientist' | Role in organization |
 | created_at | TIMESTAMP | YES | CURRENT_TIMESTAMP | Creation timestamp |
 | updated_at | TIMESTAMP | YES | CURRENT_TIMESTAMP | Last update timestamp |
 | deleted_at | TIMESTAMP | YES | - | Soft delete timestamp |
@@ -91,7 +93,7 @@ See [Database ERD Diagram](../diagrams/database_erd.mmd) for visual representati
 **Note**: `role` is user's role in their own org. Platform roles (Owner, Processor, etc.) are inferred by object type.
 
 **Relations**:
-- N:1 with Workspace (workspace_id)
+- N:1 with Organization tenant (workspace_id)
 - 1:N with Projects (created_by)
 - 1:N with Samples (created_by)
 - 1:N with DerivedSamples (created_by)
@@ -111,7 +113,7 @@ See [Database ERD Diagram](../diagrams/database_erd.mmd) for visual representati
 | Column | Type | Nullable | Default | Description |
 |--------|------|----------|---------|-------------|
 | id | UUID | NO | gen_random_uuid() | Primary key |
-| workspace_id | UUID | NO | - | Foreign key to Workspace (platform executor) |
+| workspace_id | UUID | NO | - | Foreign key to Organization tenant (platform executor) |
 | client_org_id | UUID | NO | - | Foreign key to Organizations (business owner) |
 | executing_org_id | UUID | NO | - | Foreign key to Organizations (who executes) |
 | name | VARCHAR(255) | NO | - | Project name |
@@ -127,7 +129,7 @@ See [Database ERD Diagram](../diagrams/database_erd.mmd) for visual representati
 **Example**: "NP-Compound-17" owned by NovaPharma, executed by Tekflow
 
 **Relations**:
-- N:1 with Workspace (workspace_id)
+- N:1 with Organization tenant (workspace_id)
 - N:1 with Organizations (client_org_id)
 - N:1 with Organizations (executing_org_id)
 - N:1 with Users (created_by)
@@ -145,7 +147,7 @@ See [Database ERD Diagram](../diagrams/database_erd.mmd) for visual representati
 | project_id | UUID | NO | - | Foreign key to Projects |
 | name | VARCHAR(255) | NO | - | Stage name (e.g., "Synthesis", "Purification") |
 | order | INT | NO | - | Sequence order within project |
-| owner_workspace_id | UUID | NO | - | Foreign key to Workspace (who owns the stage) |
+| owner_workspace_id | UUID | NO | - | Foreign key to Organization tenant (who owns the stage) |
 | status | ENUM ('planned', 'active', 'completed') | YES | 'planned' | Stage status |
 | created_at | TIMESTAMP | YES | CURRENT_TIMESTAMP | Creation timestamp |
 | updated_at | TIMESTAMP | YES | CURRENT_TIMESTAMP | Last update timestamp |
@@ -153,7 +155,7 @@ See [Database ERD Diagram](../diagrams/database_erd.mmd) for visual representati
 **Purpose**: Define chronological stages within projects for multi-stage workflows
 **Relations**:
 - N:1 with Projects (project_id)
-- N:1 with Workspace (owner_workspace_id)
+- N:1 with Organization tenant (owner_workspace_id)
 - 1:N with Samples (optional stage_id, future extension)
 - 1:N with DerivedSamples (optional stage_id, future extension)
 
@@ -168,7 +170,7 @@ See [Database ERD Diagram](../diagrams/database_erd.mmd) for visual representati
 |--------|------|----------|---------|-------------|
 | id | UUID | NO | gen_random_uuid() | Primary key |
 | project_id | UUID | NO | - | Foreign key to Projects |
-| workspace_id | UUID | NO | - | Foreign key to Workspace |
+| workspace_id | UUID | NO | - | Foreign key to Organization tenant |
 | sample_id | VARCHAR(100) | NO | - | User-facing ID like "S-001" |
 | type | VARCHAR(50) | YES | - | Sample type: "liquid", "solid", "gas", etc. |
 | description | TEXT | YES | - | Sample description |
@@ -180,13 +182,13 @@ See [Database ERD Diagram](../diagrams/database_erd.mmd) for visual representati
 | deleted_at | TIMESTAMP | YES | - | Soft delete timestamp |
 
 **Purpose**: Individual sample record
-**Owned by**: Creating workspace
+**Owned by**: Creating organization
 **Immutable**: Once created, parent data never changes
 **Metadata**: {quantity, purity, batch_number, synthesis_date, notes}
 
 **Relations**:
 - N:1 with Projects (project_id)
-- N:1 with Workspace (workspace_id)
+- N:1 with Organization tenant (workspace_id)
 - N:1 with Users (created_by)
 - 1:N with DerivedSamples (parent_id)
 - 1:N with Documents (sample_id, optional)
@@ -203,7 +205,7 @@ See [Database ERD Diagram](../diagrams/database_erd.mmd) for visual representati
 | id | UUID | NO | gen_random_uuid() | Primary key |
 | root_sample_id | UUID | NO | - | Foreign key to Samples (original sample) |
 | parent_id | UUID | YES | - | Foreign key to DerivedSamples (parent derived, NULL for direct from sample) |
-| owner_workspace_id | UUID | NO | - | Foreign key to Workspace (who owns the sample data) |
+| owner_workspace_id | UUID | NO | - | Foreign key to Organization tenant (who owns the sample data) |
 | derived_id | VARCHAR(100) | NO | - | User-facing ID like "D-001-A" |
 | process_notes | TEXT | YES | - | What was done to create this |
 | metadata | JSONB | YES | - | Flexible metadata: {quantity_after, yield, purity_after} |
@@ -219,7 +221,7 @@ See [Database ERD Diagram](../diagrams/database_erd.mmd) for visual representati
 | deleted_at | TIMESTAMP | YES | - | Soft delete timestamp |
 
 **Purpose**: Track transformations of samples
-**Owned by**: The workspace that created the derived (usually CRO)
+**Owned by**: The organization that created the derived (usually CRO)
 **Lineage**: Links to root sample and immediate parent derived
 **Max depth**: 3 levels (original → 1st derived → 2nd derived → 3rd derived, then stop)
 **Metadata**: {quantity_after, yield%, purity_after, processing_temp, duration}
@@ -227,7 +229,7 @@ See [Database ERD Diagram](../diagrams/database_erd.mmd) for visual representati
 **Relations**:
 - N:1 with Samples (root_sample_id)
 - N:1 with DerivedSamples (parent_id, optional)
-- N:1 with Workspace (owner_workspace_id)
+- N:1 with Organization tenant (owner_workspace_id)
 - N:1 with Organizations (executed_by_org_id)
 - N:1 with Users (created_by)
 - 1:N with BatchItems (derived_id)
@@ -246,8 +248,8 @@ See [Database ERD Diagram](../diagrams/database_erd.mmd) for visual representati
 | Column | Type | Nullable | Default | Description |
 |--------|------|----------|---------|-------------|
 | id | UUID | NO | gen_random_uuid() | Primary key |
-| workspace_id | UUID | NO | - | Foreign key to Workspace |
-| original_workspace_id | UUID | YES | - | Foreign key to Workspace (original sample creator) |
+| workspace_id | UUID | NO | - | Foreign key to Organization tenant |
+| original_workspace_id | UUID | YES | - | Foreign key to Organization tenant (original sample creator) |
 | batch_id | VARCHAR(100) | NO | - | User-facing ID like "BATCH-42" |
 | description | TEXT | YES | - | Description |
 | parameters | JSONB | YES | - | Parameters: {temp, pressure, duration, notes} |
@@ -264,13 +266,13 @@ See [Database ERD Diagram](../diagrams/database_erd.mmd) for visual representati
 | deleted_at | TIMESTAMP | YES | - | Soft delete timestamp |
 
 **Purpose**: Group multiple samples for analysis
-**Owned by**: Workspace that created it (usually CRO)
-**Cross-workspace tracking**: `original_workspace_id` points to the lab that created the original sample — ensures audit chain even when batch crosses organizations
+**Owned by**: Organization that created it (usually CRO)
+**Cross-organization tracking**: `original_workspace_id` points to the lab that created the original sample — ensures audit chain even when batch crosses organizations
 **Status flow**: created → ready → sent → in_progress → completed
 
 **Relations**:
-- N:1 with Workspace (workspace_id)
-- N:1 with Workspace (original_workspace_id, optional)
+- N:1 with Organization tenant (workspace_id)
+- N:1 with Organization tenant (original_workspace_id, optional)
 - N:1 with Organizations (executed_by_org_id)
 - N:1 with Users (created_by)
 - 1:N with BatchItems (batch_id)
@@ -323,7 +325,7 @@ CREATE TABLE BatchItems (
 |--------|------|----------|---------|-------------|
 | id | UUID | NO | gen_random_uuid() | Primary key |
 | batch_id | UUID | NO | - | Foreign key to Batches |
-| workspace_id | UUID | NO | - | Foreign key to Workspace (Analyzer's workspace) |
+| workspace_id | UUID | NO | - | Foreign key to Organization tenant (Analyzer's organization) |
 | analysis_type_id | UUID | NO | - | Foreign key to AnalysisTypes |
 | results | JSONB | YES | - | Actual results {peaks, values, etc.} |
 | file_path | VARCHAR(500) | YES | - | S3 path to raw data file |
@@ -343,14 +345,14 @@ CREATE TABLE BatchItems (
 | deleted_at | TIMESTAMP | YES | - | Soft delete timestamp |
 
 **Purpose**: Store analysis results
-**Owned by**: Recording workspace (may be different from executor)
+**Owned by**: Recording organization (may be different from executor)
 **Immutable**: Once uploaded, cannot be modified (store in immutable S3 bucket)
 **File storage**: Raw data files stored in S3, path + checksum for integrity verification
 **Checksum**: Prevents accidental file corruption; enables audit verification
 
 **Relations**:
 - N:1 with Batches (batch_id)
-- N:1 with Workspace (workspace_id)
+- N:1 with Organization tenant (workspace_id)
 - N:1 with AnalysisTypes (analysis_type_id)
 - N:1 with Organizations (executed_by_org_id)
 - N:1 with Organizations (source_org_id)
@@ -363,7 +365,7 @@ CREATE TABLE BatchItems (
 | Column | Type | Nullable | Default | Description |
 |--------|------|----------|---------|-------------|
 | id | UUID | NO | gen_random_uuid() | Primary key |
-| workspace_id | UUID | NO | - | Foreign key to Workspace |
+| workspace_id | UUID | NO | - | Foreign key to Organization tenant |
 | project_id | UUID | YES | - | Optional foreign key to Projects |
 | sample_id | UUID | YES | - | Optional foreign key to Samples |
 | name | VARCHAR(255) | NO | - | File name |
@@ -377,12 +379,12 @@ CREATE TABLE BatchItems (
 | deleted_at | TIMESTAMP | YES | - | Soft delete timestamp |
 
 **Purpose**: Store reports, protocols, attachments
-**Owned by**: Uploading workspace
+**Owned by**: Uploading organization
 **Versioning**: Multiple versions tracked by version number
 **Shareable**: Documents can be shared via Sharing table
 
 **Relations**:
-- N:1 with Workspace (workspace_id)
+- N:1 with Organization tenant (workspace_id)
 - N:1 with Projects (project_id, optional)
 - N:1 with Samples (sample_id, optional)
 - N:1 with Users (uploaded_by)
@@ -427,7 +429,7 @@ CREATE TABLE AuditLog (
   object_id         UUID NOT NULL,
   action            ENUM ('create', 'read', 'update', 'delete', 'share', 'upload', 'download') NOT NULL,
   actor_id          UUID NOT NULL REFERENCES Users(id),
-  actor_workspace   UUID NOT NULL REFERENCES Workspace(id),
+  actor_workspace   UUID NOT NULL REFERENCES Organizations(id),
   actor_org_id      UUID REFERENCES Organizations(id),  -- May differ from actor_workspace's org
   details           JSONB,                  -- {field_changed, old_value, new_value}
   ip_address        VARCHAR(45),
@@ -447,14 +449,14 @@ CREATE TABLE AuditLog (
 
 ## Key Constraints
 
-### Workspace Isolation
+### Organization Isolation
 
 Data visibility is determined by:
 
-1. Workspace ownership **OR**
+1. Organization ownership **OR**
 2. Active AccessGrants to the user's organization
 
-Workspace isolation + AccessGrants are the only access mechanisms.
+Organization isolation + AccessGrants are the only access mechanisms.
 
 ---
 
@@ -463,11 +465,11 @@ Workspace isolation + AccessGrants are the only access mechanisms.
 Derived samples link to parents:
 
 ```
-Sample (original, workspace A)
-  ├─ DerivedSample (workspace B, parent=Sample.id)
-  ├─ DerivedSample (workspace C, parent=Sample.id)
-  └─ DerivedSample (workspace D, parent=Sample.id, depth=0)
-      └─ DerivedSample (workspace D, parent=Derived.id, depth=1)
+Sample (original, organization A)
+  ├─ DerivedSample (organization B, parent=Sample.id)
+  ├─ DerivedSample (organization C, parent=Sample.id)
+  └─ DerivedSample (organization D, parent=Sample.id, depth=0)
+      └─ DerivedSample (organization D, parent=Derived.id, depth=1)
 ```
 
 Rule: `depth` never exceeds 2 (3 total levels)
@@ -480,7 +482,7 @@ Before returning data:
 
 ```
 sql
-IF user.workspace != object.workspace THEN
+IF user.organization != object.organization THEN
   SELECT 1 FROM AccessGrants
   WHERE object_type = $type
     AND object_id = $id
@@ -501,7 +503,7 @@ sql
 -- Query 1: List samples in my project
 CREATE INDEX idx_samples_project ON Samples(project_id, created_at DESC);
 
--- Query 2: List samples shared with my workspace
+-- Query 2: List samples shared with my organization
 CREATE INDEX idx_accessgrants_granted_to ON AccessGrants(granted_to_org_id, object_type);
 
 -- Query 3: Full lineage of a sample
@@ -518,7 +520,7 @@ CREATE INDEX idx_analyses_uploader ON Analyses(uploaded_by, uploaded_at DESC);
 
 ## Example Queries
 
-### Get all samples in my workspace (shared or owned)
+### Get all samples in my organization (shared or owned)
 
 ```
 sql
@@ -644,9 +646,9 @@ This allows granular project-level permissions without needing `Sharing` table f
 - Audit trail of permission changes
 
 ### Why platform_role in AccessGrants, not user role?
-- Users have role in their workspace (admin, user, viewer)
+- Users have role in their organization (admin, manager, scientist, viewer)
 - Platform role is what they can do with GRANTED object
-- User who is "viewer" in workspace might be "Analyzer" on granted batch
+- User who is "viewer" in organization might be "Analyzer" on granted batch
 
 ---
 

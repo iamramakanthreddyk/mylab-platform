@@ -20,10 +20,10 @@ import axiosInstance from '@/lib/axiosConfig'
 import { toast } from 'sonner'
 
 interface AnalysesViewProps {
-  user: User
+  readonly user: User
 }
 
-export function AnalysesView({ user }: AnalysesViewProps) {
+export function AnalysesView({ user }: Readonly<AnalysesViewProps>) {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const projectId = searchParams.get('projectId')
@@ -114,6 +114,21 @@ export function AnalysesView({ user }: AnalysesViewProps) {
     navigate(`/analyses/${analysis.id}/complete${query}`)
   }
 
+  const getEmptyStateMessage = (): string => {
+    return analyses.length === 0 
+      ? "Upload your first analysis results to begin tracking"
+      : "Try adjusting your search or filter criteria"
+  }
+
+  const handleUploadFirstResults = () => {
+    const target = analyses.find(item => item.status !== 'completed') || analyses[0]
+    if (target) {
+      goToReportPage(target)
+    } else {
+      toast.info('No analyses available to update')
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-6 py-8">
@@ -195,39 +210,33 @@ export function AnalysesView({ user }: AnalysesViewProps) {
           </Select>
         </div>
 
-        {isLoading ? (
+        {isLoading && (
           <div className="text-center py-16">
             <div className="animate-spin text-muted-foreground mb-4">
               <TestTube size={48} />
             </div>
             <p className="text-muted-foreground">Loading analyses...</p>
           </div>
-        ) : filteredAnalyses.length === 0 ? (
+        )}
+
+        {!isLoading && filteredAnalyses.length === 0 && (
           <div className="text-center py-16">
             <TestTube size={64} className="mx-auto text-muted-foreground/50 mb-4" />
             <h3 className="text-xl font-semibold mb-2">No analyses found</h3>
             <p className="text-muted-foreground mb-4">
-              {analyses.length === 0 
-                ? "Upload your first analysis results to begin tracking"
-                : "Try adjusting your search or filter criteria"
-              }
+              {getEmptyStateMessage()}
             </p>
             <Button
               className="gap-2"
-              onClick={() => {
-                const target = analyses.find(item => item.status !== 'completed') || analyses[0]
-                if (target) {
-                  goToReportPage(target)
-                } else {
-                  toast.info('No analyses available to update')
-                }
-              }}
+              onClick={handleUploadFirstResults}
             >
               <Plus size={18} />
               Upload First Results
             </Button>
           </div>
-        ) : (
+        )}
+
+        {!isLoading && filteredAnalyses.length > 0 && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {filteredAnalyses.map((analysis) => (
               <Card key={analysis.id} className="hover:shadow-lg transition-shadow cursor-pointer">

@@ -14,7 +14,8 @@ declare global {
         email: string;
         name: string;
         role: string;
-        workspaceId: string;
+        organizationId: string | null;
+        workspaceId: string | null; // Legacy, use organizationId
         orgId?: string;
         companyId?: string;
         currentProjectId?: string;
@@ -51,23 +52,26 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
 
     // Get user details from database to ensure they still exist and aren't deleted
     const userResult = await pool.query(`
-      SELECT u.id, u.email, u.name, u.role, u.workspace_id,
-             o.id as org_id
+      SELECT u.id, u.email, u.name, u.role, 
+        COALESCE(u.organization_id, u.workspace_id) as organization_id,
+        u.workspace_id,
+        o.id as org_id
       FROM Users u
-      LEFT JOIN Organizations o ON u.workspace_id = o.workspace_id
+      LEFT JOIN Organizations o ON COALESCE(u.organization_id, u.workspace_id) = o.id
       WHERE u.id = $1 AND u.deleted_at IS NULL
     `, [decoded.userId]);
 
     if (userResult.rows.length === 0) {
       // Log authentication failure (only if we have workspaceId from token)
-      if (decoded.workspaceId) {
+      const logOrganizationId = decoded.organizationId || decoded.orgId;
+      if (logOrganizationId) {
         try {
-          await logAuthFailure(pool, decoded.workspaceId, 'User not found in database', req);
+          await logAuthFailure(pool, logOrganizationId, 'User not found in database', req);
         } catch (logError) {
           console.error('Failed to log auth failure:', logError);
         }
       } else {
-        console.warn('User not found but no workspaceId in token for logging');
+        console.warn('User not found but no organization id in token for logging');
       }
       return res.status(401).json({ error: 'User not found' });
     }
@@ -78,8 +82,9 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
       email: user.email,
       name: user.name,
       role: user.role,
-      workspaceId: user.workspace_id,
-      orgId: user.org_id
+      organizationId: user.organization_id,
+      workspaceId: user.organization_id, // Legacy compatibility
+      orgId: user.org_id || user.organization_id || undefined
     };
 
     // Track last login
@@ -101,13 +106,13 @@ export const requireWorkspaceOwnership = (req: Request, res: Response, next: Nex
     return res.status(401).json({ error: 'Authentication required' });
   }
 
-  if (req.user.workspaceId !== workspaceId) {
+  if (!req.user.workspaceId || req.user.workspaceId !== workspaceId) {
     // Log access denial
     try {
       logAccessDenied(
         pool,
         req.user.id,
-        req.user.workspaceId,
+        req.user.organizationId || req.user.orgId || '',
         'workspace',
         workspaceId,
         'Workspace ownership required',
@@ -138,8 +143,10 @@ export const requireObjectAccess = (objectType: string, requiredRole?: string) =
       return res.status(400).json({ error: 'Object ID required' });
     }
 
+    const organizationId = req.user.organizationId || req.user.orgId || '';
+
     try {
-      const accessCheck = await checkAccess(objectType, objectId, req.user.workspaceId);
+      const accessCheck = await checkAccess(objectType, objectId, req.user.workspaceId || '');
 
       if (!accessCheck.hasAccess) {
         // Log access denial
@@ -147,7 +154,7 @@ export const requireObjectAccess = (objectType: string, requiredRole?: string) =
           await logAccessDenied(
             pool,
             req.user.id,
-            req.user.workspaceId,
+            organizationId,
             objectType,
             objectId,
             'No ownership or access grant found',
@@ -167,7 +174,7 @@ export const requireObjectAccess = (objectType: string, requiredRole?: string) =
             await logAccessDenied(
               pool,
               req.user.id,
-              req.user.workspaceId,
+              organizationId,
               objectType,
               objectId,
               `${accessCheck.accessRole} role insufficient, ${requiredRole} required`,

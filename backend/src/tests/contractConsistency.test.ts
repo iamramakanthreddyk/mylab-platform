@@ -4,8 +4,9 @@ import { describe, it, expect } from '@jest/globals';
 import { BATCH_STATUS_VALUES, EXECUTION_MODE_VALUES } from '../api/batches/types';
 
 function extractEnumValues(content: string, typeName: string): string[] {
-  const regex = new RegExp(`CREATE TYPE ${typeName} AS ENUM \\(([^;]+)\\);`, 'i');
-  const match = content.match(regex);
+  // Extract values from the enumDefinitions object in setup.ts
+  const enumDefRegex = new RegExp(`${typeName}:\\s*\\[([^\\]]+)\\]`, 'm');
+  const match = content.match(enumDefRegex);
   if (!match) {
     return [];
   }

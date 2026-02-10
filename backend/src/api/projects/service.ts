@@ -31,6 +31,7 @@ export class ProjectService {
           p.name,
           p.description,
           p.client_org_id as "clientOrgId",
+          p.external_client_name as "externalClientName",
           p.executing_org_id as "executingOrgId",
           p.status,
           p.workflow_mode as "workflowMode",
@@ -40,7 +41,7 @@ export class ProjectService {
           o.name as "clientOrgName",
           o2.name as "executingOrgName"
         FROM projects p
-        JOIN organizations o ON p.client_org_id = o.id
+        LEFT JOIN organizations o ON p.client_org_id = o.id
         JOIN organizations o2 ON p.executing_org_id = o2.id
         WHERE p.workspace_id = $1 AND p.deleted_at IS NULL
         ORDER BY p.created_at DESC
@@ -51,6 +52,73 @@ export class ProjectService {
       return result.rows as ProjectResponse[];
     } catch (error) {
       logger.error('Failed to list projects', { workspaceId, error });
+      throw error;
+    }
+  }
+
+  /**
+   * List projects assigned to a specific user
+   */
+  static async listProjectsForUser(workspaceId: string, userId: string): Promise<ProjectResponse[]> {
+    try {
+      logger.info('Fetching projects for user', { workspaceId, userId });
+
+      const result = await pool.query(
+        `
+        SELECT
+          p.id,
+          p.workspace_id as "workspaceId",
+          p.name,
+          p.description,
+          p.client_org_id as "clientOrgId",
+          p.external_client_name as "externalClientName",
+          p.executing_org_id as "executingOrgId",
+          p.status,
+          p.workflow_mode as "workflowMode",
+          p.created_by as "createdBy",
+          p.created_at as "createdAt",
+          p.updated_at as "updatedAt",
+          o.name as "clientOrgName",
+          o2.name as "executingOrgName"
+        FROM projects p
+        LEFT JOIN organizations o ON p.client_org_id = o.id
+        JOIN organizations o2 ON p.executing_org_id = o2.id
+        JOIN ProjectTeam pt ON pt.project_id = p.id
+        WHERE p.workspace_id = $1
+          AND pt.user_id = $2
+          AND pt.workspace_id = $1
+          AND p.deleted_at IS NULL
+        ORDER BY p.created_at DESC
+        `,
+        [workspaceId, userId]
+      );
+
+      return result.rows as ProjectResponse[];
+    } catch (error) {
+      logger.error('Failed to list projects for user', { workspaceId, userId, error });
+      throw error;
+    }
+  }
+
+  /**
+   * Check if a user is assigned to a project in the workspace
+   */
+  static async userHasProjectAssignment(
+    projectId: string,
+    workspaceId: string,
+    userId: string
+  ): Promise<boolean> {
+    try {
+      const result = await pool.query(
+        `SELECT 1 FROM ProjectTeam
+         WHERE project_id = $1 AND workspace_id = $2 AND user_id = $3
+         LIMIT 1`,
+        [projectId, workspaceId, userId]
+      );
+
+      return result.rows.length > 0;
+    } catch (error) {
+      logger.error('Failed to check project assignment', { projectId, workspaceId, userId, error });
       throw error;
     }
   }
@@ -70,6 +138,7 @@ export class ProjectService {
           p.name,
           p.description,
           p.client_org_id as "clientOrgId",
+          p.external_client_name as "externalClientName",
           p.executing_org_id as "executingOrgId",
           p.status,
           p.workflow_mode as "workflowMode",
@@ -79,7 +148,7 @@ export class ProjectService {
           o.name as "clientOrgName",
           o2.name as "executingOrgName"
         FROM projects p
-        JOIN organizations o ON p.client_org_id = o.id
+        LEFT JOIN organizations o ON p.client_org_id = o.id
         JOIN organizations o2 ON p.executing_org_id = o2.id
         WHERE p.id = $1 AND p.workspace_id = $2 AND p.deleted_at IS NULL
         `,
@@ -110,17 +179,31 @@ export class ProjectService {
     try {
       logger.info('Creating project', { workspaceId, userId, data });
 
-      // Validate that organizations exist and belong to workspace
-      const orgCheck = await pool.query(
-        `
-        SELECT id FROM organizations 
-        WHERE (id = $1 OR id = $2) AND workspace_id = $3
-        `,
-        [data.clientOrgId, data.executingOrgId, workspaceId]
+      // Validate executing org exists
+      const executingOrg = await pool.query(
+        `SELECT id FROM organizations WHERE id = $1 AND deleted_at IS NULL`,
+        [data.executingOrgId]
       );
 
-      if (orgCheck.rows.length !== 2) {
-        throw new InvalidProjectDataError('One or both organizations do not exist in this workspace');
+      if (executingOrg.rows.length === 0) {
+        throw new InvalidProjectDataError('Executing organization does not exist');
+      }
+
+      // Validate client org if provided
+      if (data.clientOrgId) {
+        const clientOrg = await pool.query(
+          `SELECT id FROM organizations WHERE id = $1 AND deleted_at IS NULL`,
+          [data.clientOrgId]
+        );
+
+        if (clientOrg.rows.length === 0) {
+          throw new InvalidProjectDataError('Client organization does not exist');
+        }
+      }
+
+      // Require either clientOrgId or externalClientName (guard beyond Joi)
+      if (!data.clientOrgId && !data.externalClientName?.trim()) {
+        throw new InvalidProjectDataError('Either clientOrgId or externalClientName is required');
       }
 
       // Use transaction for atomic insert
@@ -130,17 +213,19 @@ export class ProjectService {
       const result = await client.query(
         `
         INSERT INTO projects (
-          workspace_id, name, description, 
-          client_org_id, executing_org_id, workflow_mode, created_by
+          workspace_id, name, description,
+          client_org_id, external_client_name,
+          executing_org_id, workflow_mode, created_by
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING *
         `,
         [
           workspaceId,
           data.name,
           data.description || null,
-          data.clientOrgId,
+          data.clientOrgId || null,
+          data.clientOrgId ? null : data.externalClientName?.trim() || null,
           data.executingOrgId,
           data.workflowMode || 'trial_first',
           userId
@@ -148,6 +233,25 @@ export class ProjectService {
       );
 
       const newProject = result.rows[0] as ProjectModel;
+
+      const orgResult = await client.query(
+        `SELECT id FROM Organizations
+         WHERE workspace_id = $1 AND deleted_at IS NULL
+         ORDER BY created_at ASC
+         LIMIT 1`,
+        [workspaceId]
+      );
+
+      const companyId = orgResult.rows[0]?.id || workspaceId;
+
+      await client.query(
+        `INSERT INTO ProjectTeam (
+          project_id, user_id, workspace_id, company_id,
+          assigned_role, assigned_by, assigned_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
+        ON CONFLICT (project_id, user_id) DO NOTHING`,
+        [newProject.id, userId, workspaceId, companyId, 'admin', userId]
+      );
 
       // Fetch with org names
       const fullResult = await client.query(
@@ -158,6 +262,7 @@ export class ProjectService {
           p.name,
           p.description,
           p.client_org_id as "clientOrgId",
+          p.external_client_name as "externalClientName",
           p.executing_org_id as "executingOrgId",
           p.status,
           p.workflow_mode as "workflowMode",
@@ -167,7 +272,7 @@ export class ProjectService {
           o.name as "clientOrgName",
           o2.name as "executingOrgName"
         FROM projects p
-        JOIN organizations o ON p.client_org_id = o.id
+        LEFT JOIN organizations o ON p.client_org_id = o.id
         JOIN organizations o2 ON p.executing_org_id = o2.id
         WHERE p.id = $1
         `,
@@ -263,6 +368,7 @@ export class ProjectService {
           p.name,
           p.description,
           p.client_org_id as "clientOrgId",
+          p.external_client_name as "externalClientName",
           p.executing_org_id as "executingOrgId",
           p.status,
           p.workflow_mode as "workflowMode",
@@ -272,7 +378,7 @@ export class ProjectService {
           o.name as "clientOrgName",
           o2.name as "executingOrgName"
         FROM projects p
-        JOIN organizations o ON p.client_org_id = o.id
+        LEFT JOIN organizations o ON p.client_org_id = o.id
         JOIN organizations o2 ON p.executing_org_id = o2.id
         WHERE p.id = $1
         `,

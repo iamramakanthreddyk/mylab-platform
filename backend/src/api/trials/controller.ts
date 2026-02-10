@@ -11,7 +11,10 @@ import logger from '../../utils/logger';
 export const trialController = {
   list: asyncHandler(async (req: Request, res: Response) => {
     const { projectId } = req.params;
-    const workspaceId = req.user!.workspaceId;
+    const workspaceId = req.user?.workspaceId;
+    if (!workspaceId) {
+      return res.status(401).json({ success: false, error: 'Workspace not found for user' });
+    }
 
     const trials = await TrialService.listTrials(projectId, workspaceId);
 
@@ -24,7 +27,10 @@ export const trialController = {
 
   getById: asyncHandler(async (req: Request, res: Response) => {
     const { projectId, trialId } = req.params;
-    const workspaceId = req.user!.workspaceId;
+    const workspaceId = req.user?.workspaceId;
+    if (!workspaceId) {
+      return res.status(401).json({ success: false, error: 'Workspace not found for user' });
+    }
 
     try {
       const trial = await TrialService.getTrial(trialId, projectId, workspaceId);
@@ -46,8 +52,11 @@ export const trialController = {
 
   create: asyncHandler(async (req: Request, res: Response) => {
     const { projectId } = req.params;
-    const workspaceId = req.user!.workspaceId;
-    const userId = req.user!.id;
+    const workspaceId = req.user?.workspaceId;
+    const userId = req.user?.id;
+    if (!workspaceId || !userId) {
+      return res.status(401).json({ success: false, error: 'Workspace or user not found' });
+    }
 
     const trial = await TrialService.createTrial(projectId, workspaceId, userId, req.body);
 
@@ -62,8 +71,11 @@ export const trialController = {
 
   bulkCreate: asyncHandler(async (req: Request, res: Response) => {
     const { projectId } = req.params;
-    const workspaceId = req.user!.workspaceId;
-    const userId = req.user!.id;
+    const workspaceId = req.user?.workspaceId;
+    const userId = req.user?.id;
+    if (!workspaceId || !userId) {
+      return res.status(401).json({ success: false, error: 'Workspace or user not found' });
+    }
     const { trials } = req.body;
 
     const created = await TrialService.createTrialsBulk(projectId, workspaceId, userId, trials);
@@ -80,7 +92,10 @@ export const trialController = {
 
   update: asyncHandler(async (req: Request, res: Response) => {
     const { projectId, trialId } = req.params;
-    const workspaceId = req.user!.workspaceId;
+    const workspaceId = req.user?.workspaceId;
+    if (!workspaceId) {
+      return res.status(401).json({ success: false, error: 'Workspace not found for user' });
+    }
 
     const trial = await TrialService.updateTrial(trialId, projectId, workspaceId, req.body);
 
@@ -95,7 +110,10 @@ export const trialController = {
 
   listSamples: asyncHandler(async (req: Request, res: Response) => {
     const { projectId, trialId } = req.params;
-    const workspaceId = req.user!.workspaceId;
+    const workspaceId = req.user?.workspaceId;
+    if (!workspaceId) {
+      return res.status(401).json({ success: false, error: 'Workspace not found for user' });
+    }
 
     const samples = await TrialService.listTrialSamples(trialId, projectId, workspaceId);
 
@@ -108,7 +126,10 @@ export const trialController = {
 
   getParameterTemplate: asyncHandler(async (req: Request, res: Response) => {
     const { projectId } = req.params;
-    const workspaceId = req.user!.workspaceId;
+    const workspaceId = req.user?.workspaceId;
+    if (!workspaceId) {
+      return res.status(401).json({ success: false, error: 'Workspace not found for user' });
+    }
 
     const columns = await TrialService.getParameterTemplate(projectId, workspaceId);
 
@@ -118,10 +139,31 @@ export const trialController = {
     });
   }),
 
+  getSetup: asyncHandler(async (req: Request, res: Response) => {
+    const { projectId } = req.params;
+    const workspaceId = req.user?.workspaceId;
+    if (!workspaceId) {
+      return res.status(401).json({ success: false, error: 'Workspace not found for user' });
+    }
+
+    const result = await TrialService.getTrialSetup(projectId, workspaceId);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        setup: result.setup,
+        hasSetup: result.hasSetup
+      }
+    });
+  }),
+
   updateParameterTemplate: asyncHandler(async (req: Request, res: Response) => {
     const { projectId } = req.params;
-    const workspaceId = req.user!.workspaceId;
-    const userId = req.user!.id;
+    const workspaceId = req.user?.workspaceId;
+    const userId = req.user?.id;
+    if (!workspaceId || !userId) {
+      return res.status(401).json({ success: false, error: 'Workspace or user not found' });
+    }
     const { columns } = req.body;
 
     const savedColumns = await TrialService.upsertParameterTemplate(projectId, workspaceId, userId, columns);
@@ -130,6 +172,23 @@ export const trialController = {
       success: true,
       data: { columns: savedColumns },
       message: 'Trial parameter template saved'
+    });
+  }),
+
+  updateSetup: asyncHandler(async (req: Request, res: Response) => {
+    const { projectId } = req.params;
+    const workspaceId = req.user?.workspaceId;
+    const userId = req.user?.id;
+    if (!workspaceId || !userId) {
+      return res.status(401).json({ success: false, error: 'Workspace or user not found' });
+    }
+
+    const savedSetup = await TrialService.upsertTrialSetup(projectId, workspaceId, userId, req.body);
+
+    res.status(200).json({
+      success: true,
+      data: { setup: savedSetup },
+      message: 'Trial setup saved'
     });
   })
 };

@@ -9,7 +9,7 @@ import crypto from 'crypto';
 
 const router = Router();
 
-// GET /api/api-keys - List API keys for workspace organizations
+// GET /api/api-keys - List API keys for organization
 router.get('/', authenticate, async (req, res) => {
   try {
     const workspaceId = req.user!.workspaceId;
@@ -22,7 +22,7 @@ router.get('/', authenticate, async (req, res) => {
       FROM APIKeys ak
       JOIN Organizations o ON ak.organization_id = o.id
       LEFT JOIN Users u ON ak.created_by = u.id
-      WHERE o.workspace_id = $1 OR (o.workspace_id IS NULL AND o.is_platform_workspace = false)
+      WHERE o.id = $1
       ORDER BY ak.created_at DESC
     `, [workspaceId]);
 
@@ -40,9 +40,9 @@ router.post('/', authenticate, auditLog('create', 'api_key'), async (req, res) =
     const createdBy = req.user!.id;
     const workspaceId = req.user!.workspaceId;
 
-    // Validate organization belongs to workspace or is external
+    // Validate organization belongs to tenant or is external
     const orgCheck = await pool.query(`
-      SELECT id, name, workspace_id, is_platform_workspace
+      SELECT id, name, is_platform_workspace
       FROM Organizations
       WHERE id = $1
     `, [organizationId]);
@@ -53,9 +53,9 @@ router.post('/', authenticate, auditLog('create', 'api_key'), async (req, res) =
 
     const org = orgCheck.rows[0];
 
-    // Only allow API keys for external organizations or organizations in user's workspace
-    if (org.is_platform_workspace && org.workspace_id !== workspaceId) {
-      return res.status(403).json({ error: 'Cannot create API keys for organizations in other workspaces' });
+    // Only allow API keys for external organizations or organizations in user's tenant
+    if (org.is_platform_workspace && org.id !== workspaceId) {
+      return res.status(403).json({ error: 'Cannot create API keys for organizations in other tenants' });
     }
 
     // Generate secure API key
@@ -88,7 +88,7 @@ router.put('/:id', authenticate, auditLog('update', 'api_key'), async (req, res)
 
     // Validate ownership
     const keyCheck = await pool.query(`
-      SELECT ak.*, o.workspace_id, o.is_platform_workspace
+      SELECT ak.*, o.id as tenant_id, o.is_platform_workspace
       FROM APIKeys ak
       JOIN Organizations o ON ak.organization_id = o.id
       WHERE ak.id = $1
@@ -101,8 +101,8 @@ router.put('/:id', authenticate, auditLog('update', 'api_key'), async (req, res)
     const key = keyCheck.rows[0];
 
     // Check permissions
-    if (key.is_platform_workspace && key.workspace_id !== workspaceId) {
-      return res.status(403).json({ error: 'Cannot modify API keys for other workspaces' });
+    if (key.is_platform_workspace && key.tenant_id !== workspaceId) {
+      return res.status(403).json({ error: 'Cannot modify API keys for other tenants' });
     }
 
     const result = await pool.query(`
@@ -127,7 +127,7 @@ router.delete('/:id', authenticate, auditLog('delete', 'api_key'), async (req, r
 
     // Validate ownership
     const keyCheck = await pool.query(`
-      SELECT ak.*, o.workspace_id, o.is_platform_workspace
+      SELECT ak.*, o.id as tenant_id, o.is_platform_workspace
       FROM APIKeys ak
       JOIN Organizations o ON ak.organization_id = o.id
       WHERE ak.id = $1
@@ -140,8 +140,8 @@ router.delete('/:id', authenticate, auditLog('delete', 'api_key'), async (req, r
     const key = keyCheck.rows[0];
 
     // Check permissions
-    if (key.is_platform_workspace && key.workspace_id !== workspaceId) {
-      return res.status(403).json({ error: 'Cannot delete API keys for other workspaces' });
+    if (key.is_platform_workspace && key.tenant_id !== workspaceId) {
+      return res.status(403).json({ error: 'Cannot delete API keys for other tenants' });
     }
 
     await pool.query('DELETE FROM APIKeys WHERE id = $1', [id]);
@@ -161,7 +161,7 @@ router.post('/:id/regenerate', authenticate, auditLog('regenerate', 'api_key'), 
 
     // Validate ownership
     const keyCheck = await pool.query(`
-      SELECT ak.*, o.workspace_id, o.is_platform_workspace
+      SELECT ak.*, o.id as tenant_id, o.is_platform_workspace
       FROM APIKeys ak
       JOIN Organizations o ON ak.organization_id = o.id
       WHERE ak.id = $1
@@ -174,8 +174,8 @@ router.post('/:id/regenerate', authenticate, auditLog('regenerate', 'api_key'), 
     const key = keyCheck.rows[0];
 
     // Check permissions
-    if (key.is_platform_workspace && key.workspace_id !== workspaceId) {
-      return res.status(403).json({ error: 'Cannot regenerate API keys for other workspaces' });
+    if (key.is_platform_workspace && key.tenant_id !== workspaceId) {
+      return res.status(403).json({ error: 'Cannot regenerate API keys for other tenants' });
     }
 
     // Generate new API key

@@ -55,7 +55,7 @@ export function PartnerAnalysisRequests({ user }: PartnerAnalysisRequestsProps) 
           parameters: 'Temperature: 250°C, Flow rate: 1ml/min',
           performed_by: '',
           performed_date: '',
-          status: 'Pending',
+          status: 'pending',
           execution_mode: 'external',
           external_lab: user.workspaceId,
           integrity_check: 'passed',
@@ -83,7 +83,7 @@ export function PartnerAnalysisRequests({ user }: PartnerAnalysisRequestsProps) 
           parameters: 'Incubation: 37°C, 24-48 hours',
           performed_by: user.id,
           performed_date: '2024-02-06',
-          status: 'In Progress',
+          status: 'in_progress',
           execution_mode: 'external',
           external_lab: user.workspaceId,
           integrity_check: 'passed',
@@ -111,7 +111,7 @@ export function PartnerAnalysisRequests({ user }: PartnerAnalysisRequestsProps) 
           parameters: 'Solvent: CDCl3, NMR frequency: 400MHz',
           performed_by: user.id,
           performed_date: '2024-02-03',
-          status: 'Completed',
+          status: 'completed',
           execution_mode: 'external',
           external_lab: user.workspaceId,
           integrity_check: 'passed',
@@ -147,7 +147,7 @@ export function PartnerAnalysisRequests({ user }: PartnerAnalysisRequestsProps) 
           method: 'GC-MS and FTIR spectroscopy',
           performed_by: '',
           performed_date: '',
-          status: 'Pending',
+          status: 'pending',
           execution_mode: 'external',
           external_lab: user.workspaceId,
           integrity_check: 'passed',
@@ -176,7 +176,7 @@ export function PartnerAnalysisRequests({ user }: PartnerAnalysisRequestsProps) 
       await axiosInstance.post(`/partner/analysis-requests/${requestId}/accept`)
       setRequests(prev => prev.map(req => 
         req.id === requestId 
-          ? { ...req, status: 'In Progress' as const, performed_by: user.id }
+            ? { ...req, status: 'in_progress' as const, performed_by: user.id }
           : req
       ))
       toast.success('Analysis request accepted successfully')
@@ -211,11 +211,10 @@ export function PartnerAnalysisRequests({ user }: PartnerAnalysisRequestsProps) 
 
   const getStatusColor = (status: AnalysisRequest['status']) => {
     switch (status) {
-      case 'Pending': return 'outline'
-      case 'In Progress': return 'secondary'
-      case 'Completed': return 'default'
-      case 'Failed': return 'destructive'
-      case 'Cancelled': return 'destructive'
+      case 'pending': return 'outline'
+      case 'in_progress': return 'secondary'
+      case 'completed': return 'default'
+      case 'failed': return 'destructive'
       default: return 'outline'
     }
   }
@@ -254,7 +253,7 @@ export function PartnerAnalysisRequests({ user }: PartnerAnalysisRequestsProps) 
                 <div className="flex items-center gap-3">
                   <Clock size={20} className="text-orange-500" />
                   <div>
-                    <p className="text-2xl font-bold">{requests.filter(r => r.status === 'Pending').length}</p>
+                    <p className="text-2xl font-bold">{requests.filter(r => r.status === 'pending').length}</p>
                     <p className="text-sm text-muted-foreground">Pending Requests</p>
                   </div>
                 </div>
@@ -265,7 +264,7 @@ export function PartnerAnalysisRequests({ user }: PartnerAnalysisRequestsProps) 
                 <div className="flex items-center gap-3">
                   <ChartBar size={20} className="text-blue-500" />
                   <div>
-                    <p className="text-2xl font-bold">{requests.filter(r => r.status === 'In Progress').length}</p>
+                    <p className="text-2xl font-bold">{requests.filter(r => r.status === 'in_progress').length}</p>
                     <p className="text-sm text-muted-foreground">In Progress</p>
                   </div>
                 </div>
@@ -276,7 +275,7 @@ export function PartnerAnalysisRequests({ user }: PartnerAnalysisRequestsProps) 
                 <div className="flex items-center gap-3">
                   <CheckCircle size={20} className="text-green-500" />
                   <div>
-                    <p className="text-2xl font-bold">{requests.filter(r => r.status === 'Completed').length}</p>
+                    <p className="text-2xl font-bold">{requests.filter(r => r.status === 'completed').length}</p>
                     <p className="text-sm text-muted-foreground">Completed</p>
                   </div>
                 </div>
@@ -359,7 +358,7 @@ export function PartnerAnalysisRequests({ user }: PartnerAnalysisRequestsProps) 
                       </div>
                     </div>
                     
-                    {request.status === 'Pending' && (
+                    {request.status === 'pending' && (
                       <div className="flex gap-2 ml-4">
                         <Button
                           onClick={() => handleAcceptRequest(request.id)}
@@ -379,7 +378,7 @@ export function PartnerAnalysisRequests({ user }: PartnerAnalysisRequestsProps) 
                       </div>
                     )}
 
-                    {request.status === 'In Progress' && (
+                    {request.status === 'in_progress' && (
                       <Button
                         onClick={() => navigate(`/partner/analysis-requests/${request.id}/results`)}
                         className="gap-2 ml-4"
@@ -420,17 +419,17 @@ export function PartnerAnalysisRequests({ user }: PartnerAnalysisRequestsProps) 
                         <p><strong>Requested:</strong> {new Date(request.createdAt).toLocaleDateString()}</p>
                         {request.performed_date && (
                           <p><strong>Started:</strong> {new Date(request.performed_date).toLocaleDateString()}</p>
-                        )}\n                        {request.status === 'Completed' && (
+                        )}\n                        {request.status === 'completed' && (
                           <p><strong>Completed:</strong> {new Date(request.updatedAt).toLocaleDateString()}</p>
                         )}
                       </div>
                     </div>
                   </div>
 
-                  {request.status === 'Completed' && request.results && (
+                  {request.status === 'completed' && request.results && (
                     <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
                       <h4 className="font-medium text-green-900 mb-2">Analysis Results</h4>
-                      <p className="text-sm text-green-800 mb-2">{request.results}</p>
+                      <p className="text-sm text-green-800 mb-2">{typeof request.results === 'string' ? request.results : JSON.stringify(request.results)}</p>
                       {request.conclusions && (
                         <p className="text-sm text-green-700"><strong>Conclusions:</strong> {request.conclusions}</p>
                       )}

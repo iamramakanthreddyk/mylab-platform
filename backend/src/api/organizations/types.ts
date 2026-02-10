@@ -4,7 +4,7 @@ import Joi from 'joi';
  * Organization Types and Schemas
  */
 
-export type OrganizationType = 'Client' | 'Laboratory' | 'Partner' | 'Internal';
+export type OrganizationType = 'client' | 'cro' | 'analyzer' | 'vendor' | 'pharma' | 'laboratory';
 
 export interface OrganizationModel {
   id: string;
@@ -19,7 +19,6 @@ export interface OrganizationModel {
 
 export interface OrganizationResponse {
   id: string;
-  workspaceId: string;
   name: string;
   type: OrganizationType;
   contactInfo?: Record<string, any>;
@@ -52,10 +51,10 @@ export const createOrganizationSchema = Joi.object({
       'string.max': 'Organization name cannot exceed 100 characters'
     }),
   type: Joi.string()
-    .valid('Client', 'Laboratory', 'Partner', 'Internal')
+    .valid('client', 'cro', 'analyzer', 'vendor', 'pharma', 'laboratory')
     .required()
     .messages({
-      'any.only': 'Organization type must be one of: Client, Laboratory, Partner, Internal'
+      'any.only': 'Organization type must be one of: client, cro, analyzer, vendor, pharma, laboratory'
     }),
   contactInfo: Joi.object()
     .optional()
@@ -76,7 +75,7 @@ export const updateOrganizationSchema = Joi.object({
       'string.max': 'Organization name cannot exceed 100 characters'
     }),
   type: Joi.string()
-    .valid('Client', 'Laboratory', 'Partner', 'Internal')
+    .valid('client', 'cro', 'analyzer', 'vendor', 'pharma', 'laboratory')
     .optional()
     .messages({
       'any.only': 'Organization type must be one of: Client, Laboratory, Partner, Internal'

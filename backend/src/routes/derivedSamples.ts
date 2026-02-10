@@ -25,13 +25,13 @@ router.get('/', authenticate, async (req, res) => {
       FROM DerivedSamples ds
       LEFT JOIN Samples s ON ds.source_sample_id = s.id
       LEFT JOIN Projects p ON ds.project_id = p.id
-      LEFT JOIN Organizations o ON ds.owner_workspace_id = o.workspace_id
+      LEFT JOIN Organizations o ON ds.owner_workspace_id = o.id
       WHERE (ds.owner_workspace_id = $1 OR ds.id IN (
         SELECT ag.object_id
         FROM AccessGrants ag
         JOIN Organizations org ON ag.granted_to_org_id = org.id
         WHERE ag.object_type = 'derived_sample'
-          AND org.workspace_id = $1
+          AND org.id = $1
           AND ag.deleted_at IS NULL
           AND (ag.expires_at IS NULL OR ag.expires_at > NOW())
       ))
@@ -169,7 +169,7 @@ router.get('/:id', authenticate, requireObjectAccess('derived_sample'), async (r
       FROM DerivedSamples ds
       LEFT JOIN Samples s ON ds.source_sample_id = s.id
       LEFT JOIN Projects p ON ds.project_id = p.id
-      LEFT JOIN Organizations o ON ds.owner_workspace_id = o.workspace_id
+      LEFT JOIN Organizations o ON ds.owner_workspace_id = o.id
       WHERE ds.id = $1 AND ds.deleted_at IS NULL
     `, [id]);
 

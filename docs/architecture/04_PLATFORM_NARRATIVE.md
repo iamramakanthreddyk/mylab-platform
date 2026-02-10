@@ -2,27 +2,29 @@
 
 **A comprehensive story of how MyLab enables secure, compliant lab collaboration, based on the database schema and business requirements. This narrative demonstrates multi-stage project management, lineage integrity, and enterprise-grade controls for pharma, CROs, and regulators.**
 
+Note: Legacy "workspace" naming refers to the Organization tenant. The column name `workspace_id` is retained for compatibility.
+
 ---
 
 ## The Story of PharmaCorp's Journey on MyLab: From Onboarding to Breakthrough Discovery
 
-In the world of drug development, PharmaCorp—a pharmaceutical company—needs to manage complex sample transformations across contract research organizations (CROs), analyzers, and internal teams without losing traceability or compromising intellectual property. MyLab provides a collaborative platform with workspace isolation, explicit sharing, and immutable lineage to ensure secure, compliant workflows.
+In the world of drug development, PharmaCorp—a pharmaceutical company—needs to manage complex sample transformations across contract research organizations (CROs), analyzers, and internal teams without losing traceability or compromising intellectual property. MyLab provides a collaborative platform with organization isolation, explicit sharing, and immutable lineage to ensure secure, compliant workflows.
 
-### **1. Onboarding: Setting Up the Workspace**
-PharmaCorp's journey begins with onboarding. The company's IT admin creates a new **Workspace** in the `Workspace` table, providing details like name ("PharmaCorp"), slug ("pharmacorp"), and type ("pharma"). This isolates PharmaCorp's data, ensuring no cross-contamination with other organizations.
+### **1. Onboarding: Setting Up the Organization**
+PharmaCorp's journey begins with onboarding. The company's IT admin creates a new **Organization** in the `Organizations` table, providing details like name ("PharmaCorp"), slug ("pharmacorp"), and type ("pharma"). This isolates PharmaCorp's data, ensuring no cross-contamination with other organizations.
 
-- **Tables Involved**: `Workspace` (id, name, slug, type, email_domain).
+- **Tables Involved**: `Organizations` (id, name, slug, type, email_domain).
 - **How It Works**: UUID generation and domain-based invites enforce tenant isolation. All data ties to `workspace_id`, preventing unauthorized access.
 - **Why It Matters**: Reduces security risks and simplifies multi-tenant management.
 
-Users like Dr. Elena Reyes (researcher) and Alex Chen (manager) join via the `Users` table, with roles ("admin", "user") verified against the workspace domain.
+Users like Dr. Elena Reyes (researcher) and Alex Chen (manager) join via the `Users` table, with roles ("admin", "user") verified against the organization domain.
 
 - **Tables Involved**: `Users` (id, workspace_id, email, name, role).
 - **How It Works**: Roles control internal permissions; the `AuditLog` captures all actions for compliance.
 - **Tables Involved**: `AuditLog` (id, object_type, object_id, action, actor_id, details, timestamp).
 
 ### **2. Launching a Project: Organizing the Work**
-Alex creates "Compound X Optimization" in the `Projects` table, linked to the workspace.
+Alex creates "Compound X Optimization" in the `Projects` table, linked to the organization.
 
 - **Tables Involved**: `Projects` (id, workspace_id, name, description, created_by).
 - **How It Works**: Projects containerize samples; foreign keys ensure ownership.
@@ -86,7 +88,7 @@ Access revocation: When expired, visibility ends, but `AuditLog` preserves histo
 
 MyLab aligns with ALCOA+ principles (Attributable, Legible, Contemporaneous, Original, Accurate) via immutability, checksums, timestamps, and ownership enforcement, supporting FDA/EMA inspections.
 
-- **Figure Reference**: End-to-end sample lineage across workspaces (see database ERD).
+- **Figure Reference**: End-to-end sample lineage across organizations (see database ERD).
 
 ### **Off-Platform Scenario: Tekflow for External Clients**
 When clients like NovaPharma aren't on MyLab, Tekflow creates projects in `Projects` with `client_org_id` pointing to an external `Organizations` entry for NovaPharma, and `executing_org_id` for Tekflow.
@@ -106,4 +108,4 @@ PharmaCorp achieves traceable breakthroughs, with MyLab's schema enabling secure
 
 ---
 
-**Upgrade Applied**: Incorporated ownership separation, private workspaces, project stages, non-transitive sharing, revocation clarity, ALCOA+ compliance, and off-platform actor support via Organizations and AccessGrants. Reduced repetition; added "why it matters" and diagram reference. This narrative is now airtight for enterprise and regulatory audiences.
+**Upgrade Applied**: Incorporated ownership separation, private tenants, project stages, non-transitive sharing, revocation clarity, ALCOA+ compliance, and off-platform actor support via Organizations and AccessGrants. Reduced repetition; added "why it matters" and diagram reference. This narrative is now airtight for enterprise and regulatory audiences.

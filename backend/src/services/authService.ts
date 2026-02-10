@@ -77,39 +77,30 @@ export class AuthService {
         throw errors.conflict('Email already registered');
       }
 
-      // Create workspace
-      const workspaceResult = await client.query(
-        `INSERT INTO Workspace (name, slug, type)
-         VALUES ($1, $2, $3)
+      // Create organization (tenant)
+      const orgResult = await client.query(
+        `INSERT INTO Organizations (name, slug, type, is_platform_workspace)
+         VALUES ($1, $2, $3, true)
          RETURNING id`,
         [
           payload.organizationName,
           payload.organizationName.toLowerCase().replaceAll(/\s+/g, '-'),
-          'research'
+          orgType
         ]
       );
 
-      const workspaceId = workspaceResult.rows[0].id;
-
-      // Create organization
-      const orgResult = await client.query(
-        `INSERT INTO Organizations (name, type, workspace_id)
-         VALUES ($1, $2, $3)
-         RETURNING id`,
-        [payload.organizationName, orgType, workspaceId]
-      );
-
       const organizationId = orgResult.rows[0].id;
+      const workspaceId = organizationId;
 
       // Hash password
       const passwordHash = await bcrypt.hash(payload.adminPassword, 10);
 
       // Create admin user
       const userResult = await client.query(
-        `INSERT INTO Users (email, name, password_hash, workspace_id, organization_id, role)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO Users (email, name, password_hash, workspace_id, role)
+         VALUES ($1, $2, $3, $4, $5)
          RETURNING id`,
-        [payload.adminEmail, payload.adminName, passwordHash, workspaceId, organizationId, 'admin']
+        [payload.adminEmail, payload.adminName, passwordHash, workspaceId, 'admin']
       );
 
       const userId = userResult.rows[0].id;
@@ -162,7 +153,7 @@ export class AuthService {
 
       // Fetch user
       const userResult = await this.pool.query(
-        `SELECT u.id, u.email, u.name, u.password_hash, u.workspace_id, u.organization_id
+        `SELECT u.id, u.email, u.name, u.password_hash, u.workspace_id
          FROM Users u
          WHERE u.email = $1 AND u.deleted_at IS NULL`,
         [credentials.email]
@@ -194,7 +185,7 @@ export class AuthService {
           email: user.email,
           name: user.name,
           workspaceId: user.workspace_id,
-          organizationId: user.organization_id
+          organizationId: user.workspace_id
         }
       };
     } catch (error) {

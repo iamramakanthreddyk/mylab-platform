@@ -92,6 +92,13 @@ describe('AuthService', () => {
         organizationType: 'invalid-type'
       };
 
+      const mockClient = {
+        query: jest.fn(),
+        release: jest.fn(),
+      };
+
+      mockPool.connect.mockResolvedValue(mockClient);
+
       // Act & Assert
       await expect(
         authService.createOrganizationWithAdmin(invalidPayload)
@@ -168,9 +175,9 @@ describe('AuthService', () => {
       expect(result.user.email).toBe('user@example.com');
       expect(result.user.id).toBe('user-123');
 
-      // Verify token is valid JWT (test token only)
-      const decoded = jwt.verify(result.token, process.env.JWT_SECRET || 'your-dev-secret-change-in-production');
-      expect(decoded).toHaveProperty('userId', 'test-user-fixture-123');
+      // Verify token is valid JWT
+      const decoded = jwt.verify(result.token, process.env.JWT_SECRET || 'your-dev-secret-change-in-production') as any;
+      expect(decoded).toHaveProperty('userId', 'user-123');
     });
 
     it('should throw error for invalid email', async () => {

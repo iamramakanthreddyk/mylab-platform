@@ -37,7 +37,7 @@ router.post('/', authenticate, async (req, res) => {
       notes
     } = req.body;
 
-    const workspaceId = (req as any).user.workspace_id;
+    const workspaceId = (req as any).user.workspaceId;
     const userId = (req as any).user.id;
 
     // Validate required fields
@@ -49,18 +49,7 @@ router.post('/', authenticate, async (req, res) => {
 
     await client.query('BEGIN');
 
-    // Get from_organization_id (current user's organization)
-    const orgResult = await client.query(
-      `SELECT organization_id FROM Workspace WHERE id = $1`,
-      [workspaceId]
-    );
-
-    if (orgResult.rows.length === 0) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ error: 'Workspace organization not found' });
-    }
-
-    const from_organization_id = orgResult.rows[0].organization_id;
+    const from_organization_id = workspaceId;
 
     // Verify sample exists and belongs to workspace
     const sampleResult = await client.query(
@@ -164,20 +153,10 @@ router.post('/', authenticate, async (req, res) => {
  */
 router.get('/incoming', authenticate, async (req, res) => {
   try {
-    const workspaceId = (req as any).user.workspace_id;
+    const workspaceId = (req as any).user.workspaceId;
     const { status, priority } = req.query;
 
-    // Get current organization
-    const orgResult = await pool.query(
-      'SELECT organization_id FROM Workspace WHERE id = $1',
-      [workspaceId]
-    );
-
-    if (orgResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Workspace organization not found' });
-    }
-
-    const currentOrgId = orgResult.rows[0].organization_id;
+    const currentOrgId = workspaceId;
 
     let query = `
       SELECT 
@@ -235,20 +214,10 @@ router.get('/incoming', authenticate, async (req, res) => {
  */
 router.get('/outgoing', authenticate, async (req, res) => {
   try {
-    const workspaceId = (req as any).user.workspace_id;
+    const workspaceId = (req as any).user.workspaceId;
     const { status, priority } = req.query;
 
-    // Get current organization
-    const orgResult = await pool.query(
-      'SELECT organization_id FROM Workspace WHERE id = $1',
-      [workspaceId]
-    );
-
-    if (orgResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Workspace organization not found' });
-    }
-
-    const currentOrgId = orgResult.rows[0].organization_id;
+    const currentOrgId = workspaceId;
 
     let query = `
       SELECT 
@@ -306,7 +275,7 @@ router.get('/outgoing', authenticate, async (req, res) => {
 router.get('/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-    const workspaceId = (req as any).user.workspace_id;
+    const workspaceId = (req as any).user.workspaceId;
 
     const result = await pool.query(
       `SELECT 
@@ -361,7 +330,7 @@ router.post('/:id/accept', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { assigned_to } = req.body;
-    const workspaceId = (req as any).user.workspace_id;
+    const workspaceId = (req as any).user.workspaceId;
     const userRole = (req as any).user.role;
 
     // Check permissions
@@ -373,9 +342,8 @@ router.post('/:id/accept', authenticate, async (req, res) => {
 
     // Verify request exists and is pending
     const requestResult = await client.query(
-      `SELECT ar.*, w.organization_id 
+      `SELECT ar.*
        FROM AnalysisRequests ar
-       JOIN Workspace w ON ar.workspace_id = w.id
        WHERE ar.id = $1 AND ar.workspace_id = $2`,
       [id, workspaceId]
     );
@@ -443,7 +411,7 @@ router.post('/:id/reject', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { notes } = req.body;
-    const workspaceId = (req as any).user.workspace_id;
+    const workspaceId = (req as any).user.workspaceId;
     const userRole = (req as any).user.role;
 
     if (!['admin', 'manager'].includes(userRole)) {
@@ -486,7 +454,7 @@ router.patch('/:id/status', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { status, notes } = req.body;
-    const workspaceId = (req as any).user.workspace_id;
+    const workspaceId = (req as any).user.workspaceId;
     const userId = (req as any).user.id;
     const userRole = (req as any).user.role;
 

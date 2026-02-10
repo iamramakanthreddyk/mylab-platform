@@ -185,16 +185,16 @@ export async function revokeAccessWithAudit(
   revocationReason: string = 'Access revoked by owner'
 ): Promise<void> {
   try {
-    // Get the granting organization/workspace
+    // Get the granting organization/tenant
     const ownerWorkspaceResult = await pool.query(`
-      SELECT workspace_id FROM Organizations WHERE id = $1
+      SELECT id FROM Organizations WHERE id = $1
     `, [revokedBy]);
 
     if (ownerWorkspaceResult.rows.length === 0) {
       throw new Error('Invalid revoking organization');
     }
 
-    const ownerWorkspaceId = ownerWorkspaceResult.rows[0].workspace_id;
+    const ownerWorkspaceId = ownerWorkspaceResult.rows[0].id;
 
     // Get grant details before revocation (for audit log)
     const grantResult = await pool.query(`

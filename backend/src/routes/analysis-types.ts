@@ -100,6 +100,11 @@ router.post('/',
   validate(ANALYSIS_TYPE_SCHEMA.CreateRequest),
   asyncHandler(async (req: Request, res: Response) => {
     const { name, description, category, methods, typicalDuration, equipmentRequired, isActive = true } = req.body;
+    const workspaceId = req.user?.workspaceId;
+    const userId = req.user?.id;
+    if (!workspaceId || !userId) {
+      return res.status(401).json({ error: 'Workspace or user not found' });
+    }
 
     if (req.user!.role !== 'admin') {
       return res.status(403).json({ error: 'Only admins can create analysis types' });
@@ -119,8 +124,8 @@ router.post('/',
       objectType: 'analysis_type',
       objectId: analysisType.id,
       action: 'analysis_type_created',
-      actorId: req.user!.id,
-      actorWorkspace: req.user!.workspaceId,
+      actorId: userId,
+      actorWorkspace: workspaceId,
       details: { name, category },
     });
 

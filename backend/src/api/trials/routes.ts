@@ -3,7 +3,7 @@ import { authenticate } from '../../middleware/auth';
 import { validate } from '../../middleware/validation';
 import { requireObjectAccess, auditLog } from '../../middleware/auth';
 import { trialController } from './controller';
-import { createTrialSchema, updateTrialSchema, bulkCreateTrialSchema, trialParameterTemplateSchema } from './types';
+import { createTrialSchema, updateTrialSchema, bulkCreateTrialSchema, trialParameterTemplateSchema, trialSetupSchema } from './types';
 
 const router = Router({ mergeParams: true });
 
@@ -45,6 +45,42 @@ router.post(
 );
 
 router.get(
+  '/parameters',
+  authenticate,
+  mapProjectId,
+  requireObjectAccess('project'),
+  trialController.getParameterTemplate
+);
+
+router.put(
+  '/parameters',
+  authenticate,
+  mapProjectId,
+  requireObjectAccess('project', 'processor'),
+  validate(trialParameterTemplateSchema),
+  auditLog('update', 'trial_parameters'),
+  trialController.updateParameterTemplate
+);
+
+router.get(
+  '/setup',
+  authenticate,
+  mapProjectId,
+  requireObjectAccess('project'),
+  trialController.getSetup
+);
+
+router.put(
+  '/setup',
+  authenticate,
+  mapProjectId,
+  requireObjectAccess('project', 'processor'),
+  validate(trialSetupSchema),
+  auditLog('update', 'trial_setup'),
+  trialController.updateSetup
+);
+
+router.get(
   '/:trialId',
   authenticate,
   mapProjectId,
@@ -68,24 +104,6 @@ router.get(
   mapProjectId,
   requireObjectAccess('project'),
   trialController.listSamples
-);
-
-router.get(
-  '/parameters',
-  authenticate,
-  mapProjectId,
-  requireObjectAccess('project'),
-  trialController.getParameterTemplate
-);
-
-router.put(
-  '/parameters',
-  authenticate,
-  mapProjectId,
-  requireObjectAccess('project', 'processor'),
-  validate(trialParameterTemplateSchema),
-  auditLog('update', 'trial_parameters'),
-  trialController.updateParameterTemplate
 );
 
 export default router;

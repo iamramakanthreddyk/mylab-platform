@@ -13,7 +13,10 @@ export const batchController = {
    * GET /api/batches - List batches with pagination
    */
   list: asyncHandler(async (req: Request, res: Response) => {
-    const workspaceId = req.user!.workspaceId;
+    const workspaceId = req.user?.workspaceId;
+    if (!workspaceId) {
+      return res.status(401).json({ success: false, error: 'Workspace not found for user' });
+    }
     const { status, limit, offset } = req.query;
 
     const result = await BatchService.listBatches(workspaceId, {
@@ -38,7 +41,10 @@ export const batchController = {
    */
   getById: asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
-    const workspaceId = req.user!.workspaceId;
+    const workspaceId = req.user?.workspaceId;
+    if (!workspaceId) {
+      return res.status(401).json({ success: false, error: 'Workspace not found for user' });
+    }
 
     const batch = await BatchService.getBatch(id, workspaceId);
 
@@ -52,9 +58,12 @@ export const batchController = {
    * POST /api/batches - Create new batch
    */
   create: asyncHandler(async (req: Request, res: Response) => {
-    const workspaceId = req.user!.workspaceId;
-    const userId = req.user!.id;
-    const organizationId = req.user!.orgId || req.user!.workspaceId; // Fallback to workspace if org not available
+    const workspaceId = req.user?.workspaceId;
+    const userId = req.user?.id;
+    const organizationId = req.user?.orgId || req.user?.workspaceId; // Fallback to workspace if org not available
+    if (!workspaceId || !userId || !organizationId) {
+      return res.status(401).json({ success: false, error: 'Workspace or user not found' });
+    }
     const {
       batchId,
       description,
@@ -93,7 +102,11 @@ export const batchController = {
    */
   update: asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
-    const workspaceId = req.user!.workspaceId;
+    const workspaceId = req.user?.workspaceId;
+    const userId = req.user?.id;
+    if (!workspaceId || !userId) {
+      return res.status(401).json({ success: false, error: 'Workspace not found for user' });
+    }
     const { status, parameters } = req.body;
 
     const batch = await BatchService.updateBatch(id, workspaceId, {
@@ -101,7 +114,7 @@ export const batchController = {
       parameters
     });
 
-    logger.info('Batch updated via API', { batchId: id, userId: req.user!.id });
+    logger.info('Batch updated via API', { batchId: id, userId });
 
     res.status(200).json({
       success: true,
@@ -115,11 +128,15 @@ export const batchController = {
    */
   delete: asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
-    const workspaceId = req.user!.workspaceId;
+    const workspaceId = req.user?.workspaceId;
+    const userId = req.user?.id;
+    if (!workspaceId || !userId) {
+      return res.status(401).json({ success: false, error: 'Workspace not found for user' });
+    }
 
     await BatchService.deleteBatch(id, workspaceId);
 
-    logger.info('Batch deleted via API', { batchId: id, userId: req.user!.id });
+    logger.info('Batch deleted via API', { batchId: id, userId });
 
     res.status(200).json({
       success: true,

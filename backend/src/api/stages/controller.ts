@@ -14,7 +14,10 @@ export const stageController = {
    */
   list: asyncHandler(async (req: Request, res: Response) => {
     const { projectId } = req.params;
-    const workspaceId = req.user!.workspaceId;
+    const workspaceId = req.user?.workspaceId;
+    if (!workspaceId) {
+      return res.status(401).json({ success: false, error: 'Workspace not found for user' });
+    }
 
     const stages = await StageService.listStages(projectId, workspaceId);
 
@@ -31,7 +34,10 @@ export const stageController = {
    */
   getById: asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
-    const workspaceId = req.user!.workspaceId;
+    const workspaceId = req.user?.workspaceId;
+    if (!workspaceId) {
+      return res.status(401).json({ success: false, error: 'Workspace not found for user' });
+    }
 
     const stage = await StageService.getStage(id, workspaceId);
 
@@ -47,8 +53,11 @@ export const stageController = {
    */
   create: asyncHandler(async (req: Request, res: Response) => {
     const { projectId } = req.params;
-    const workspaceId = req.user!.workspaceId;
-    const userId = req.user!.id;
+    const workspaceId = req.user?.workspaceId;
+    const userId = req.user?.id;
+    if (!workspaceId || !userId) {
+      return res.status(401).json({ success: false, error: 'Workspace or user not found' });
+    }
 
     const stage = await StageService.createStage(projectId, workspaceId, req.body);
 
@@ -66,8 +75,11 @@ export const stageController = {
    */
   update: asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
-    const workspaceId = req.user!.workspaceId;
-    const userId = req.user!.id;
+    const workspaceId = req.user?.workspaceId;
+    const userId = req.user?.id;
+    if (!workspaceId || !userId) {
+      return res.status(401).json({ success: false, error: 'Workspace or user not found' });
+    }
 
     const stage = await StageService.updateStage(id, workspaceId, req.body);
 
@@ -85,8 +97,11 @@ export const stageController = {
    */
   delete: asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
-    const workspaceId = req.user!.workspaceId;
-    const userId = req.user!.id;
+    const workspaceId = req.user?.workspaceId;
+    const userId = req.user?.id;
+    if (!workspaceId || !userId) {
+      return res.status(401).json({ success: false, error: 'Workspace or user not found' });
+    }
 
     await StageService.deleteStage(id, workspaceId);
 

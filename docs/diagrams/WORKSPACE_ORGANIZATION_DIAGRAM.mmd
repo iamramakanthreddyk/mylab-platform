@@ -1,0 +1,70 @@
+graph TD
+    subgraph "🌍 PLATFORM LEVEL"
+        SA[👑 SuperAdmin<br/>PlatformAdmin]
+    end
+
+    subgraph "🏢 WORKSPACE LEVEL<br/>(Technical Container)"
+        WS[🏢 Workspace<br/>'TechLab Solutions'<br/>• Data Container<br/>• User Management<br/>• Security Boundary<br/>• Billing Unit]
+    end
+
+    subgraph "🏭 ORGANIZATION LEVEL<br/>(Business Entity)"
+        ORG[🏭 Organization<br/>'TechLab Solutions Inc'<br/>• Business Profile<br/>• Client Relationships<br/>• Industry Classification<br/>• Contact Info]
+    end
+
+    subgraph "👥 USER LEVEL<br/>(Employees)"
+        ADMIN[👨‍💼 Admin<br/>Full Access]
+        MANAGER[👨‍💼 Manager<br/>Project Mgmt]
+        SCIENTIST[👩‍🔬 Scientist<br/>Lab Work]
+        VIEWER[👁️ Viewer<br/>Read Only]
+    end
+
+    subgraph "🔧 WORK LEVEL<br/>(Laboratory Data)"
+        PROJ[📁 Projects<br/>Research Work]
+        SAMP[🧪 Samples<br/>Materials]
+        DSAMP[🧬 DerivedSamples<br/>Processing]
+        BATCH[📦 Batches<br/>Analysis Groups]
+        ANALY[📊 Analyses<br/>Results]
+    end
+
+    %% Connections
+    SA -->|"creates<br/>owns"| WS
+    WS -->|"owns<br/>employs"| ORG
+    WS -->|"contains"| ADMIN
+    WS -->|"contains"| MANAGER
+    WS -->|"contains"| SCIENTIST
+    WS -->|"contains"| VIEWER
+
+    ORG -->|"employs"| ADMIN
+    ORG -->|"employs"| MANAGER
+    ORG -->|"employs"| SCIENTIST
+    ORG -->|"employs"| VIEWER
+
+    ADMIN -->|"creates"| PROJ
+    MANAGER -->|"manages"| PROJ
+    SCIENTIST -->|"works on"| PROJ
+    VIEWER -->|"views"| PROJ
+
+    PROJ -->|"contains"| SAMP
+    SAMP -->|"processed to"| DSAMP
+    DSAMP -->|"grouped in"| BATCH
+    BATCH -->|"analyzed to"| ANALY
+
+    %% Styling
+    classDef platform fill:#ff6b6b,color:white,stroke:#d63031,stroke-width:3px
+    classDef workspace fill:#74b9ff,color:white,stroke:#0984e3,stroke-width:3px
+    classDef organization fill:#a29bfe,color:white,stroke:#6c5ce7,stroke-width:3px
+    classDef users fill:#fdcb6e,color:black,stroke:#e17055,stroke-width:2px
+    classDef work fill:#55efc4,color:black,stroke:#00b894,stroke-width:2px
+
+    class SA platform
+    class WS workspace
+    class ORG organization
+    class ADMIN,MANAGER,SCIENTIST,VIEWER users
+    class PROJ,SAMP,DSAMP,BATCH,ANALY work
+
+    %% Annotations
+    WS_ANNOT[Workspace = Technical Container<br/>• Owns all data<br/>• Manages users<br/>• Security boundary<br/>• Billing entity]:::workspace
+    ORG_ANNOT[Organization = Business Entity<br/>• Legal company<br/>• Client relationships<br/>• Industry info<br/>• Contact details]:::organization
+
+    WS -.-> WS_ANNOT
+    ORG -.-> ORG_ANNOT

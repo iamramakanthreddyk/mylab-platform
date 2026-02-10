@@ -22,8 +22,11 @@ router.post('/invite',
   validate(USER_INVITATION_SCHEMA.CreateRequest),
   asyncHandler(async (req: Request, res: Response) => {
     const { email, role, expiresInDays = 7 } = req.body;
-    const workspaceId = req.user!.workspaceId;
-    const invitedBy = req.user!.id;
+    const workspaceId = req.user?.workspaceId;
+    const invitedBy = req.user?.id;
+    if (!workspaceId || !invitedBy) {
+      return res.status(401).json({ error: 'Workspace or user not found' });
+    }
 
     // Check if user has permission to invite
     if (req.user!.role !== 'admin' && req.user!.role !== 'manager') {
@@ -139,7 +142,10 @@ router.post('/invite',
 router.get('/invitations',
   authenticate,
   asyncHandler(async (req: Request, res: Response) => {
-    const workspaceId = req.user!.workspaceId;
+    const workspaceId = req.user?.workspaceId;
+    if (!workspaceId) {
+      return res.status(401).json({ error: 'Workspace not found for user' });
+    }
 
     if (req.user!.role !== 'admin' && req.user!.role !== 'manager') {
       return res.status(403).json({ error: 'Only admins and managers can view invitations' });
@@ -286,7 +292,10 @@ router.delete('/invitations/:id',
   authenticate,
   asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
-    const workspaceId = req.user!.workspaceId;
+    const workspaceId = req.user?.workspaceId;
+    if (!workspaceId) {
+      return res.status(401).json({ error: 'Workspace not found for user' });
+    }
 
     if (req.user!.role !== 'admin' && req.user!.role !== 'manager') {
       return res.status(403).json({ error: 'Only admins and managers can cancel invitations' });
@@ -319,20 +328,32 @@ router.delete('/invitations/:id',
  * GET /api/users
  * Get all users in the workspace
  * Requires: Authentication
+ * Query params: role, search, includeInactive (admin only)
  */
 router.get('/',
   authenticate,
   asyncHandler(async (req: Request, res: Response) => {
-    const workspaceId = req.user!.workspaceId;
-    const { role, search } = req.query;
+    const workspaceId = req.user?.workspaceId;
+    if (!workspaceId) {
+      return res.status(401).json({ error: 'Workspace not found for user' });
+    }
+    const { role, search, includeInactive } = req.query;
 
     let query = `
-      SELECT id, email, name, role, created_at, updated_at
+      SELECT id, email, name, role, created_at, updated_at, deleted_at,
+             CASE WHEN deleted_at IS NULL THEN true ELSE false END as is_active
       FROM Users
-      WHERE workspace_id = $1 AND deleted_at IS NULL
+      WHERE workspace_id = $1
     `;
     const params: any[] = [workspaceId];
     let paramIndex = 2;
+
+    // Only admins can view inactive users
+    if (includeInactive === 'true' && req.user!.role === 'admin') {
+      // Show all users including inactive
+    } else {
+      query += ` AND deleted_at IS NULL`;
+    }
 
     if (role) {
       query += ` AND role = $${paramIndex}`;
@@ -367,7 +388,10 @@ router.get('/:id',
   authenticate,
   asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
-    const workspaceId = req.user!.workspaceId;
+    const workspaceId = req.user?.workspaceId;
+    if (!workspaceId) {
+      return res.status(401).json({ error: 'Workspace not found for user' });
+    }
 
     const result = await pool.query(
       `SELECT id, email, name, role, created_at, updated_at
@@ -397,7 +421,10 @@ router.patch('/:id',
   asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
     const { name, role } = req.body;
-    const workspaceId = req.user!.workspaceId;
+    const workspaceId = req.user?.workspaceId;
+    if (!workspaceId) {
+      return res.status(401).json({ error: 'Workspace not found for user' });
+    }
 
     // Check permissions
     if (req.user!.id !== id && req.user!.role !== 'admin') {
@@ -452,6 +479,168 @@ router.patch('/:id',
 );
 
 /**
+ * POST /api/users
+ * Create a new user directly (without invitation)
+ * Requires: Admin role
+ */
+router.post('/',
+  authenticate,
+  asyncHandler(async (req: Request, res: Response) => {
+    const { email, name, role = 'scientist', password } = req.body;
+    const workspaceId = req.user?.workspaceId;
+    if (!workspaceId) {
+      return res.status(401).json({ error: 'Workspace not found for user' });
+    }
+
+    if (req.user!.role !== 'admin' && req.user!.role !== 'manager') {
+      return res.status(403).json({ error: 'Only admins and managers can create users' });
+    }
+
+    if (!email || !name) {
+      return res.status(400).json({ error: 'Email and name are required' });
+    }
+
+    // Check plan limits
+    const plan = await getWorkspacePlanLimits(pool, workspaceId);
+    if (!plan) {
+      return res.status(403).json({
+        error: 'No active or trial subscription found',
+        hint: 'Assign a plan to this workspace before creating users'
+      });
+    }
+
+    if (!isPositiveLimit(plan.maxUsers)) {
+      return res.status(400).json({
+        error: 'Plan max_users is not configured',
+        plan: plan.planName
+      });
+    }
+
+    const userCountResult = await pool.query(
+      'SELECT COUNT(*)::int as count FROM Users WHERE workspace_id = $1 AND deleted_at IS NULL',
+      [workspaceId]
+    );
+
+    const activeUsers = userCountResult.rows[0].count || 0;
+    if (activeUsers >= plan.maxUsers) {
+      return res.status(403).json({
+        error: 'User limit reached for current plan',
+        plan: plan.planName,
+        maxUsers: plan.maxUsers,
+        activeUsers
+      });
+    }
+
+    // Check if user already exists
+    const existingUser = await pool.query(
+      'SELECT id FROM Users WHERE email = $1 AND workspace_id = $2',
+      [email, workspaceId]
+    );
+
+    if (existingUser.rows.length > 0) {
+      return res.status(409).json({ error: 'User with this email already exists in this workspace' });
+    }
+
+    // Hash password if provided, otherwise generate a temporary one
+    const bcrypt = require('bcrypt');
+    const actualPassword = password || crypto.randomBytes(16).toString('hex');
+    const passwordHash = await bcrypt.hash(actualPassword, 10);
+
+    const result = await pool.query(
+      `INSERT INTO Users (workspace_id, email, name, role, password_hash, require_password_change)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, email, name, role, created_at`,
+      [workspaceId, email, name, role, passwordHash, !password] // Require password change if we generated one
+    );
+
+    const user = result.rows[0];
+
+    // Audit log
+    await logToAuditLog(pool, {
+      objectType: 'user',
+      objectId: user.id,
+      action: 'create',
+      actorId: req.user!.id,
+      actorWorkspace: workspaceId,
+      details: { email, role },
+    });
+
+    res.status(201).json({
+      success: true,
+      data: user,
+      message: password ? 'User created successfully' : 'User created with temporary password',
+    });
+  })
+);
+
+/**
+ * PATCH /api/users/:id/activate
+ * Reactivate a deactivated user
+ * Requires: Admin role
+ */
+router.patch('/:id/activate',
+  authenticate,
+  asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const workspaceId = req.user?.workspaceId;
+    if (!workspaceId) {
+      return res.status(401).json({ error: 'Workspace not found for user' });
+    }
+
+    if (req.user!.role !== 'admin') {
+      return res.status(403).json({ error: 'Only admins can reactivate users' });
+    }
+
+    // Check plan limits
+    const plan = await getWorkspacePlanLimits(pool, workspaceId);
+    if (plan && isPositiveLimit(plan.maxUsers)) {
+      const userCountResult = await pool.query(
+        'SELECT COUNT(*)::int as count FROM Users WHERE workspace_id = $1 AND deleted_at IS NULL',
+        [workspaceId]
+      );
+
+      const activeUsers = userCountResult.rows[0].count || 0;
+      if (activeUsers >= plan.maxUsers) {
+        return res.status(403).json({
+          error: 'User limit reached for current plan',
+          plan: plan.planName,
+          maxUsers: plan.maxUsers,
+          activeUsers
+        });
+      }
+    }
+
+    const result = await pool.query(
+      `UPDATE Users 
+       SET deleted_at = NULL, updated_at = NOW()
+       WHERE id = $1 AND workspace_id = $2 AND deleted_at IS NOT NULL
+       RETURNING id, email, name, role`,
+      [id, workspaceId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Deactivated user not found' });
+    }
+
+    // Audit log
+    await logToAuditLog(pool, {
+      objectType: 'user',
+      objectId: id,
+      action: 'update',
+      actorId: req.user!.id,
+      actorWorkspace: workspaceId,
+      details: { action: 'reactivated' },
+    });
+
+    res.json({
+      success: true,
+      data: result.rows[0],
+      message: 'User reactivated successfully',
+    });
+  })
+);
+
+/**
  * DELETE /api/users/:id
  * Soft delete a user (deactivate)
  * Requires: Admin role
@@ -460,7 +649,10 @@ router.delete('/:id',
   authenticate,
   asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
-    const workspaceId = req.user!.workspaceId;
+    const workspaceId = req.user?.workspaceId;
+    if (!workspaceId) {
+      return res.status(401).json({ error: 'Workspace not found for user' });
+    }
 
     if (req.user!.role !== 'admin') {
       return res.status(403).json({ error: 'Only admins can deactivate users' });
@@ -482,6 +674,16 @@ router.delete('/:id',
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
+
+    // Audit log
+    await logToAuditLog(pool, {
+      objectType: 'user',
+      objectId: id,
+      action: 'delete',
+      actorId: req.user!.id,
+      actorWorkspace: workspaceId,
+      details: { action: 'deactivated' },
+    });
 
     res.json({
       success: true,
