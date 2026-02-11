@@ -58,16 +58,7 @@ export function ProjectsView({ user, projects, onProjectsChange }: ProjectsViewP
     <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-6 py-8">
         <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate('/dashboard')}
-              className="gap-2"
-            >
-              <ArrowLeft size={16} />
-              Back to Dashboard
-            </Button>
+          <div className="flex items-center">
             <div>
               <h2 className="text-3xl font-bold mb-2">Projects</h2>
               <p className="text-muted-foreground">

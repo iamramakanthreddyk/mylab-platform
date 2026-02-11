@@ -10,7 +10,8 @@ import { ForgotPassword } from '@/components/ForgotPassword'
 import { ResetPassword } from '@/components/ResetPassword'
 import { SuperAdminLogin } from '@/components/SuperAdminLogin'
 import { AdminDashboard } from '@/components/AdminDashboard'
-import { Navigation } from '@/components/Navigation'
+import { Navigation, NavigationHeader } from '@/components/Navigation'
+import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { Dashboard } from '@/components/Dashboard'
 import { ProjectsView } from '@/components/ProjectsView'
 import { ProjectDetails } from '@/components/ProjectDetails'
@@ -200,38 +201,38 @@ function AppContent() {
   if (currentUser) {
     return (
       <AuthContextProvider value={{ user: currentUser, isLoading: false, error: null }}>
-        <div className="min-h-screen bg-background">
-          <Navigation
-            user={currentUser}
-            onLogout={handleLogout}
-          />
-          <Routes>
-            <Route path="/dashboard" element={<Dashboard user={currentUser} projects={projects || []} samples={samples || []} />} />
-            <Route path="/projects" element={<ProjectsView user={currentUser} projects={projects || []} onProjectsChange={setProjects} />} />
-            <Route path="/projects/create" element={<CreateProjectPage user={currentUser} onProjectsChange={setProjects} />} />
-            <Route path="/projects/:id" element={<ProjectDetails user={currentUser} />} />
-            <Route path="/projects/:projectId/trials" element={<ProjectTrialsPage user={currentUser} />} />
-            <Route path="/projects/:projectId/create-stage" element={<CreateStagePage user={currentUser} />} />
-            <Route path="/projects/:projectId/create-sample" element={<CreateSamplePage user={currentUser} />} />
-            <Route path="/projects/:projectId/samples/:sampleId/create-analysis" element={<CreateAnalysisPage user={currentUser} />} />
-            <Route path="/supply-chain/collaboration" element={<SupplyChainCollaboration user={currentUser} />} />
-            <Route path="/samples" element={<SamplesView user={currentUser} samples={samples || []} onSamplesChange={setSamples} />} />
-            <Route path="/users" element={<UserManagement user={currentUser} />} />
-            <Route path="/batches" element={<BatchesView user={currentUser} />} />
-            <Route path="/batches/:batchId" element={<BatchDetailView user={currentUser} />} />
-            <Route path="/analyses" element={<AnalysesView user={currentUser} />} />
-            <Route path="/analyses/:analysisId/complete" element={<CompleteAnalysisPage user={currentUser} />} />
-            <Route path="/analytics" element={<ModulePlaceholder user={currentUser} moduleId="analytics" />} />
-            <Route path="/compliance" element={<ModulePlaceholder user={currentUser} moduleId="compliance" />} />
-            <Route path="/integration" element={<ModulePlaceholder user={currentUser} moduleId="integration" />} />
-            <Route path="/marketplace" element={<ModulePlaceholder user={currentUser} moduleId="marketplace" />} />
-            <Route path="/support" element={<ModulePlaceholder user={currentUser} moduleId="support" />} />
-            <Route path="/schema" element={<SchemaExplorer />} />
-            <Route path="/notifications" element={<NotificationCenter />} />
-            <Route path="/" element={<Dashboard user={currentUser} projects={projects || []} samples={samples || []} />} />
-          </Routes>
-          <Toaster />
-        </div>
+        <NavigationHeader user={currentUser} onLogout={handleLogout} />
+        <SidebarProvider className="overflow-x-hidden">
+          <Navigation user={currentUser} onLogout={handleLogout} />
+          <SidebarInset className="min-h-screen bg-background overflow-x-hidden">
+            <Routes>
+              <Route path="/dashboard" element={<Dashboard user={currentUser} projects={projects || []} samples={samples || []} />} />
+              <Route path="/projects" element={<ProjectsView user={currentUser} projects={projects || []} onProjectsChange={setProjects} />} />
+              <Route path="/projects/create" element={<CreateProjectPage user={currentUser} onProjectsChange={setProjects} />} />
+              <Route path="/projects/:id" element={<ProjectDetails user={currentUser} />} />
+              <Route path="/projects/:projectId/trials" element={<ProjectTrialsPage user={currentUser} />} />
+              <Route path="/projects/:projectId/create-stage" element={<CreateStagePage user={currentUser} />} />
+              <Route path="/projects/:projectId/create-sample" element={<CreateSamplePage user={currentUser} />} />
+              <Route path="/projects/:projectId/samples/:sampleId/create-analysis" element={<CreateAnalysisPage user={currentUser} />} />
+              <Route path="/supply-chain/collaboration" element={<SupplyChainCollaboration user={currentUser} />} />
+              <Route path="/samples" element={<SamplesView user={currentUser} samples={samples || []} onSamplesChange={setSamples} />} />
+              <Route path="/users" element={<UserManagement user={currentUser} />} />
+              <Route path="/batches" element={<BatchesView user={currentUser} />} />
+              <Route path="/batches/:batchId" element={<BatchDetailView user={currentUser} />} />
+              <Route path="/analyses" element={<AnalysesView user={currentUser} />} />
+              <Route path="/analyses/:analysisId/complete" element={<CompleteAnalysisPage user={currentUser} />} />
+              <Route path="/analytics" element={<ModulePlaceholder user={currentUser} moduleId="analytics" />} />
+              <Route path="/compliance" element={<ModulePlaceholder user={currentUser} moduleId="compliance" />} />
+              <Route path="/integration" element={<ModulePlaceholder user={currentUser} moduleId="integration" />} />
+              <Route path="/marketplace" element={<ModulePlaceholder user={currentUser} moduleId="marketplace" />} />
+              <Route path="/support" element={<ModulePlaceholder user={currentUser} moduleId="support" />} />
+              <Route path="/schema" element={<SchemaExplorer />} />
+              <Route path="/notifications" element={<NotificationCenter />} />
+              <Route path="/" element={<Dashboard user={currentUser} projects={projects || []} samples={samples || []} />} />
+            </Routes>
+            <Toaster />
+          </SidebarInset>
+        </SidebarProvider>
       </AuthContextProvider>
     )
   }
