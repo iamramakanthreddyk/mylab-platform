@@ -294,6 +294,10 @@ export class DatabaseSetup {
           project_id UUID NOT NULL REFERENCES Projects(id) ON DELETE CASCADE,
           workspace_id UUID NOT NULL REFERENCES Organizations(id),
           columns JSONB NOT NULL,
+          objective TEXT,
+          equipment TEXT,
+          notes TEXT,
+          performed_at DATE,
           created_by UUID NOT NULL REFERENCES Users(id),
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -849,6 +853,46 @@ export class DatabaseSetup {
         DROP CONSTRAINT IF EXISTS users_email_key;
       `);
 
+      // Add shared trial setup columns to TrialParameterTemplates
+      // Use explicit column checks since these are critical for the feature
+      console.log('📝 Ensuring trial setup columns exist on TrialParameterTemplates...');
+      
+      const columnChecks = [
+        { column: 'objective', type: 'TEXT' },
+        { column: 'equipment', type: 'TEXT' },
+        { column: 'notes', type: 'TEXT' },
+        { column: 'performed_at', type: 'DATE' }
+      ];
+
+      for (const col of columnChecks) {
+        try {
+          const checkResult = await this.pool.query(`
+            SELECT EXISTS (
+              SELECT 1 
+              FROM information_schema.columns 
+              WHERE table_name = 'trial_parameter_templates' 
+              AND column_name = $1
+            )
+          `, [col.column]);
+
+          if (!checkResult.rows[0].exists) {
+            console.log(`  Adding column ${col.column} to trial_parameter_templates...`);
+            await this.pool.query(`
+              ALTER TABLE trial_parameter_templates
+              ADD COLUMN ${col.column} ${col.type};
+            `);
+            console.log(`  ✓ Added column ${col.column}`);
+          } else {
+            console.log(`  ✓ Column ${col.column} already exists`);
+          }
+        } catch (err) {
+          console.error(`  ✗ Error handling column ${col.column}:`, (err as Error).message);
+          throw err;
+        }
+      }
+      
+      console.log('✅ Trial setup columns verified');
+
       // Fix foreign key constraints that may reference old "workspace" table
       // Drop old constraints if they exist and recreate them pointing to Organizations
       const tablesToFix = [
@@ -903,8 +947,42 @@ export class DatabaseSetup {
         }
       }
 
-      // Second pass: Recreate constraints
+      // Special handling for TrialParameterTemplates with snake_case table name
+      try {
+        // The old migration created this as trial_parameter_templates (snake_case)
+        // Try to drop the bad constraint that references a non-existent "workspace" table
+        try {
+          await this.pool.query(`
+            ALTER TABLE trial_parameter_templates
+            DROP CONSTRAINT IF EXISTS trial_parameter_templates_workspace_id_fkey;
+          `);
+          console.log('✅ Dropped old trial_parameter_templates workspace constraint');
+        } catch (dropErr) {
+          // Constraint might not exist, continue
+        }
+
+        // Now add the correct constraint
+        try {
+          await this.pool.query(`
+            ALTER TABLE trial_parameter_templates
+            ADD CONSTRAINT trial_parameter_templates_workspace_id_fkey 
+            FOREIGN KEY (workspace_id) REFERENCES Organizations(id) ON DELETE CASCADE;
+          `);
+          console.log('✅ Fixed trial_parameter_templates workspace_id foreign key');
+        } catch (addErr) {
+          console.warn('Note: Could not add TrialParameterTemplates constraint:', (addErr as Error).message);
+        }
+      } catch (err) {
+        console.warn('Note: Skipping TrialParameterTemplates constraint handling:', (err as Error).message);
+      }
+
+      // Second pass: Recreate constraints for remaining tables
       for (const tableName of tablesToFix) {
+        // Skip TrialParameterTemplates - it was handled above with special snake_case naming
+        if (tableName === 'TrialParameterTemplates') {
+          continue;
+        }
+        
         const constraintName = `${tableName.toLowerCase()}_workspace_id_fkey`;
         try {
           // Drop old constraint
@@ -1057,6 +1135,36 @@ export class DatabaseSetup {
         `);
       } catch (err) {
         console.warn('Note: Could not fix SecurityLog constraint:', (err as Error).message);
+      }
+
+      // Fix ProjectTeam constraints to point to Organizations instead of non-existent workspace table
+      try {
+        // First, check if ProjectTeam table exists
+        const checkProjectTeam = await this.pool.query(`
+          SELECT EXISTS (
+            SELECT 1 FROM information_schema.tables 
+            WHERE table_name = 'projectteam'
+          );
+        `);
+
+        if (checkProjectTeam.rows[0].exists) {
+          // Drop the bad constraint if it exists
+          await this.pool.query(`
+            ALTER TABLE ProjectTeam
+            DROP CONSTRAINT IF EXISTS projectteam_workspace_id_fkey;
+          `);
+          
+          // Recreate the constraint pointing to Organizations
+          await this.pool.query(`
+            ALTER TABLE ProjectTeam
+            ADD CONSTRAINT projectteam_workspace_id_fkey 
+            FOREIGN KEY (workspace_id) REFERENCES Organizations(id) ON DELETE CASCADE;
+          `);
+          
+          console.log('✅ Fixed ProjectTeam workspace_id constraint');
+        }
+      } catch (err) {
+        console.warn('Note: Could not fix ProjectTeam constraint:', (err as Error).message);
       }
       
       console.log('✅ Migrations completed');

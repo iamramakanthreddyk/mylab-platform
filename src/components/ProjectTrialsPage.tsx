@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ArrowLeft, Plus, TestTube, FloppyDisk, ChartBar, X } from '@phosphor-icons/react'
+import { ArrowLeft, Plus, TestTube, FloppyDisk, ChartBar, X, CheckCircle, Circle, Beaker } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 
 interface ProjectTrialsPageProps {
@@ -37,6 +37,51 @@ const defaultSampleForm = {
   type: ''
 }
 
+const stripHtml = (value: string) => value.replace(/<[^>]*>/g, '')
+
+const normalizeColumnLabel = (value: string) => {
+  const cleaned = stripHtml(value)
+    .replace(/\s+/g, ' ')
+    .replace(/\u00a0/g, ' ')
+    .trim()
+  return cleaned
+}
+
+const parseColumnLabel = (value: string) => {
+  const cleaned = normalizeColumnLabel(value)
+  const match = cleaned.match(/^(.*)\(([^()]*)\)\s*$/)
+  if (!match) {
+    return { name: cleaned, unit: '' }
+  }
+  return { name: match[1].trim(), unit: match[2].trim() }
+}
+
+const formatColumnLabel = (name: string, unit: string) => {
+  const cleanedName = normalizeColumnLabel(name)
+  const cleanedUnit = normalizeColumnLabel(unit)
+  if (!cleanedName) {
+    return ''
+  }
+  if (!cleanedUnit) {
+    return cleanedName
+  }
+  return `${cleanedName} (${cleanedUnit})`
+}
+
+  const parseColumnsFromPaste = (value: string) => {
+  if (!value.trim()) {
+    return [] as string[]
+  }
+  const raw = value
+    .split(/\t|\r?\n|,/)
+      .map((entry) => {
+        const parsed = parseColumnLabel(entry)
+        return formatColumnLabel(parsed.name, parsed.unit)
+      })
+      .filter((entry) => entry)
+  return Array.from(new Set(raw))
+}
+
 export function ProjectTrialsPage({ user }: ProjectTrialsPageProps) {
   const { projectId } = useParams()
   const navigate = useNavigate()
@@ -49,6 +94,7 @@ export function ProjectTrialsPage({ user }: ProjectTrialsPageProps) {
   const [trialRows, setTrialRows] = useState([defaultTrialRow])
   const [parameterColumns, setParameterColumns] = useState<string[]>([])
   const [removedColumns, setRemovedColumns] = useState<string[]>([])
+  const [columnPasteInput, setColumnPasteInput] = useState('')
   const [isSavingColumns, setIsSavingColumns] = useState(false)
   const [hasLoadedColumns, setHasLoadedColumns] = useState(false)
   const [columnsDirty, setColumnsDirty] = useState(false)
@@ -198,8 +244,52 @@ export function ProjectTrialsPage({ user }: ProjectTrialsPageProps) {
     setColumnsDirty(true)
   }
 
-  const updateParameterColumn = (index: number, value: string) => {
-    setParameterColumns(prev => prev.map((col, idx) => (idx === index ? value : col)))
+  const appendColumnsFromPaste = () => {
+    const parsed = parseColumnsFromPaste(columnPasteInput)
+    if (parsed.length === 0) {
+      toast.info('Paste column names to add')
+      return
+    }
+    setParameterColumns(prev => {
+      const merged = [...prev, ...parsed]
+      const cleaned = merged.map((col) => normalizeColumnLabel(col)).filter(Boolean)
+      return Array.from(new Set(cleaned))
+    })
+    setColumnPasteInput('')
+    setColumnsDirty(true)
+  }
+
+  const replaceColumnsFromPaste = () => {
+    const parsed = parseColumnsFromPaste(columnPasteInput)
+    if (parsed.length === 0) {
+      toast.info('Paste column names to replace')
+      return
+    }
+    setParameterColumns(parsed)
+    setRemovedColumns([])
+    setColumnPasteInput('')
+    setColumnsDirty(true)
+  }
+
+  const updateParameterName = (index: number, value: string) => {
+    setParameterColumns(prev => prev.map((col, idx) => {
+      if (idx !== index) {
+        return col
+      }
+      const parsed = parseColumnLabel(col)
+      return formatColumnLabel(value, parsed.unit)
+    }))
+    setColumnsDirty(true)
+  }
+
+  const updateParameterUnit = (index: number, value: string) => {
+    setParameterColumns(prev => prev.map((col, idx) => {
+      if (idx !== index) {
+        return col
+      }
+      const parsed = parseColumnLabel(col)
+      return formatColumnLabel(parsed.name, value)
+    }))
     setColumnsDirty(true)
   }
 
@@ -265,7 +355,12 @@ export function ProjectTrialsPage({ user }: ProjectTrialsPageProps) {
       return false
     }
 
-    const trimmed = parameterColumns.map(col => col.trim()).filter(Boolean)
+    const trimmed = parameterColumns
+      .map((col) => {
+        const parsed = parseColumnLabel(col)
+        return formatColumnLabel(parsed.name, parsed.unit)
+      })
+      .filter(Boolean)
     const uniqueColumns = Array.from(new Set(trimmed))
     if (uniqueColumns.length !== trimmed.length && !silent) {
       toast.info('Duplicate column names removed')
@@ -497,7 +592,7 @@ export function ProjectTrialsPage({ user }: ProjectTrialsPageProps) {
     navigate(`/projects/${projectId}/samples/${sample.id}/create-analysis`)
   }
 
-  const trimmedColumns = parameterColumns.map(col => col.trim())
+  const trimmedColumns = parameterColumns.map(col => formatColumnLabel(parseColumnLabel(col).name, parseColumnLabel(col).unit))
   const columnCounts = trimmedColumns.reduce<Record<string, number>>((acc, col) => {
     if (!col) {
       return acc
@@ -505,101 +600,202 @@ export function ProjectTrialsPage({ user }: ProjectTrialsPageProps) {
     acc[col] = (acc[col] || 0) + 1
     return acc
   }, {})
-  const hasEmptyColumns = parameterColumns.some(col => !col.trim())
-  const canProceedToTrials = hasLoadedColumns && !isSavingColumns && !isSavingSetup && !columnsDirty && !hasEmptyColumns
+  const hasEmptyColumns = parameterColumns.some(col => !parseColumnLabel(col).name.trim())
   const trialEntriesLocked = !setupLocked
 
+  // Progress tracking
+  const stepProgress = {
+    columnsReady: parameterColumns.length > 0 && !columnsDirty && !hasEmptyColumns,
+    setupSaved: setupLocked,
+    trialsAdded: trials.length > 0
+  }
+
+  // Validation for setup fields
+  const setupRequired = {
+    hasColumns: parameterColumns.length > 0,
+    hasObjective: commonSetup.objective.trim().length > 0,
+    hasEquipment: commonSetup.equipment.trim().length > 0,
+    hasDate: commonSetup.performedAt.length > 0
+  }
+
+  const setupIsValid = 
+    setupRequired.hasColumns && 
+    setupRequired.hasObjective && 
+    setupRequired.hasEquipment && 
+    setupRequired.hasDate &&
+    !columnsDirty &&
+    !hasEmptyColumns &&
+    hasLoadedColumns
+
+  const canProceedToTrials = setupIsValid && !isSavingSetup
+
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-5xl mx-auto px-6 py-8">
-        <div className="flex items-center gap-4 mb-8">
+    <div className="min-h-screen bg-gradient-to-b from-background via-background to-muted/20">
+      <div className="max-w-6xl mx-auto px-6 py-8">
+        {/* Header */}
+        <div className="mb-8">
           <Button
             variant="ghost"
             onClick={() => navigate(`/projects/${projectId}`)}
-            className="gap-2"
+            className="gap-2 mb-4"
           >
             <ArrowLeft size={16} />
             Back to Project
           </Button>
-          <div className="flex-1">
-            <h1 className="text-3xl font-bold">Trial Log</h1>
-            <p className="text-muted-foreground">
-              {project?.name || 'Project'} - Run experiments, capture trials, then move samples to analysis
+          <div>
+            <h1 className="text-4xl font-bold mb-2">Trial Log</h1>
+            <p className="text-base text-muted-foreground">
+              {project?.name || 'Project'} — Create and manage laboratory trials
             </p>
+          </div>
+        </div>
+
+        {/* Progress Steps */}
+        <div className="mb-8">
+          <div className="flex items-center gap-6">
+            {/* Step 1: Parameters */}
+            <div className="flex items-center gap-3">
+              <div className={`flex h-10 w-10 items-center justify-center rounded-full border-2 transition-all ${
+                stepProgress.columnsReady 
+                  ? 'border-green-500 bg-green-50 text-green-600' 
+                  : 'border-muted-foreground bg-muted text-muted-foreground'
+              }`}>
+                {stepProgress.columnsReady ? (
+                  <CheckCircle size={20} weight="fill" />
+                ) : (
+                  <span className="text-sm font-semibold">1</span>
+                )}
+              </div>
+              <div className="text-sm">
+                <p className="font-semibold">Columns</p>
+                <p className="text-xs text-muted-foreground">{parameterColumns.length} parameters</p>
+              </div>
+            </div>
+            <div className="h-1 flex-1 rounded-full bg-muted" />
+
+            {/* Step 2: Setup */}
+            <div className="flex items-center gap-3">
+              <div className={`flex h-10 w-10 items-center justify-center rounded-full border-2 transition-all ${
+                stepProgress.setupSaved 
+                  ? 'border-green-500 bg-green-50 text-green-600' 
+                  : 'border-muted-foreground bg-muted text-muted-foreground'
+              }`}>
+                {stepProgress.setupSaved ? (
+                  <CheckCircle size={20} weight="fill" />
+                ) : (
+                  <span className="text-sm font-semibold">2</span>
+                )}
+              </div>
+              <div className="text-sm">
+                <p className="font-semibold">Setup</p>
+                <p className="text-xs text-muted-foreground">Shared details</p>
+              </div>
+            </div>
+            <div className="h-1 flex-1 rounded-full bg-muted" />
+
+            {/* Step 3: Trials */}
+            <div className="flex items-center gap-3">
+              <div className={`flex h-10 w-10 items-center justify-center rounded-full border-2 transition-all ${
+                stepProgress.trialsAdded 
+                  ? 'border-green-500 bg-green-50 text-green-600' 
+                  : 'border-muted-foreground bg-muted text-muted-foreground'
+              }`}>
+                {stepProgress.trialsAdded ? (
+                  <CheckCircle size={20} weight="fill" />
+                ) : (
+                  <span className="text-sm font-semibold">3</span>
+                )}
+              </div>
+              <div className="text-sm">
+                <p className="font-semibold">Trials</p>
+                <p className="text-xs text-muted-foreground">{trials.length} trials</p>
+              </div>
+            </div>
           </div>
         </div>
 
         <div className="space-y-6 mb-8">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Shared Trial Details</CardTitle>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Beaker size={20} />
+                Configuration
+              </CardTitle>
               <CardDescription>
-                Step 1: Save shared settings. Step 2: Add trials using those settings.
+                Set up your experiment parameters and shared trial details
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground">
-                <div className="grid gap-2 md:grid-cols-2">
-                  <div>
-                    <span className="font-semibold text-foreground">Step 1:</span> Save columns and shared details.
-                  </div>
-                  <div>
-                    <span className="font-semibold text-foreground">Step 2:</span> Add trial rows with only trial-specific data.
-                  </div>
-                </div>
-              </div>
+            <CardContent className="space-y-6">
               {setupLocked ? (
+                // Locked state - Summary view
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <Label>Saved Setup Summary</Label>
-                    <Button type="button" variant="outline" size="sm" onClick={handleEditSetup}>
-                      Edit Setup
+                  <div className="flex items-start justify-between gap-4 rounded-lg bg-green-50 border border-green-200 p-4">
+                    <div>
+                      <p className="font-semibold text-green-900">Setup Complete</p>
+                      <p className="text-sm text-green-800">Ready to add trials. Edit to make changes.</p>
+                    </div>
+                    <Button type="button" variant="outline" size="sm" onClick={handleEditSetup} className="border-green-200">
+                      Edit
                     </Button>
                   </div>
-                  <div className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <div>
-                        <p className="font-medium text-foreground">Columns</p>
-                        <p>{parameterColumns.length > 0 ? parameterColumns.join(', ') : 'None'}</p>
-                      </div>
-                      <div>
-                        <p className="font-medium text-foreground">Default Date</p>
-                        <p>{commonSetup.performedAt || 'Not set'}</p>
-                      </div>
-                      <div>
-                        <p className="font-medium text-foreground">Objective</p>
-                        <p>{commonSetup.objective || 'Not set'}</p>
-                      </div>
-                      <div>
-                        <p className="font-medium text-foreground">Equipment</p>
-                        <p>{commonSetup.equipment || 'Not set'}</p>
-                      </div>
-                      <div className="md:col-span-2">
-                        <p className="font-medium text-foreground">Notes</p>
-                        <p>{commonSetup.notes || 'Not set'}</p>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="rounded-lg border bg-muted/30 p-4">
+                      <p className="text-xs font-semibold text-muted-foreground mb-2">PARAMETERS</p>
+                      <p className="text-sm font-medium">{parameterColumns.length} columns</p>
+                      <div className="text-xs text-muted-foreground mt-2 space-y-1 max-h-24 overflow-y-auto">
+                        {parameterColumns.length === 0 ? (
+                          <p>None</p>
+                        ) : (
+                          parameterColumns.map((col, idx) => (
+                            <p key={idx}>{col}</p>
+                          ))
+                        )}
                       </div>
                     </div>
+
+                    <div className="rounded-lg border bg-muted/30 p-4">
+                      <p className="text-xs font-semibold text-muted-foreground mb-2">DEFAULT DATE</p>
+                      <p className="text-sm font-medium">{commonSetup.performedAt || 'Not set'}</p>
+                    </div>
+
+                    {commonSetup.objective && (
+                      <div className="rounded-lg border bg-muted/30 p-4">
+                        <p className="text-xs font-semibold text-muted-foreground mb-2">OBJECTIVE</p>
+                        <p className="text-sm">{commonSetup.objective}</p>
+                      </div>
+                    )}
+
+                    {commonSetup.equipment && (
+                      <div className="rounded-lg border bg-muted/30 p-4">
+                        <p className="text-xs font-semibold text-muted-foreground mb-2">EQUIPMENT</p>
+                        <p className="text-sm">{commonSetup.equipment}</p>
+                      </div>
+                    )}
                   </div>
+
+                  {commonSetup.notes && (
+                    <div className="rounded-lg border bg-muted/30 p-4">
+                      <p className="text-xs font-semibold text-muted-foreground mb-2">NOTES</p>
+                      <p className="text-sm">{commonSetup.notes}</p>
+                    </div>
+                  )}
                 </div>
               ) : (
+                // Editable state
                 <>
+                  <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-sm text-blue-900">
+                    <p className="font-semibold mb-1">Step 1: Define Trial Parameters</p>
+                    <p className="text-sm">Create column headers for data you'll record (temperature, pressure, flow rate, etc.)</p>
+                  </div>
+
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <Label>Trial Parameters (Table Columns)</Label>
+                      <Label className="text-base font-semibold">Parameters</Label>
                       <div className="flex items-center gap-2">
                         <Button type="button" variant="outline" size="sm" onClick={addParameterColumn} className="gap-2">
                           <Plus size={14} />
                           Add Column
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={handleDiscardColumns}
-                          disabled={!columnsDirty}
-                          className="gap-2"
-                        >
-                          Discard Changes
                         </Button>
                         <Button
                           type="button"
@@ -609,16 +805,57 @@ export function ProjectTrialsPage({ user }: ProjectTrialsPageProps) {
                           className="gap-2"
                         >
                           <FloppyDisk size={14} />
-                          {isSavingColumns ? 'Saving...' : columnsDirty ? 'Save Columns' : 'Saved'}
+                          {isSavingColumns ? 'Saving...' : columnsDirty ? 'Save' : 'Saved'}
                         </Button>
-                        {columnsDirty && !isSavingColumns && (
-                          <span className="text-xs text-muted-foreground">Unsaved changes</span>
+                        {columnsDirty && (
+                          <span className="text-xs text-amber-600 font-medium">Unsaved</span>
                         )}
                       </div>
                     </div>
+
+                    {parameterColumns.length > 0 ? (
+                      <div className="space-y-2">
+                        {parameterColumns.map((col, index) => {
+                          const parsed = parseColumnLabel(col)
+                          return (
+                            <div key={`param-${index}`} className="flex gap-2 items-end">
+                              <div className="flex-1 space-y-1">
+                                <Input
+                                  value={parsed.name}
+                                  onChange={(e) => updateParameterName(index, e.target.value)}
+                                  placeholder="Column name"
+                                  className="text-sm"
+                                />
+                                {!parsed.name.trim() && (
+                                  <p className="text-xs text-red-600">Required</p>
+                                )}
+                              </div>
+                              <Input
+                                value={parsed.unit}
+                                onChange={(e) => updateParameterUnit(index, e.target.value)}
+                                placeholder="Unit (optional)"
+                                className="w-32 text-sm"
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => removeParameterColumn(index)}
+                                className="border-red-200 text-red-600 hover:bg-red-50"
+                              >
+                                <X size={16} />
+                              </Button>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-muted-foreground italic">No columns yet—start by adding one</div>
+                    )}
+
                     {removedColumns.length > 0 && (
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        <span>Removed:</span>
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <span className="text-muted-foreground">Removed:</span>
                         {removedColumns.map((column) => (
                           <Button
                             key={column}
@@ -626,100 +863,174 @@ export function ProjectTrialsPage({ user }: ProjectTrialsPageProps) {
                             variant="outline"
                             size="sm"
                             onClick={() => restoreParameterColumn(column)}
-                            className="h-7"
+                            className="h-7 text-xs"
                           >
-                            Restore {column}
+                            ↺ {column}
                           </Button>
                         ))}
                       </div>
                     )}
-                    {parameterColumns.length === 0 && (
-                      <div className="text-xs text-muted-foreground">
-                        Add column names like temperature, pressure, flow_rate to capture readings per trial.
-                      </div>
-                    )}
-                    {parameterColumns.length > 0 && (
-                      <div className="text-xs text-muted-foreground">
-                        Removing a column only hides its readings. Saved trials keep their original values.
-                      </div>
-                    )}
-                    {parameterColumns.map((col, index) => (
-                      <div key={`param-${index}`} className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Input
-                            value={col}
-                            onChange={(e) => updateParameterColumn(index, e.target.value)}
-                            placeholder="e.g., temperature"
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            className="text-red-600 hover:text-red-700"
-                            onClick={() => removeParameterColumn(index)}
-                          >
-                            <X size={14} />
+
+                    {/* Excel Paste Section - Collapsed */}
+                    <details className="group">
+                      <summary className="cursor-pointer text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1">
+                        <span className="text-xs">▶</span> Quick Add from Excel (paste headers)
+                      </summary>
+                      <div className="mt-3 border rounded-lg bg-muted/20 p-3 space-y-2">
+                        <Textarea
+                          value={columnPasteInput}
+                          onChange={(e) => setColumnPasteInput(e.target.value)}
+                          placeholder="Paste Excel header row (tab or comma separated)"
+                          rows={2}
+                          className="text-sm"
+                        />
+                        <div className="flex gap-2">
+                          <Button type="button" variant="outline" size="sm" onClick={appendColumnsFromPaste}>
+                            Append
+                          </Button>
+                          <Button type="button" variant="outline" size="sm" onClick={replaceColumnsFromPaste}>
+                            Replace
                           </Button>
                         </div>
-                        {!col.trim() && (
-                          <p className="text-xs text-red-600">Column name is required.</p>
-                        )}
-                        {!!col.trim() && columnCounts[col.trim()] > 1 && (
-                          <p className="text-xs text-red-600">Duplicate column name.</p>
+                      </div>
+                    </details>
+                  </div>
+
+                  <div className="border-t pt-6">
+                    <div className="rounded-lg bg-indigo-50 border border-indigo-200 p-3 text-sm text-indigo-900 mb-4">
+                      <p className="font-semibold mb-1">Step 2: Add Shared Details</p>
+                      <p className="text-sm">Complete all required fields to unlock trial entry <span className="text-red-600">*</span></p>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="common-objective" className="font-semibold">Objective <span className="text-red-600">*</span></Label>
+                          {setupRequired.hasObjective && <CheckCircle size={16} className="text-green-600" />}
+                        </div>
+                        <Textarea
+                          id="common-objective"
+                          value={commonSetup.objective}
+                          onChange={(e) => setCommonSetup({ ...commonSetup, objective: e.target.value })}
+                          placeholder="What are you trying to achieve with this experiment?"
+                          rows={2}
+                          className="text-sm"
+                        />
+                        {!setupRequired.hasObjective && (
+                          <p className="text-xs text-red-600">Required field</p>
                         )}
                       </div>
-                    ))}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="common-objective">Objective</Label>
-                    <Textarea
-                      id="common-objective"
-                      value={commonSetup.objective}
-                      onChange={(e) => setCommonSetup({ ...commonSetup, objective: e.target.value })}
-                      placeholder="What are you trying to learn or improve?"
-                      rows={3}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="common-equipment">Equipment</Label>
-                      <Textarea
-                        id="common-equipment"
-                        value={commonSetup.equipment}
-                        onChange={(e) => setCommonSetup({ ...commonSetup, equipment: e.target.value })}
-                        placeholder="Reactors, pumps, detectors, etc."
-                        rows={3}
-                      />
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="common-equipment" className="font-semibold">Equipment <span className="text-red-600">*</span></Label>
+                            {setupRequired.hasEquipment && <CheckCircle size={16} className="text-green-600" />}
+                          </div>
+                          <Textarea
+                            id="common-equipment"
+                            value={commonSetup.equipment}
+                            onChange={(e) => setCommonSetup({ ...commonSetup, equipment: e.target.value })}
+                            placeholder="e.g., Reactor A, Pump 1, Temperature probe"
+                            rows={2}
+                            className="text-sm"
+                          />
+                          {!setupRequired.hasEquipment && (
+                            <p className="text-xs text-red-600">Required field</p>
+                          )}
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="common-notes" className="font-semibold">Notes (Optional)</Label>
+                          <Textarea
+                            id="common-notes"
+                            value={commonSetup.notes}
+                            onChange={(e) => setCommonSetup({ ...commonSetup, notes: e.target.value })}
+                            placeholder="Observations, conditions, or special notes"
+                            rows={2}
+                            className="text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="common-date" className="font-semibold">Default Date <span className="text-red-600">*</span></Label>
+                          {setupRequired.hasDate && <CheckCircle size={16} className="text-green-600" />}
+                        </div>
+                        <Input
+                          id="common-date"
+                          type="date"
+                          value={commonSetup.performedAt}
+                          onChange={(e) => setCommonSetup({ ...commonSetup, performedAt: e.target.value })}
+                          className="text-sm"
+                        />
+                        {!setupRequired.hasDate && (
+                          <p className="text-xs text-red-600">Required field</p>
+                        )}
+                      </div>
+
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-900">
+                        <p className="font-semibold mb-2">Configuration Status:</p>
+                        <div className="space-y-1 text-xs">
+                          <div className="flex items-center gap-2">
+                            {setupRequired.hasColumns ? (
+                              <CheckCircle size={14} className="text-green-600" />
+                            ) : (
+                              <Circle size={14} className="text-gray-400" />
+                            )}
+                            <span>{parameterColumns.length} parameters added</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {setupRequired.hasObjective ? (
+                              <CheckCircle size={14} className="text-green-600" />
+                            ) : (
+                              <Circle size={14} className="text-gray-400" />
+                            )}
+                            <span>Objective defined</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {setupRequired.hasEquipment ? (
+                              <CheckCircle size={14} className="text-green-600" />
+                            ) : (
+                              <Circle size={14} className="text-gray-400" />
+                            )}
+                            <span>Equipment listed</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {setupRequired.hasDate ? (
+                              <CheckCircle size={14} className="text-green-600" />
+                            ) : (
+                              <Circle size={14} className="text-gray-400" />
+                            )}
+                            <span>Date selected</span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="common-notes">Notes</Label>
-                      <Textarea
-                        id="common-notes"
-                        value={commonSetup.notes}
-                        onChange={(e) => setCommonSetup({ ...commonSetup, notes: e.target.value })}
-                        placeholder="Observations, deviations, or outcomes"
-                        rows={3}
-                      />
-                    </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="common-date">Default Date</Label>
-                      <Input
-                        id="common-date"
-                        type="date"
-                        value={commonSetup.performedAt}
-                        onChange={(e) => setCommonSetup({ ...commonSetup, performedAt: e.target.value })}
-                      />
+
+                  {!canProceedToTrials && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-900 mt-6">
+                      <p className="font-semibold mb-2">Cannot proceed yet. Missing:</p>
+                      <ul className="space-y-1 text-xs ml-2">
+                        {!setupRequired.hasColumns && <li>• Define at least one parameter column</li>}
+                        {!setupRequired.hasObjective && <li>• Fill in the objective</li>}
+                        {!setupRequired.hasEquipment && <li>• List the equipment</li>}
+                        {!setupRequired.hasDate && <li>• Select a date</li>}
+                        {columnsDirty && <li>• Save parameter changes</li>}
+                        {hasEmptyColumns && <li>• Remove empty parameter columns</li>}
+                      </ul>
                     </div>
-                  </div>
-                  <div className="flex justify-end gap-3">
+                  )}
+
+                  <div className="flex justify-end gap-3 pt-4 border-t mt-6">
                     <Button
                       type="button"
                       variant="outline"
                       onClick={handleResetSetup}
                       disabled={isSavingSetup}
                     >
-                      Reset Setup
+                      Reset
                     </Button>
                     <Button
                       type="button"
@@ -737,14 +1048,16 @@ export function ProjectTrialsPage({ user }: ProjectTrialsPageProps) {
 
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center justify-between gap-4">
                 <div>
-                  <CardTitle className="text-lg">Trial Entries</CardTitle>
-                  <CardDescription>Add each trial as a row, then save them together.</CardDescription>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <TestTube size={20} />
+                    Trial Entries
+                  </CardTitle>
+                  <CardDescription>Add trials. Step 3 of 3.</CardDescription>
                 </div>
                 <Button
                   type="button"
-                  variant="outline"
                   onClick={addTrialRow}
                   className="gap-2"
                   disabled={trialEntriesLocked}
@@ -756,79 +1069,107 @@ export function ProjectTrialsPage({ user }: ProjectTrialsPageProps) {
             </CardHeader>
             <CardContent className="space-y-4">
               {trialEntriesLocked && (
-                <div className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
-                  Complete Step 1 to unlock trial entry.
+                <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-900">
+                  <p className="font-semibold">Complete Configuration First</p>
+                  <p className="text-xs">Save your parameters and shared details to start adding trials</p>
                 </div>
               )}
-              <div className={trialEntriesLocked ? 'space-y-4 opacity-60 pointer-events-none' : 'space-y-4'}>
-                <div
-                  className="grid gap-3 text-xs font-medium text-muted-foreground"
-                  style={{
-                    gridTemplateColumns: `2fr 1fr 1fr ${
-                      parameterColumns.length > 0 ? `repeat(${parameterColumns.length}, minmax(120px, 1fr))` : ''
-                    } 40px`
-                  }}
-                >
-                  <div>Trial Name *</div>
-                  <div>Status</div>
-                  <div>Date</div>
-                  {parameterColumns.map((col, index) => (
-                    <div key={`header-${index}`}>{col || 'Parameter'}</div>
-                  ))}
-                  <div></div>
-                </div>
-                {trialRows.map((row) => (
-                  <div
-                    key={row.id}
-                    className="grid gap-3 items-center"
-                    style={{
-                      gridTemplateColumns: `2fr 1fr 1fr ${
-                        parameterColumns.length > 0 ? `repeat(${parameterColumns.length}, minmax(120px, 1fr))` : ''
-                      } 40px`
-                    }}
-                  >
-                    <Input
-                      value={row.name}
-                      onChange={(e) => updateTrialRow(row.id, { name: e.target.value })}
-                      placeholder="e.g., Trial 5TE"
-                    />
-                    <Select
-                      value={row.status}
-                      onValueChange={(value) => updateTrialRow(row.id, { status: value as Trial['status'] })}
+              <div className={trialEntriesLocked ? 'space-y-4 opacity-50 pointer-events-none' : 'space-y-4'}>
+                {trialRows.length > 0 && (
+                  <div className="overflow-x-auto border rounded-lg bg-muted/30">
+                    <div
+                      className="grid gap-2 p-3 text-xs font-semibold text-muted-foreground bg-muted/50 sticky top-0"
+                      style={{
+                        gridTemplateColumns: `1.5fr 1fr 1.2fr ${
+                          parameterColumns.length > 0 ? `repeat(${Math.min(parameterColumns.length, 3)}, 1fr)` : ''
+                        } 40px`
+                      }}
                     >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="planned">Planned</SelectItem>
-                        <SelectItem value="running">Running</SelectItem>
-                        <SelectItem value="completed">Completed</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Input
-                      type="date"
-                      value={row.performedAt}
-                      onChange={(e) => updateTrialRow(row.id, { performedAt: e.target.value })}
-                    />
-                    {parameterColumns.map((col, index) => (
-                      <Input
-                        key={`cell-${row.id}-${index}`}
-                        value={row.readings[col] || ''}
-                        onChange={(e) => updateTrialReading(row.id, col, e.target.value)}
-                        placeholder={col || 'Value'}
-                      />
-                    ))}
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="text-red-600 hover:text-red-700"
-                      onClick={() => removeTrialRow(row.id)}
-                      disabled={trialRows.length === 1}
-                    >
-                      <X size={16} />
-                    </Button>
+                      <div>Trial Name</div>
+                      <div>Status</div>
+                      <div>Date</div>
+                      {parameterColumns.slice(0, 3).map((col, index) => {
+                        const parsed = parseColumnLabel(col)
+                        return (
+                          <div key={`header-${index}`} className="truncate">
+                            <div className="truncate">{parsed.name || 'Parameter'}</div>
+                          </div>
+                        )
+                      })}
+                      {parameterColumns.length > 3 && (
+                        <div className="text-muted-foreground">+{parameterColumns.length - 3}</div>
+                      )}
+                      <div></div>
+                    </div>
+
+                    <div className="space-y-1 p-2">
+                      {trialRows.map((row, idx) => (
+                        <div
+                          key={row.id}
+                          className="grid gap-2 items-center bg-background rounded p-2 hover:bg-muted/40 transition-colors"
+                          style={{
+                            gridTemplateColumns: `1.5fr 1fr 1.2fr ${
+                              parameterColumns.length > 0 ? `repeat(${Math.min(parameterColumns.length, 3)}, 1fr)` : ''
+                            } 40px`
+                          }}
+                        >
+                          <Input
+                            value={row.name}
+                            onChange={(e) => updateTrialRow(row.id, { name: e.target.value })}
+                            placeholder="Trial name"
+                            className="text-sm"
+                          />
+                          <Select
+                            value={row.status}
+                            onValueChange={(value) => updateTrialRow(row.id, { status: value as Trial['status'] })}
+                          >
+                            <SelectTrigger className="text-sm">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="planned">Planned</SelectItem>
+                              <SelectItem value="running">Running</SelectItem>
+                              <SelectItem value="completed">Completed</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Input
+                            type="date"
+                            value={row.performedAt}
+                            onChange={(e) => updateTrialRow(row.id, { performedAt: e.target.value })}
+                            className="text-sm"
+                          />
+                          {parameterColumns.slice(0, 3).map((col, index) => (
+                            <Input
+                              key={`cell-${row.id}-${index}`}
+                              value={row.readings[col] || ''}
+                              onChange={(e) => updateTrialReading(row.id, col, e.target.value)}
+                              placeholder="Value"
+                              className="text-sm"
+                            />
+                          ))}
+                          {parameterColumns.length > 3 && <div></div>}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeTrialRow(row.id)}
+                            disabled={trialRows.length === 1}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <X size={16} />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                ))}
+                )}
+
+                {trialRows.length === 1 && parameterColumns.length > 3 && (
+                  <div className="text-xs text-muted-foreground italic">
+                    Showing first 3 parameters. Scroll right to see all {parameterColumns.length} parameters.
+                  </div>
+                )}
+
                 <div className="flex justify-end gap-3 pt-2">
                   <Button onClick={handleSaveTrials} disabled={isLoading} className="gap-2">
                     <FloppyDisk size={16} />
@@ -841,91 +1182,131 @@ export function ProjectTrialsPage({ user }: ProjectTrialsPageProps) {
 
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold">Saved Trials</h2>
+              <p className="text-sm text-muted-foreground">{trials.length} trial{trials.length !== 1 ? 's' : ''} recorded</p>
+            </div>
+          </div>
+
           {trials.length === 0 ? (
             <Card className="border-dashed">
-              <CardHeader>
-                <CardTitle>No trials yet</CardTitle>
-                <CardDescription>
-                  Start by creating your first experiment trial. Then add samples to move them into analysis.
+              <CardContent className="pt-12 pb-12 text-center">
+                <TestTube size={40} className="mx-auto mb-4 text-muted-foreground opacity-50" />
+                <CardTitle className="mb-2">No Trials Yet</CardTitle>
+                <CardDescription className="mb-4">
+                  Create your first trial using the form above, then add samples for analysis.
                 </CardDescription>
-              </CardHeader>
+              </CardContent>
             </Card>
           ) : (
-            trials.map((trial) => (
-              <Card key={trial.id}>
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <CardTitle className="flex items-center gap-2">
-                        <TestTube size={18} />
-                        {trial.name}
-                      </CardTitle>
-                      <CardDescription>
-                        {trial.objective || 'No objective recorded'}
-                      </CardDescription>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" onClick={() => openSampleDialog(trial)} className="gap-2">
-                        <Plus size={14} />
-                        Add Sample
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground">
-                    <div>
-                      <p className="font-medium text-foreground">Parameters</p>
-                      <p>{trial.parameters || 'Not set'}</p>
-                    </div>
-                    <div>
-                      <p className="font-medium text-foreground">Equipment</p>
-                      <p>{trial.equipment || 'Not set'}</p>
-                    </div>
-                    <div>
-                      <p className="font-medium text-foreground">Notes</p>
-                      <p>{trial.notes || 'Not set'}</p>
-                    </div>
-                    <div>
-                      <p className="font-medium text-foreground">Status</p>
-                      <p className="capitalize">{trial.status}</p>
-                    </div>
-                  </div>
-
-                  <div className="border-t pt-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="font-semibold">Trial Samples</p>
-                      <span className="text-xs text-muted-foreground">
-                        {samplesByTrial[trial.id]?.length || 0} samples
-                      </span>
-                    </div>
-                    <div className="space-y-2">
-                      {(samplesByTrial[trial.id] || []).map(sample => (
-                        <div key={sample.id} className="flex items-center justify-between gap-4 rounded-md border px-3 py-2">
-                          <div>
-                            <p className="font-medium">{sample.sample_id || sample.name}</p>
-                            <p className="text-xs text-muted-foreground">{sample.description}</p>
+            <div className="grid gap-4">
+              {trials.map((trial) => {
+                const samples = samplesByTrial[trial.id] || []
+                const statusColors = {
+                  planned: 'bg-blue-100 text-blue-800 border-blue-200',
+                  running: 'bg-amber-100 text-amber-800 border-amber-200',
+                  completed: 'bg-green-100 text-green-800 border-green-200'
+                }
+                return (
+                  <Card key={trial.id} className="overflow-hidden hover:shadow-md transition-shadow">
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b px-6 py-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <TestTube size={18} className="text-blue-600" />
+                            <h3 className="text-lg font-bold">{trial.name}</h3>
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${statusColors[trial.status as keyof typeof statusColors] || statusColors.planned}`}>
+                              {trial.status.charAt(0).toUpperCase() + trial.status.slice(1)}
+                            </span>
                           </div>
+                          {trial.objective && (
+                            <p className="text-sm text-muted-foreground italic">{trial.objective}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <CardContent className="pt-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                        {trial.equipment && (
+                          <div className="rounded-lg border bg-muted/40 p-3">
+                            <p className="text-xs font-semibold text-muted-foreground mb-1">Equipment</p>
+                            <p className="text-sm font-medium">{trial.equipment}</p>
+                          </div>
+                        )}
+                        {trial.notes && (
+                          <div className="rounded-lg border bg-muted/40 p-3">
+                            <p className="text-xs font-semibold text-muted-foreground mb-1">Notes</p>
+                            <p className="text-sm">{trial.notes}</p>
+                          </div>
+                        )}
+                        <div className="rounded-lg border bg-muted/40 p-3">
+                          <p className="text-xs font-semibold text-muted-foreground mb-1">Date</p>
+                          <p className="text-sm font-medium">
+                            {trial.performed_at ? new Date(trial.performed_at).toLocaleDateString() : 'Not specified'}
+                          </p>
+                        </div>
+                        <div className="rounded-lg border bg-blue-50 p-3 border-blue-200">
+                          <p className="text-xs font-semibold text-blue-900 mb-1">Samples</p>
+                          <p className="text-lg font-bold text-blue-600">{samples.length}</p>
+                        </div>
+                      </div>
+
+                      {/* Samples Section */}
+                      <div className="border-t pt-4">
+                        <div className="flex items-center justify-between mb-4">
+                          <h4 className="font-semibold text-sm">Attached Samples</h4>
                           <Button
                             variant="outline"
                             size="sm"
+                            onClick={() => openSampleDialog(trial)}
                             className="gap-2"
-                            onClick={() => handleMoveToAnalysis(sample)}
                           >
-                            <ChartBar size={14} />
-                            Move to Analysis
+                            <Plus size={14} />
+                            Add Sample
                           </Button>
                         </div>
-                      ))}
-                      {(samplesByTrial[trial.id] || []).length === 0 && (
-                        <div className="text-sm text-muted-foreground">No samples attached yet.</div>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
+
+                        {samples.length === 0 ? (
+                          <div className="text-center py-6 border rounded-lg bg-muted/30">
+                            <p className="text-sm text-muted-foreground">No samples yet</p>
+                            <p className="text-xs text-muted-foreground mt-1">Add samples to prepare for analysis</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {samples.map((sample) => (
+                              <div
+                                key={sample.id}
+                                className="flex items-center justify-between gap-3 rounded-lg border bg-background p-3 hover:bg-muted/50 transition-colors"
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium text-sm truncate">{sample.sample_id || sample.name}</p>
+                                  <p className="text-xs text-muted-foreground truncate">{sample.description}</p>
+                                  {sample.type && (
+                                    <p className="text-xs text-muted-foreground mt-1">Type: {sample.type}</p>
+                                  )}
+                                </div>
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  onClick={() => handleMoveToAnalysis(sample)}
+                                  className="gap-1 shrink-0"
+                                >
+                                  <ChartBar size={14} />
+                                  Analyze
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
           )}
         </div>
       </div>
@@ -935,45 +1316,64 @@ export function ProjectTrialsPage({ user }: ProjectTrialsPageProps) {
           <DialogHeader>
             <DialogTitle>Add Sample to Trial</DialogTitle>
             <DialogDescription>
-              {selectedTrial ? `Attach a sample output for ${selectedTrial.name}` : 'Attach a sample output'}
+              {selectedTrial ? `Record a sample output from trial: ${selectedTrial.name}` : 'Record a sample output'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            {selectedTrial && (
+              <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 flex items-start gap-3">
+                <TestTube size={20} className="text-blue-600 flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-blue-900">
+                  <p className="font-semibold">Trial: {selectedTrial.name}</p>
+                  <p className="text-xs text-blue-800 mt-1 opacity-80">{selectedTrial.objective || 'No objective recorded'}</p>
+                </div>
+              </div>
+            )}
+
             <div className="space-y-2">
-              <Label htmlFor="sample-id">Sample ID *</Label>
+              <Label htmlFor="sample-id" className="font-semibold">Sample ID *</Label>
               <Input
                 id="sample-id"
                 value={sampleForm.sampleId}
                 onChange={(e) => setSampleForm({ ...sampleForm, sampleId: e.target.value })}
-                placeholder="e.g., RXN-001-A"
+                placeholder="e.g., RXN-001-A, S001-crude, mixture-1a"
+                className="text-sm"
               />
+              <p className="text-xs text-muted-foreground">Unique identifier for this sample output</p>
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="sample-description">Description *</Label>
+              <Label htmlFor="sample-description" className="font-semibold">Description *</Label>
               <Textarea
                 id="sample-description"
                 value={sampleForm.description}
                 onChange={(e) => setSampleForm({ ...sampleForm, description: e.target.value })}
-                placeholder="What output or fraction is this sample?"
+                placeholder="What is this sample? (e.g., crude reaction mixture, purified product, intermediate)"
                 rows={3}
+                className="text-sm"
               />
+              <p className="text-xs text-muted-foreground">Required—what was collected or produced</p>
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="sample-type">Type</Label>
+              <Label htmlFor="sample-type" className="font-semibold">Type (optional)</Label>
               <Input
                 id="sample-type"
                 value={sampleForm.type}
                 onChange={(e) => setSampleForm({ ...sampleForm, type: e.target.value })}
-                placeholder="e.g., intermediate, crude, purified"
+                placeholder="e.g., crude, purified, intermediate, standard, blank"
+                className="text-sm"
               />
+              <p className="text-xs text-muted-foreground">Categorize the sample type for better organization</p>
             </div>
-            <div className="flex justify-end gap-3">
+
+            <div className="flex justify-end gap-3 pt-4 border-t">
               <Button variant="outline" onClick={() => setIsSampleDialogOpen(false)}>
                 Cancel
               </Button>
               <Button onClick={handleCreateSample} disabled={isLoading} className="gap-2">
                 <FloppyDisk size={16} />
-                {isLoading ? 'Saving...' : 'Add Sample'}
+                {isLoading ? 'Adding...' : 'Add Sample'}
               </Button>
             </div>
           </div>

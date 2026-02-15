@@ -646,7 +646,7 @@ const MODULES: PlatformModule[] = [
         roles: ['*'] // Anyone can initiate onboarding
       }
     ],
-    databaseTables: ['Organizations', 'Workspace', 'CompanyOnboarding', 'UserInvitations', 'CompanyPayments']
+    databaseTables: ['Organizations', 'CompanyOnboarding', 'UserInvitations', 'CompanyPayments']
   },
   {
     id: 'integration',
