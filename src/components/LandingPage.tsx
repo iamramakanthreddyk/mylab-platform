@@ -116,7 +116,7 @@ const LandingPage: React.FC = () => {
             <div className="flex justify-center items-center space-x-8 text-sm text-gray-500">
               <div className="flex items-center space-x-2">
                 <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
-                <span>Precursors</span>
+                <span>Raw Materials</span>
               </div>
               <div className="w-16 h-0.5 bg-gradient-to-r from-blue-500 to-purple-500"></div>
               <div className="flex items-center space-x-2">
@@ -140,9 +140,9 @@ const LandingPage: React.FC = () => {
           <div className="grid md:grid-cols-2 gap-12">
             <div className="bg-white p-8 rounded-lg shadow-sm">
               <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
-                <span className="text-blue-600 font-bold text-xl">T</span>
+                <span className="text-blue-600 text-xl">🔬</span>
               </div>
-              <h4 className="text-2xl font-semibold mb-4 text-gray-900">Our Profile</h4>
+              <h4 className="text-2xl font-semibold mb-4 text-gray-900">About Us</h4>
               <p className="text-gray-600 mb-6">
                 Young & Nimble, TEKFLOW LABS Pvt. Ltd. is a privately held Project Management company founded by a team of Pharma professionals with 8+ years of experience in flow chemistry process optimization. We are process intensification enthusiasts, with background of chemical engineering having excellent academic records, sound technology expertise and implementation skills.
               </p>
@@ -157,9 +157,9 @@ const LandingPage: React.FC = () => {
             </div>
             <div className="bg-white p-8 rounded-lg shadow-sm">
               <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-                <span className="text-green-600 font-bold text-xl">P</span>
+                <span className="text-green-600 text-xl">🤝</span>
               </div>
-              <h4 className="text-2xl font-semibold mb-4 text-gray-900">Our Technology Partner</h4>
+              <h4 className="text-2xl font-semibold mb-4 text-gray-900">Strategic Partners</h4>
               <p className="text-gray-600 mb-4">
                 We are proud to collaborate with innovative and forward-thinking companies. One of our esteemed Partner is Flowrhex, a leader in the field of flow chemistry technology.
               </p>

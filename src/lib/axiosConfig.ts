@@ -35,27 +35,25 @@ axiosInstance.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Log the 401 but don't automatically clear token
-      // Let the component decide what to do based on context
+      const serverError = error.response?.data?.error || ''
+      
+      // Log the 401 for debugging
       console.warn('[axios] Got 401 response:', {
         url: error.config?.url,
         method: error.config?.method,
-        message: error.response?.data?.error
+        message: serverError
       })
       
-      // Only clear token for specific errors that indicate invalid/expired token
-      const serverError = error.response?.data?.error || ''
-      const shouldClearToken = 
-        serverError.toLowerCase().includes('invalid token') ||
-        serverError.toLowerCase().includes('expired') ||
-        serverError.toLowerCase().includes('malformed') ||
-        serverError.toLowerCase().includes('revoked')
+      // Clear token on ANY 401 - token is either invalid, expired, or user no longer has access
+      // This handles: invalid token, expired token, user not found, etc.
+      console.warn('[axios] Clearing auth due to 401 response')
+      localStorage.removeItem('authToken')
+      localStorage.removeItem('user')
+      localStorage.removeItem('adminToken')
+      localStorage.removeItem('adminUser')
       
-      if (shouldClearToken) {
-        console.warn('[axios] Token is invalid/expired, clearing auth')
-        localStorage.removeItem('authToken')
-        localStorage.removeItem('user')
-      }
+      // Optional: Navigate to login if in app context
+      // window.location.href = '/login'
     }
     return Promise.reject(error)
   }
