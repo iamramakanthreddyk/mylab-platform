@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { jsPDF } from 'jspdf'
 import axiosInstance from '@/lib/axiosConfig'
 import { User, Project, Sample } from '@/lib/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -178,6 +179,110 @@ export function ProjectDetails({ user }: ProjectDetailsProps) {
     } catch (error: any) {
       console.error('Failed to delete sample:', error)
       toast.error(error.response?.data?.error?.message || 'Failed to delete sample')
+    }
+  }
+
+  const handleGenerateReport = () => {
+    if (!project || analyses.length === 0) {
+      toast.error('No analyses available to generate report')
+      return
+    }
+
+    try {
+      // Create PDF document
+      const doc = new jsPDF()
+      let yPosition = 20
+      const pageWidth = doc.internal.pageSize.getWidth()
+      const pageHeight = doc.internal.pageSize.getHeight()
+      const margin = 15
+      const contentWidth = pageWidth - 2 * margin
+
+      // Helper function to add text and manage page breaks
+      const addText = (text: string, options: any = {}) => {
+        const { fontSize = 12, isBold = false, isTitle = false } = options
+        doc.setFontSize(fontSize)
+        if (isBold) doc.setFont(undefined, 'bold')
+        else doc.setFont(undefined, 'normal')
+        
+        const lines = doc.splitTextToSize(text, contentWidth)
+        const lineHeight = fontSize / 2.5
+        
+        lines.forEach((line: string) => {
+          if (yPosition > pageHeight - margin) {
+            doc.addPage()
+            yPosition = margin
+          }
+          doc.text(line, margin, yPosition)
+          yPosition += lineHeight
+        })
+      }
+
+      // Header
+      addText('RESEARCH PROJECT REPORT', { fontSize: 20, isBold: true, isTitle: true })
+      yPosition += 5
+
+      // Project Information Section
+      addText('Project Information', { fontSize: 14, isBold: true })
+      yPosition += 3
+      addText(`Project: ${project.name}`)
+      addText(`Status: ${project.status}`)
+      addText(`Workflow Mode: ${project.workflowMode}`)
+      if (project.description) {
+        addText(`Description: ${project.description}`)
+      }
+      addText(`Created: ${new Date(project.created_at).toLocaleDateString()}`)
+      yPosition += 8
+
+      // Summary Statistics Section
+      addText('Summary Statistics', { fontSize: 14, isBold: true })
+      yPosition += 3
+      const successRate = analyses.length > 0 
+        ? Math.round((analyses.filter(a => a.status === 'completed').length / analyses.length) * 100)
+        : 0
+      
+      addText(`Samples Processed: ${samples.length}`)
+      addText(`Total Analyses: ${analyses.length}`)
+      addText(`Analyses Completed: ${analyses.filter(a => a.status === 'completed').length}`)
+      addText(`Analyses Pending: ${analyses.filter(a => a.status === 'pending').length}`)
+      addText(`Analyses Failed: ${analyses.filter(a => a.status === 'failed').length}`)
+      addText(`Success Rate: ${successRate}%`)
+      yPosition += 8
+
+      // Analysis Results Section
+      addText('Analysis Results', { fontSize: 14, isBold: true })
+      yPosition += 3
+
+      analyses.forEach((analysis, index) => {
+        addText(`Analysis ${index + 1}: ${analysis.analysis_type_name || analysis.type}`, { isBold: true })
+        addText(`  Status: ${analysis.status}`)
+        addText(`  Date: ${new Date(analysis.created_at).toLocaleDateString()}`)
+        if (analysis.performed_at) {
+          addText(`  Performed: ${new Date(analysis.performed_at).toLocaleDateString()}`)
+        }
+        if (analysis.results) {
+          const resultsStr = typeof analysis.results === 'string' 
+            ? analysis.results 
+            : JSON.stringify(analysis.results, null, 2)
+          addText(`  Results: ${resultsStr.substring(0, 150)}${resultsStr.length > 150 ? '...' : ''}`)
+        }
+        yPosition += 2
+      })
+
+      yPosition += 5
+
+      // Footer
+      const footerText = `Report generated on ${new Date().toLocaleString()}`
+      doc.setFontSize(9)
+      doc.text(footerText, margin, pageHeight - 10)
+
+      // Save the PDF
+      const fileName = `${project.name}-report-${new Date().toISOString().split('T')[0]}.pdf`
+      doc.save(fileName)
+
+      toast.success('Report generated and downloaded successfully')
+    } catch (error) {
+      console.error('Failed to generate report:', error)
+      toast.error('Failed to generate report')
     }
   }
 
@@ -588,7 +693,11 @@ export function ProjectDetails({ user }: ProjectDetailsProps) {
                 </div>
                 {analyses.length > 0 && (
                   <div className="flex gap-2">
-                    <Button variant="outline" className="gap-2">
+                    <Button 
+                      variant="outline" 
+                      className="gap-2"
+                      onClick={handleGenerateReport}
+                    >
                       <FileText size={16} />
                       Generate Report
                     </Button>
@@ -665,6 +774,7 @@ export function ProjectDetails({ user }: ProjectDetailsProps) {
                   variant="ghost" 
                   className="h-auto flex-col gap-2 p-4"
                   disabled={samples.length === 0}
+                  onClick={() => navigate(`/projects/${id}/create-analysis`)}
                 >
                   <ChartBar size={20} className={samples.length > 0 ? 'text-purple-500' : 'text-gray-400'} />
                   <span className="text-sm">Run Analysis</span>
@@ -673,6 +783,7 @@ export function ProjectDetails({ user }: ProjectDetailsProps) {
                   variant="ghost" 
                   className="h-auto flex-col gap-2 p-4"
                   disabled={analyses.length === 0}
+                  onClick={() => analyses.length > 0 && handleGenerateReport()}
                 >
                   <FileText size={20} className={analyses.length > 0 ? 'text-orange-500' : 'text-gray-400'} />
                   <span className="text-sm">View Results</span>

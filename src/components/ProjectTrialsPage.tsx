@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ArrowLeft, Plus, TestTube, FloppyDisk, ChartBar, X, CheckCircle, Circle, Beaker } from '@phosphor-icons/react'
+import { ArrowLeft, Plus, TestTube, FloppyDisk, ChartBar, X, CheckCircle, Circle, Flask } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 
 interface ProjectTrialsPageProps {
@@ -718,7 +718,7 @@ export function ProjectTrialsPage({ user }: ProjectTrialsPageProps) {
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
-                <Beaker size={20} />
+                <Flask size={20} />
                 Configuration
               </CardTitle>
               <CardDescription>

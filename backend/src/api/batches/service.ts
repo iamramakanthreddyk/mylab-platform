@@ -155,13 +155,15 @@ export class BatchService {
         if (orgResult.rows.length === 0) {
           // Auto-create a default internal organization for this workspace
           logger.info('No organization found, creating default internal organization', { workspaceId });
+          const orgName = 'Default Internal Lab';
+          const orgSlug = orgName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
           const createOrgResult = await pool.query(
             `
-            INSERT INTO Organizations (workspace_id, name, type)
-            VALUES ($1, $2, $3::org_type)
+            INSERT INTO Organizations (workspace_id, name, slug, type)
+            VALUES ($1, $2, $3, $4::org_type)
             RETURNING id
             `,
-            [workspaceId, 'Default Internal Lab', 'analyzer']
+            [workspaceId, orgName, orgSlug, 'analyzer']
           );
           
           if (createOrgResult.rows.length === 0) {

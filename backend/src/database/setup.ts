@@ -1087,6 +1087,22 @@ export class DatabaseSetup {
         console.warn('Note: Could not fix BatchItems constraint:', (err as Error).message);
       }
 
+      // Fix original_workspace_id constraint for Batches
+      try {
+        await this.pool.query(`
+          ALTER TABLE Batches
+          DROP CONSTRAINT IF EXISTS batches_original_workspace_id_fkey;
+        `);
+        await this.pool.query(`
+          ALTER TABLE Batches
+          ADD CONSTRAINT batches_original_workspace_id_fkey 
+          FOREIGN KEY (original_workspace_id) REFERENCES Organizations(id) ON DELETE SET NULL;
+        `);
+        console.log('✅ Fixed Batches original_workspace_id constraint');
+      } catch (err) {
+        console.warn('Note: Could not fix Batches constraint:', (err as Error).message);
+      }
+
       // Fix actor_workspace constraint for AuditLog
       try {
         await this.pool.query(`
