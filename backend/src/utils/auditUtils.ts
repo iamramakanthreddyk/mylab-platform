@@ -6,7 +6,7 @@ export interface AuditLogEntry {
   objectId: string;
   action: string;
   actorId: string;
-  actorWorkspace: string | null;
+  actorWorkspace: string;
   actorOrgId?: string;
   details?: Record<string, any>;
   ipAddress?: string;
