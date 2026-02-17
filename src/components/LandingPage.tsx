@@ -34,7 +34,7 @@ const LandingPage: React.FC = () => {
         <div className="container mx-auto px-6 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-4">
-              <img src="/src/assets/Screenshot 2025-06-14 130350.png" alt="TekFlow Labs Logo" className="h-10 w-auto" />
+              <img src="/tekflow-logo.png" alt="TekFlow Labs Logo" className="h-10 w-auto" />
               <h1 className="text-2xl font-bold text-gray-900">TekFlow Labs</h1>
             </div>
             <Button
