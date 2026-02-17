@@ -1,23 +1,15 @@
-# Use official Node.js LTS image
-FROM node:18
+FROM node:20-alpine
 
-# Set working directory
 WORKDIR /app
 
-# Copy package.json and package-lock.json
-COPY package*.json ./
+COPY package.json ./
 
-# Install dependencies
-RUN npm ci --omit=dev
+RUN npm install
 
-# Copy the rest of the backend code
 COPY . .
 
-# Build TypeScript (if needed)
-RUN npm run build
+RUN npm run build && npm prune --omit=dev
 
-# Expose the port (Railway will set process.env.PORT)
 EXPOSE 3001
 
-# Start the server
 CMD ["npm", "start"]
