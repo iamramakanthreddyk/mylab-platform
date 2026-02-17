@@ -51,7 +51,7 @@ const LandingPage: React.FC = () => {
       <section className="relative py-20 px-4 overflow-hidden">
         <div className="max-w-7xl mx-auto text-center relative z-10">
           <div className="mb-8">
-            <h2 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-blue-600 via-purple-600 to-green-600 bg-clip-text text-transparent">
+            <h2 className="text-5xl md:text-7xl font-bold mb-6 bg-linear-to-r from-blue-600 via-purple-600 to-green-600 bg-clip-text text-transparent">
               TekFlow Labs
             </h2>
             <p className="text-xl md:text-2xl text-gray-600 mb-4 font-light">
@@ -118,12 +118,12 @@ const LandingPage: React.FC = () => {
                 <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
                 <span>Raw Materials</span>
               </div>
-              <div className="w-16 h-0.5 bg-gradient-to-r from-blue-500 to-purple-500"></div>
+              <div className="w-16 h-0.5 bg-linear-to-r from-blue-500 to-purple-500"></div>
               <div className="flex items-center space-x-2">
                 <div className="w-4 h-4 bg-purple-500 rounded-full animate-spin" style={{animationDuration: '3s'}}></div>
                 <span>Flow Reactor</span>
               </div>
-              <div className="w-16 h-0.5 bg-gradient-to-r from-purple-500 to-green-500"></div>
+              <div className="w-16 h-0.5 bg-linear-to-r from-purple-500 to-green-500"></div>
               <div className="flex items-center space-x-2">
                 <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
                 <span>Products</span>
@@ -194,7 +194,7 @@ const LandingPage: React.FC = () => {
         <div className="container mx-auto px-6 relative z-10">
           <h3 className="text-4xl font-bold text-center mb-12 text-gray-900">Services we offer</h3>
           <div className="grid md:grid-cols-2 gap-12">
-            <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-8 rounded-lg shadow-sm relative overflow-hidden">
+            <div className="bg-linear-to-br from-blue-50 to-blue-100 p-8 rounded-lg shadow-sm relative overflow-hidden">
               {/* Flow Animation */}
               <div className="absolute top-4 right-4 w-20 h-20 opacity-20">
                 <div className="w-full h-full border-2 border-blue-400 rounded-full animate-spin" style={{animationDuration: '8s'}}></div>
@@ -217,7 +217,7 @@ const LandingPage: React.FC = () => {
                 <li>Ensuring that the receiving organization is capable of consistently producing the drug to the required quality standards</li>
               </ul>
             </div>
-            <div className="bg-gradient-to-br from-green-50 to-green-100 p-8 rounded-lg shadow-sm relative overflow-hidden">
+            <div className="bg-linear-to-br from-green-50 to-green-100 p-8 rounded-lg shadow-sm relative overflow-hidden">
               {/* Flow Animation */}
               <div className="absolute top-4 right-4 w-20 h-20 opacity-20">
                 <div className="w-full h-full border-2 border-green-400 rounded-full animate-spin" style={{animationDuration: '6s'}}></div>
@@ -251,7 +251,7 @@ const LandingPage: React.FC = () => {
       {/* Business Model with Flow Graphics */}
       <section id="business-model" className="bg-gray-50 py-16 relative overflow-hidden">
         {/* Flowing Connection Lines */}
-        <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-200 via-green-200 via-purple-200 via-red-200 to-transparent opacity-30 hidden md:block"></div>
+        <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-linear-to-r from-blue-200 via-green-200 via-purple-200 via-red-200 to-transparent opacity-30 hidden md:block"></div>
 
         <div className="container mx-auto px-6 relative z-10">
           <h3 className="text-4xl font-bold text-center mb-12 text-gray-900">Our Business Model</h3>
@@ -435,7 +435,7 @@ const LandingPage: React.FC = () => {
       </section>
 
       {/* Flow Reactor Demonstration */}
-      <section className="bg-gradient-to-r from-gray-50 to-blue-50 py-20">
+      <section className="bg-linear-to-r from-gray-50 to-blue-50 py-20">
         <div className="container mx-auto px-6">
           <h3 className="text-4xl font-bold text-center mb-16 text-gray-900">Flow Chemistry in Action</h3>
 
@@ -768,7 +768,7 @@ const LandingPage: React.FC = () => {
       <section id="contact" className="bg-white py-16">
         <div className="container mx-auto px-6 text-center">
           <h3 className="text-4xl font-bold mb-8 text-gray-900">Contact Us</h3>
-          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
             <div className="bg-gray-50 p-6 rounded-lg">
               <h4 className="text-2xl font-semibold mb-4 text-gray-900">Registered Office</h4>
               <p className="text-gray-600">6-84, Maharajpet, Gopularam, Hyderabad, Telangana 501203</p>
@@ -778,6 +778,18 @@ const LandingPage: React.FC = () => {
               <h4 className="text-2xl font-semibold mb-4 text-gray-900">Lab Office</h4>
               <p className="text-gray-600">Road no 11, Plot no: 22-23, ALEAP Industrial Estate, Near Pragathi Nagar, Kukatpally, Hyderabad 500072, Telangana, India</p>
               <p className="text-gray-600">+91 6281733404</p>
+            </div>
+            <div className="bg-linear-to-br from-green-50 to-green-100 p-6 rounded-lg border-2 border-green-500">
+              <h4 className="text-2xl font-semibold mb-4 text-gray-900">💬 Quick Support</h4>
+              <p className="text-gray-600 mb-4">Chat with us directly on WhatsApp</p>
+              <a 
+                href="https://wa.me/917702475719?text=Hi%20TekflowLabs%2C%20I%20would%20like%20to%20know%20more%20about%20MyLab%20Platform"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
+              >
+                📱 WhatsApp: +91 7702475719
+              </a>
             </div>
           </div>
           <p className="text-gray-500 mt-8">© 2024 TekflowLabs. All rights reserved.</p>
@@ -803,6 +815,19 @@ const LandingPage: React.FC = () => {
           </Button>
         </div>
       </footer>
+
+      {/* Floating WhatsApp Button */}
+      <a
+        href="https://wa.me/917702475719?text=Hi%20TekflowLabs%2C%20I%20would%20like%20to%20know%20more%20about%20MyLab%20Platform"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="fixed bottom-6 right-6 bg-green-500 hover:bg-green-600 text-white rounded-full w-14 h-14 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-110 z-50 flex items-center justify-center text-2xl"
+        title="Chat with us on WhatsApp"
+      >
+        <svg className="w-7 h-7" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true">
+          <path d="M16.6 0C7.4 0 0 7.4 0 16.6c0 2.9.8 5.8 2.2 8.3L0 32l7.3-2.1c2.4 1.3 5.1 2 7.9 2 9.2 0 16.6-7.4 16.6-16.6C33.2 7.4 25.8 0 16.6 0zm0 30c-2.6 0-5.1-.7-7.3-2l-.5-.3-4.3 1.2 1.2-4.2-.3-.5c-1.4-2.2-2.1-4.7-2.1-7.2C3.3 8.7 9 3 16 3c7 0 12.7 5.7 12.7 12.7S23 30 16.6 30zm7.4-9.2c-.4-.2-2.3-1.1-2.7-1.2-.4-.2-.7-.2-1 .2-.3.4-1.1 1.2-1.4 1.5-.3.3-.5.3-.9.1-2.5-1.2-4.1-2.2-5.7-5-.4-.7.4-.7 1.1-2.3.1-.3 0-.6-.1-.8-.2-.2-1-.2-1.3-2.8-.3-.6-.6-.5-.9-.5-.2 0-.5 0-.8 0s-.8.1-1.2.6c-.4.5-1.6 1.5-1.6 3.6 0 2.1 1.6 4.1 1.8 4.4.2.3 3.2 5 7.7 7 .9.4 1.6.6 2.2.8.9.3 1.8.3 2.4.2.7-.1 2.3-.9 2.6-1.8.3-.9.3-1.6.2-1.8-.1-.2-.3-.3-.7-.5z" />
+        </svg>
+      </a>
     </div>
   );
 };
